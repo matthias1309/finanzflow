@@ -18,12 +18,18 @@ echo "======================================================"
 echo ""
 
 # -- 0. Passwortschutz konfigurieren ------------------------
-if [ -z "$APP_PASSWORD" ]; then
-  echo "Passwortschutz (leer lassen = kein Schutz):"
-  read -rsp "  APP_PASSWORD: " APP_PASSWORD
+# Das Passwort wird als bcrypt-Hash gespeichert -- niemals im Klartext.
+if [ -z "$APP_PASSWORD_HASH" ]; then
+  echo "Passwortschutz:"
+  read -rsp "  Passwort (leer lassen = kein Schutz): " RAW_PASS
   echo ""
+  if [ -n "$RAW_PASS" ]; then
+    echo "      Passwort wird gehasht..."
+    APP_PASSWORD_HASH=$(node -e "const b=require('bcryptjs'); console.log(b.hashSync(process.argv[1], 10))" "$RAW_PASS")
+    echo "      Hash erstellt."
+  fi
 fi
-if [ -n "$APP_PASSWORD" ] && [ -z "$APP_USER" ]; then
+if [ -n "$APP_PASSWORD_HASH" ] && [ -z "$APP_USER" ]; then
   APP_USER="admin"
 fi
 
@@ -80,7 +86,7 @@ fi
 cat > "$INI_FILE" << EOF
 [program:finanzflow]
 command=node $APP_DIR/index.cjs
-environment=NODE_ENV="production",PORT="$PORT",DB_PATH="$DB_DIR/finance.db",APP_PASSWORD="$APP_PASSWORD",APP_USER="${APP_USER:-admin}"
+environment=NODE_ENV="production",PORT="$PORT",DB_PATH="$DB_DIR/finance.db",APP_PASSWORD_HASH="${APP_PASSWORD_HASH}",APP_USER="${APP_USER:-admin}"
 autostart=yes
 autorestart=yes
 startsecs=10
@@ -113,7 +119,7 @@ echo "  App-URL:    https://$USER.uber.space/finanzflow"
 echo "  Port:       $PORT"
 echo "  Datenbank:  $DB_DIR/finance.db"
 echo "  Dienst:     $STATUS"
-if [ -n "$APP_PASSWORD" ]; then
+if [ -n "$APP_PASSWORD_HASH" ]; then
   echo "  Passwort:   gesetzt (Benutzer: ${APP_USER:-admin})"
 else
   echo "  Passwort:   KEIN SCHUTZ aktiv"
