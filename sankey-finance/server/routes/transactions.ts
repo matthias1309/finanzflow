@@ -1,12 +1,30 @@
 import { Router } from "express";
+import { z } from "zod";
 import { storage } from "../storage";
 import { insertTransactionSchema } from "@shared/schema";
 
 export const transactionsRouter = Router();
 
+// ─── Validierungs-Schemas ──────────────────────────────────────────────────────
+
+/** YYYY-MM — kein beliebiger String an die DB weitergeben */
+const monthSchema = z.string().regex(/^\d{4}-\d{2}$/, "Ungültiges Monatsformat (erwartet YYYY-MM)");
+
+/** Für PATCH: alle Felder optional, aber nur bekannte Felder erlaubt */
+const patchTransactionSchema = insertTransactionSchema.partial();
+
+// ─── Routes ───────────────────────────────────────────────────────────────────
+
 transactionsRouter.get("/", (req, res) => {
-  const month     = req.query.month     as string | undefined;
+  if (req.query.month) {
+    const parsed = monthSchema.safeParse(req.query.month);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+  }
+  const month     = req.query.month as string | undefined;
   const accountId = req.query.accountId ? parseInt(req.query.accountId as string) : undefined;
+  if (accountId !== undefined && isNaN(accountId)) {
+    return res.status(400).json({ error: "Ungültige accountId" });
+  }
   res.json(storage.getTransactions(month, accountId));
 });
 
@@ -18,26 +36,43 @@ transactionsRouter.post("/", (req, res) => {
 
 transactionsRouter.post("/batch", (req, res) => {
   if (!Array.isArray(req.body)) return res.status(400).json({ error: "Array erwartet" });
-  const valid = req.body
-    .map(item => insertTransactionSchema.safeParse(item))
-    .filter(r => r.success)
-    .map(r => r.data!);
-  res.status(201).json(storage.createTransactions(valid));
+
+  const results = req.body.map((item, idx) => ({
+    idx,
+    result: insertTransactionSchema.safeParse(item),
+  }));
+
+  const valid   = results.filter(r => r.result.success).map(r => r.result.data!);
+  const invalid = results.filter(r => !r.result.success).map(r => ({
+    idx:    r.idx,
+    errors: (r.result as any).error.flatten(),
+  }));
+
+  const created = storage.createTransactions(valid);
+  res.status(201).json({ created, skipped: invalid.length, errors: invalid });
 });
 
+/** PATCH: Partial-Update — nur bekannte Felder, Schema-validiert */
 transactionsRouter.patch("/:id", (req, res) => {
   const id = parseInt(req.params.id);
   if (isNaN(id)) return res.status(400).json({ error: "Ungültige ID" });
-  const tx = storage.updateTransaction(id, req.body);
+
+  const parsed = patchTransactionSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+  const tx = storage.updateTransaction(id, parsed.data);
   if (!tx) return res.status(404).json({ error: "Nicht gefunden" });
   res.json(tx);
 });
 
+/** PUT: vollständiges Ersetzen */
 transactionsRouter.put("/:id", (req, res) => {
   const id = parseInt(req.params.id);
   if (isNaN(id)) return res.status(400).json({ error: "Ungültige ID" });
+
   const parsed = insertTransactionSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
   const tx = storage.updateTransaction(id, parsed.data);
   if (!tx) return res.status(404).json({ error: "Nicht gefunden" });
   res.json(tx);

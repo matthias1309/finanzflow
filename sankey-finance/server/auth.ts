@@ -1,20 +1,43 @@
 import { type Request, type Response, type NextFunction } from "express";
 import bcrypt from "bcryptjs";
+import { timingSafeEqual } from "crypto";
 
 /**
- * Erstellt einen bcrypt-Hash für ein Klartext-Passwort.
- * Verwendung einmalig auf der Kommandozeile:
+ * Passwort-Hash einmalig generieren:
  *   node -e "const b=require('bcryptjs'); console.log(b.hashSync('MeinPasswort', 10))"
- * Den Hash dann als APP_PASSWORD_HASH in der supervisord .ini setzen.
+ * Den Hash als APP_PASSWORD_HASH in der supervisord .ini setzen.
+ * In supervisord müssen $ als $$ escaped werden (je nach Version).
  */
-
 const PASSWORD_HASH = process.env.APP_PASSWORD_HASH ?? "";
-const APP_USER     = process.env.APP_USER ?? "admin";
+const APP_USER      = process.env.APP_USER ?? "admin";
+
+// ─── Fail-Secure: Server verweigert Start ohne Passwort ───────────────────────
+// Eine Finanz-App ohne Passwortschutz ist inakzeptabel.
+// Einzige Ausnahme: lokale Entwicklung (NODE_ENV !== "production").
+if (!PASSWORD_HASH && process.env.NODE_ENV === "production") {
+  console.error(
+    "[FATAL] APP_PASSWORD_HASH ist nicht gesetzt.\n" +
+    "        Die App startet im production-Modus nicht ohne Passwortschutz.\n" +
+    "        Hash erzeugen: node -e \"const b=require('bcryptjs'); console.log(b.hashSync('DeinPasswort', 10))\"\n" +
+    "        Dann APP_PASSWORD_HASH in der supervisord .ini setzen."
+  );
+  process.exit(1);
+}
 
 /**
- * Basic-Auth-Middleware. Nur aktiv wenn APP_PASSWORD_HASH gesetzt ist.
- * Vergleicht das eingegebene Passwort gegen den gespeicherten bcrypt-Hash —
- * das Klartext-Passwort wird nie persistent gespeichert.
+ * Vergleicht zwei Strings timing-sicher (verhindert Timing-Attacks auf den Benutzernamen).
+ * bcrypt.compareSync() ist bereits timing-sicher für den Passwort-Teil.
+ */
+function safeStringEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(Buffer.from(a), Buffer.from(b));
+}
+
+/**
+ * Basic-Auth-Middleware.
+ * - Production ohne Hash: Server startet gar nicht (siehe oben).
+ * - Development ohne Hash: Middleware durchgelassen (kein Schutz, aber kein Blocker).
+ * - Mit Hash: Benutzername timing-sicher, Passwort via bcrypt.
  */
 export function basicAuthMiddleware(
   req: Request,
@@ -22,7 +45,7 @@ export function basicAuthMiddleware(
   next: NextFunction,
 ): void {
   if (!PASSWORD_HASH) {
-    // Kein Passwort konfiguriert → kein Schutz (opt-in)
+    // Nur erreichbar in development (NODE_ENV !== "production")
     next();
     return;
   }
@@ -30,12 +53,12 @@ export function basicAuthMiddleware(
   const authHeader = req.headers["authorization"] ?? "";
 
   if (authHeader.startsWith("Basic ")) {
-    const decoded = Buffer.from(authHeader.slice(6), "base64").toString("utf8");
+    const decoded  = Buffer.from(authHeader.slice(6), "base64").toString("utf8");
     const colonIdx = decoded.indexOf(":");
     if (colonIdx !== -1) {
       const user = decoded.slice(0, colonIdx);
       const pass = decoded.slice(colonIdx + 1);
-      if (user === APP_USER && bcrypt.compareSync(pass, PASSWORD_HASH)) {
+      if (safeStringEqual(user, APP_USER) && bcrypt.compareSync(pass, PASSWORD_HASH)) {
         next();
         return;
       }

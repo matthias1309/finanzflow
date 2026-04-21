@@ -36,8 +36,6 @@ summaryRouter.get("/:month", (req, res) => {
   const accs = storage.getAccounts();
 
   const catMap = buildMap(cats, c => c.id);
-  const accMap = buildMap(accs, a => a.id); // eslint-disable-line @typescript-eslint/no-unused-vars
-
   const accountSummaries = buildAccountSummaries(accs, txs, catMap);
 
   const totalIncome   = sumField(Object.values(accountSummaries), s => s.totalIncome);

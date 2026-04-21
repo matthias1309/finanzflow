@@ -8,6 +8,13 @@ import { cn } from "@/lib/utils"
 // Format: { THEME_NAME: CSS_SELECTOR }
 const THEMES = { light: "", dark: ".dark" } as const
 
+// ── CSS-Sanitizer für dangerouslySetInnerHTML ──────────────────────────────
+// Verhindert CSS-Injection durch benutzerdefinierte Chart-IDs oder Farb-Keys.
+/** Erlaubt nur alphanumerische Zeichen und Bindestriche in CSS-Selektoren */
+const sanitizeCssId  = (s: string) => s.replace(/[^a-zA-Z0-9-_]/g, "")
+/** Erlaubt nur alphanumerische Zeichen und Bindestriche in CSS-Property-Keys */
+const sanitizeCssKey = (s: string) => s.replace(/[^a-zA-Z0-9-_]/g, "")
+
 export type ChartConfig = {
   [k in string]: {
     label?: React.ReactNode
@@ -82,13 +89,15 @@ const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
         __html: Object.entries(THEMES)
           .map(
             ([theme, prefix]) => `
-${prefix} [data-chart=${id}] {
+${prefix} [data-chart=${sanitizeCssId(id)}] {
 ${colorConfig
   .map(([key, itemConfig]) => {
     const color =
       itemConfig.theme?.[theme as keyof typeof itemConfig.theme] ||
       itemConfig.color
-    return color ? `  --color-${key}: ${color};` : null
+    // Only allow valid CSS color values (hex, rgb, hsl, named colors)
+    const safeColor = color && /^(#[0-9a-fA-F]{3,8}|rgb\(|hsl\(|[a-z]+)/.test(color) ? color : null
+    return safeColor ? `  --color-${sanitizeCssKey(key)}: ${safeColor};` : null
   })
   .join("\n")}
 }

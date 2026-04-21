@@ -50,9 +50,35 @@ export type InsertCategoryRule = z.infer<typeof insertCategoryRuleSchema>;
 export type CategoryRule = typeof categoryRules.$inferSelect;
 
 // ─── Insert schemas ──────────────────────────────────────────
-export const insertAccountSchema = createInsertSchema(accounts).omit({ id: true });
-export const insertCategorySchema = createInsertSchema(categories).omit({ id: true });
-export const insertTransactionSchema = createInsertSchema(transactions).omit({ id: true });
+/** Hex-Farbe: #rrggbb oder #rgb */
+const hexColorSchema = z.string().regex(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/, "Ungültiges Farbformat (erwartet #rrggbb)");
+
+/** IBAN: 2 Buchstaben + 2 Ziffern + bis zu 30 alphanumerische Zeichen, Leerzeichen erlaubt */
+const ibanSchema = z.string().regex(/^[A-Z]{2}\d{2}[A-Z0-9]{4,30}$/, "Ungültige IBAN").nullable().optional();
+
+/** Erlaubte Konto-Typen */
+const accountTypeSchema = z.enum(["checking", "savings", "rental", "investment", "cash"]);
+
+/** Erlaubte Kategorie-Typen */
+const categoryTypeSchema = z.enum(["income", "expense", "transfer"]);
+
+/** Erlaubte Buchungs-Typen */
+const transactionTypeSchema = z.enum(["income", "expense", "transfer"]);
+
+export const insertAccountSchema = createInsertSchema(accounts).omit({ id: true }).extend({
+  color: hexColorSchema,
+  iban:  ibanSchema,
+  type:  accountTypeSchema,
+});
+
+export const insertCategorySchema = createInsertSchema(categories).omit({ id: true }).extend({
+  color: hexColorSchema,
+  type:  categoryTypeSchema,
+});
+
+export const insertTransactionSchema = createInsertSchema(transactions).omit({ id: true }).extend({
+  type: transactionTypeSchema,
+});
 
 // ─── Types ───────────────────────────────────────────────────
 export type InsertAccount = z.infer<typeof insertAccountSchema>;

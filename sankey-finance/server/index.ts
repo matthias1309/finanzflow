@@ -1,6 +1,7 @@
 import express, { type Request, type Response, type NextFunction } from "express";
 import { createServer } from "http";
 import { basicAuthMiddleware } from "./auth";
+import { securityHeadersMiddleware, csrfProtectionMiddleware } from "./securityHeaders";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 
@@ -8,7 +9,9 @@ const app        = express();
 const httpServer = createServer(app);
 
 // ── Sicherheit ────────────────────────────────────────────────────────────────
-app.use(basicAuthMiddleware);
+app.use(securityHeadersMiddleware);      // HTTP Security-Header (helmet)
+app.use(basicAuthMiddleware);            // Basic Auth (bcrypt)
+app.use(csrfProtectionMiddleware);       // CSRF Origin/Referer-Check
 
 // ── Body parsing ──────────────────────────────────────────────────────────────
 app.use(express.json());
