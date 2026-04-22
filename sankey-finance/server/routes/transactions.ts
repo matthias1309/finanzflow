@@ -47,6 +47,7 @@ transactionsRouter.post("/", (req, res) => {
 
 transactionsRouter.post("/batch", batchRateLimiter, (req, res) => {
   if (!Array.isArray(req.body)) return res.status(400).json({ error: "Array erwartet" });
+  if (req.body.length > 500) return res.status(400).json({ error: "Maximal 500 Transaktionen pro Request" });
 
   const results = req.body.map((item, idx) => ({
     idx,

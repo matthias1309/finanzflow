@@ -42,7 +42,13 @@ pdfRouter.post("/", pdfRateLimiter, upload.single("pdf"), async (req, res) => {
   }
 
   try {
-    const result = await parsePDF(req.file.buffer);
+    const PDF_TIMEOUT_MS = 10_000;
+    const result = await Promise.race([
+      parsePDF(req.file.buffer),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("PDF-Verarbeitung Timeout")), PDF_TIMEOUT_MS)
+      ),
+    ]);
     const transactions = result.transactions.map(tx => ({
       ...tx,
       suggestedCategoryId: storage.suggestCategory(tx.description),

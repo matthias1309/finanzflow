@@ -39,12 +39,25 @@ if (!PASSWORD_HASH && process.env.NODE_ENV === "production") {
 }
 
 /**
- * Vergleicht zwei Strings timing-sicher (verhindert Timing-Attacks auf den Benutzernamen).
- * bcrypt.compareSync() ist bereits timing-sicher für den Passwort-Teil.
+ * Vergleicht zwei Strings vollständig timing-sicher.
+ *
+ * Naive Implementierung:
+ *   if (a.length !== b.length) return false  ← leakt Längeninformation per Timing
+ *
+ * Korrekte Implementierung: beide Strings in gleich große Puffer kopieren
+ * und immer timingSafeEqual aufrufen — kein Early-Return bei falscher Länge.
+ * Die Längenprüfung erfolgt danach als separate, nicht-timing-relevante Bedingung.
  */
 function safeStringEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  return timingSafeEqual(Buffer.from(a), Buffer.from(b));
+  const FIXED_LEN = 256;
+  const aBuf = Buffer.alloc(FIXED_LEN);
+  const bBuf = Buffer.alloc(FIXED_LEN);
+  Buffer.from(a).copy(aBuf);
+  Buffer.from(b).copy(bBuf);
+  // timingSafeEqual läuft immer — kein Early-Return bei Längendifferenz
+  const bufEqual    = timingSafeEqual(aBuf, bBuf);
+  const lenEqual    = a.length === b.length;
+  return bufEqual && lenEqual;
 }
 
 /**

@@ -15,8 +15,11 @@ app.use(basicAuthMiddleware);            // Basic Auth (bcrypt)
 app.use(csrfProtectionMiddleware);       // CSRF Origin/Referer-Check
 
 // ── Body parsing ──────────────────────────────────────────────────────────────
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+// Explizites Body-Limit — Express-Default (100 kb) ist zwar akzeptabel,
+// aber hier dokumentiert und auf 200 kb gesetzt um große Batch-Imports
+// (bis 500 Transaktionen à ~400 Bytes = ~200 kb) zu ermöglichen.
+app.use(express.json({ limit: "200kb" }));
+app.use(express.urlencoded({ extended: false, limit: "200kb" }));
 
 // ── Request-Logging ───────────────────────────────────────────────────────────
 app.use((req, res, next) => {
