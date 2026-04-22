@@ -1,6 +1,6 @@
 import express, { type Request, type Response, type NextFunction } from "express";
 import { createServer } from "http";
-import { basicAuthMiddleware } from "./auth";
+import { basicAuthMiddleware, authRateLimiter } from "./auth";
 import { securityHeadersMiddleware, csrfProtectionMiddleware } from "./securityHeaders";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
@@ -10,6 +10,7 @@ const httpServer = createServer(app);
 
 // ── Sicherheit ────────────────────────────────────────────────────────────────
 app.use(securityHeadersMiddleware);      // HTTP Security-Header (helmet)
+app.use(authRateLimiter);               // Brute-Force-Schutz (10 Versuche / 15 min)
 app.use(basicAuthMiddleware);            // Basic Auth (bcrypt)
 app.use(csrfProtectionMiddleware);       // CSRF Origin/Referer-Check
 
@@ -35,10 +36,17 @@ app.use((req, res, next) => {
 
   // Fehlerbehandlung
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-    const status  = err.status ?? err.statusCode ?? 500;
-    const message = err.message ?? "Internal Server Error";
+    const status = err.status ?? err.statusCode ?? 500;
+    // Interne Details nur ins Server-Log, niemals an den Client
     console.error("Unhandled error:", err);
-    if (!res.headersSent) res.status(status).json({ message });
+    if (!res.headersSent) {
+      // 4xx: Fehlermeldung kann an Client gehen (validerungsfehler etc.)
+      // 5xx: Generische Meldung — kein Leak von Pfaden, Stack-Traces oder Systeminfos
+      const message = status < 500
+        ? (err.message ?? "Bad Request")
+        : "Ein interner Fehler ist aufgetreten.";
+      res.status(status).json({ message });
+    }
   });
 
   if (process.env.NODE_ENV === "production") {

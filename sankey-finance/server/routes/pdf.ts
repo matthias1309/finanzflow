@@ -38,6 +38,8 @@ pdfRouter.post("/", upload.single("pdf"), async (req, res) => {
     }));
     res.json({ ...result, transactions });
   } catch (err: any) {
-    res.status(500).json({ error: `PDF-Verarbeitung fehlgeschlagen: ${err.message}` });
+    // Interne Fehlermeldung nur ins Server-Log, nicht an den Client
+    console.error("PDF-Verarbeitung fehlgeschlagen:", err);
+    res.status(500).json({ error: "PDF konnte nicht verarbeitet werden. Bitte Datei prüfen." });
   }
 });

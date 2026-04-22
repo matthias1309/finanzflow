@@ -82,7 +82,8 @@ function parseN26(text: string): ParsedTransaction[] {
   //   - name can contain letters, digits, spaces, dots, *, /
   //   - multiple spaces separate name, date, amount
   //   - amount always ends with €, may have + or - prefix
-  const TX_LINE = /^(.+?)\s{2,}(\d{2}\.\d{2}\.\d{4})\s{2,}([+-]?\d{1,3}(?:\.\d{3})*,\d{2})€\s*$/;
+  // Längenbegrenzung auf 100 Zeichen verhindert ReDoS durch exponentielles Backtracking
+const TX_LINE = /^(.{1,100}?)\s{2,}(\d{2}\.\d{2}\.\d{4})\s{2,}([+-]?\d{1,3}(?:\.\d{3})*,\d{2})€\s*$/;
 
   // Also capture Mastercard one-liner format:
   //   "Mastercard • Kategorie" or "Mastercard" on previous line, then TX_LINE
@@ -175,7 +176,8 @@ function parseDKB(text: string): ParsedTransaction[] {
   // Transaction line: TT.MM.JJ  (spaces)  NAME  (spaces)  BETRAG
   // Amount: optional minus, digits, dot, 2 decimal digits — NO € symbol
   // Name can be long with mixed chars
-  const TX_LINE = /^(\d{2}\.\d{2}\.\d{2})\s{2,}(.+?)\s{2,}(-?\d+\.\d{2})\s*$/;
+  // Längenbegrenzung auf 100 Zeichen verhindert ReDoS durch exponentielles Backtracking
+const TX_LINE = /^(\d{2}\.\d{2}\.\d{2})\s{2,}(.{1,100}?)\s{2,}(-?\d+\.\d{2})\s*$/;
 
   const SKIP_LINE = /^(Datum|Erläuterung|Betrag EUR|Seite|IBAN\s|DE\d{2}|Ein Unternehmen|Bayerischen|DKB Deutsche|Taubenstraße|10117 Berlin|USt-ID|Arnulf|Tilo|Dr\. Sven|Handelsregister|Berlin-Charlottenburg|HRB|Stephan|Vorsitzender|www\.dkb|info@dkb|BIC:|Export Umsatz|Zeitraum|Anzahl)/i;
 

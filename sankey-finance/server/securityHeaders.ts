@@ -53,6 +53,22 @@ export const securityHeadersMiddleware = helmet({
 const ALLOWED_ORIGIN = process.env.APP_ORIGIN ?? "";
 const SAFE_METHODS   = new Set(["GET", "HEAD", "OPTIONS"]);
 
+/**
+ * Vergleicht den Origin einer URL exakt gegen einen erlaubten Origin.
+ * Verwendet new URL() um Bypass via Subdomain-Tricks zu verhindern:
+ *   startsWith("https://example.com") würde auch
+ *   "https://example.com.evil.com" akzeptieren.
+ */
+function safeOriginMatch(headerValue: string, allowedOrigin: string): boolean {
+  try {
+    const parsed = new URL(headerValue);
+    return parsed.origin === allowedOrigin;
+  } catch {
+    // Ungültige URL → ablehnen
+    return false;
+  }
+}
+
 export function csrfProtectionMiddleware(
   req:  Request,
   res:  Response,
@@ -78,8 +94,9 @@ export function csrfProtectionMiddleware(
     return;
   }
 
-  const isOriginOk  = origin  && origin.startsWith(ALLOWED_ORIGIN);
-  const isRefererOk = referer && referer.startsWith(ALLOWED_ORIGIN);
+  // URL-Parsing statt startsWith() — verhindert Bypass via https://example.com.evil.com
+  const isOriginOk  = origin  && safeOriginMatch(origin,  ALLOWED_ORIGIN);
+  const isRefererOk = referer && safeOriginMatch(referer, ALLOWED_ORIGIN);
 
   if (!isOriginOk && !isRefererOk) {
     res.status(403).json({ error: "CSRF: Ungültiger Origin" });

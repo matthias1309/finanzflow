@@ -1,6 +1,7 @@
 import { type Request, type Response, type NextFunction } from "express";
 import bcrypt from "bcryptjs";
 import { timingSafeEqual } from "crypto";
+import rateLimit from "express-rate-limit";
 
 /**
  * Passwort-Hash einmalig generieren:
@@ -10,6 +11,19 @@ import { timingSafeEqual } from "crypto";
  */
 const PASSWORD_HASH = process.env.APP_PASSWORD_HASH ?? "";
 const APP_USER      = process.env.APP_USER ?? "admin";
+
+// ─── Brute-Force-Schutz ──────────────────────────────────────────────────────
+// Max. 10 fehlgeschlagene Login-Versuche pro IP in 15 Minuten.
+// Bei Überschreitung: 429 Too Many Requests für weitere 15 Minuten.
+export const authRateLimiter = rateLimit({
+  windowMs:         15 * 60 * 1000, // 15 Minuten
+  max:              10,              // max. Versuche pro Fenster
+  standardHeaders:  true,
+  legacyHeaders:    false,
+  skipSuccessfulRequests: true,      // Zähler nur bei 401 erhöhen
+  message:          { error: "Zu viele Login-Versuche. Bitte in 15 Minuten erneut versuchen." },
+  keyGenerator:     (req) => req.ip ?? "unknown",
+});
 
 // ─── Fail-Secure: Server verweigert Start ohne Passwort ───────────────────────
 // Eine Finanz-App ohne Passwortschutz ist inakzeptabel.
