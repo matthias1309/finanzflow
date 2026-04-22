@@ -129,7 +129,14 @@ const TX_LINE = /^(.{1,100}?)\s{2,}(\d{2}\.\d{2}\.\d{4})\s{2,}([+-]?\d{1,3}(?:\.
         // Stop at date-only or date+context lines
         if (/^\d{2}\.\d{2}\.\d{4}$/.test(prev)) continue;
         // Good context line: not just a date, not too long
-        if (prev.length > 2 && prev.length < 120 && !/^(Jahnstraße|Matthias Bender\b.*\d{5})/.test(prev)) {
+        // Kontoinhaber-Zeilen (Name + PLZ oder Straßenname) überspringen.
+        // Konfigurierbar über Umgebungsvariable ACCOUNT_HOLDER_PATTERN (Regex-String).
+        // Beispiel in supervisord .ini: ACCOUNT_HOLDER_PATTERN="Max Mustermann|Musterstraße"
+        const holderPattern = process.env.ACCOUNT_HOLDER_PATTERN
+          ? new RegExp(process.env.ACCOUNT_HOLDER_PATTERN, "i")
+          : null;
+        const isAccountHolder = holderPattern ? holderPattern.test(prev) : false;
+        if (prev.length > 2 && prev.length < 120 && !isAccountHolder) {
           contextLines.unshift(prev);
           break; // only take the immediately preceding meaningful line
         }
