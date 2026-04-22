@@ -1,7 +1,18 @@
 import { Router } from "express";
 import { z } from "zod";
+import rateLimit from "express-rate-limit";
 import { storage } from "../storage";
 import { insertTransactionSchema } from "@shared/schema";
+
+/** Max. 20 Batch-Imports pro IP in 15 Minuten */
+const batchRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max:      20,
+  standardHeaders: true,
+  legacyHeaders:   false,
+  message: { error: "Zu viele Batch-Requests. Bitte in 15 Minuten erneut versuchen." },
+  keyGenerator: (req) => req.ip ?? "unknown",
+});
 
 export const transactionsRouter = Router();
 
@@ -34,7 +45,7 @@ transactionsRouter.post("/", (req, res) => {
   res.status(201).json(storage.createTransaction(parsed.data));
 });
 
-transactionsRouter.post("/batch", (req, res) => {
+transactionsRouter.post("/batch", batchRateLimiter, (req, res) => {
   if (!Array.isArray(req.body)) return res.status(400).json({ error: "Array erwartet" });
 
   const results = req.body.map((item, idx) => ({

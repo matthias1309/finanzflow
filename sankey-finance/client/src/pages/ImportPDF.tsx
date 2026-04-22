@@ -1,3 +1,4 @@
+import { safeCssColor } from "@/lib/config";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useState, useRef, useCallback } from "react";
@@ -191,7 +192,7 @@ export default function ImportPDF() {
                     {accounts.map(a => (
                       <SelectItem key={a.id} value={String(a.id)}>
                         <span className="flex items-center gap-2">
-                          <span className="w-2 h-2 rounded-sm inline-block" style={{ backgroundColor: a.color }} />
+                          <span className="w-2 h-2 rounded-sm inline-block" style={{ backgroundColor: safeCssColor(a.color) }} />
                           {a.name}
                         </span>
                       </SelectItem>
@@ -342,7 +343,7 @@ export default function ImportPDF() {
                               {accounts.map(a => (
                                 <SelectItem key={a.id} value={String(a.id)}>
                                   <span className="flex items-center gap-1.5">
-                                    <span className="w-2 h-2 rounded-sm" style={{ backgroundColor: a.color }} />
+                                    <span className="w-2 h-2 rounded-sm" style={{ backgroundColor: safeCssColor(a.color) }} />
                                     <span className="truncate max-w-[100px]">{a.name}</span>
                                   </span>
                                 </SelectItem>
@@ -370,9 +371,9 @@ export default function ImportPDF() {
                               </SelectTrigger>
                               <SelectContent>
                                 <div className="px-2 py-1 text-xs text-muted-foreground font-medium uppercase tracking-wide">Einnahmen</div>
-                                {incCats.map(c => <SelectItem key={c.id} value={String(c.id)}><span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-sm" style={{ backgroundColor: c.color }} />{c.name}</span></SelectItem>)}
+                                {incCats.map(c => <SelectItem key={c.id} value={String(c.id)}><span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-sm" style={{ backgroundColor: safeCssColor(c.color) }} />{c.name}</span></SelectItem>)}
                                 <div className="px-2 py-1 text-xs text-muted-foreground font-medium uppercase tracking-wide mt-1">Ausgaben</div>
-                                {expCats.map(c => <SelectItem key={c.id} value={String(c.id)}><span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-sm" style={{ backgroundColor: c.color }} />{c.name}</span></SelectItem>)}
+                                {expCats.map(c => <SelectItem key={c.id} value={String(c.id)}><span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-sm" style={{ backgroundColor: safeCssColor(c.color) }} />{c.name}</span></SelectItem>)}
                               </SelectContent>
                             </Select>
                             {/* Funken-Icon wenn Auto-Vorschlag aktiv */}

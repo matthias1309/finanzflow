@@ -1,3 +1,4 @@
+import { safeCssColor } from "@/lib/config";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useState } from "react";
@@ -159,7 +160,7 @@ export default function Categories() {
                   {income.map(cat => (
                     <div key={cat.id} className="flex items-center justify-between gap-3 py-1.5 px-2 rounded-md hover:bg-muted/40 group" data-testid={`cat-item-${cat.id}`}>
                       <div className="flex items-center gap-2.5">
-                        <div className="w-3 h-3 rounded-sm flex-shrink-0" style={{ backgroundColor: cat.color }} />
+                        <div className="w-3 h-3 rounded-sm flex-shrink-0" style={{ backgroundColor: safeCssColor(cat.color) }} />
                         <span className="text-sm text-foreground">{cat.name}</span>
                       </div>
                       <Button
@@ -197,7 +198,7 @@ export default function Categories() {
                   {expenses.map(cat => (
                     <div key={cat.id} className="flex items-center justify-between gap-3 py-1.5 px-2 rounded-md hover:bg-muted/40 group" data-testid={`cat-item-${cat.id}`}>
                       <div className="flex items-center gap-2.5">
-                        <div className="w-3 h-3 rounded-sm flex-shrink-0" style={{ backgroundColor: cat.color }} />
+                        <div className="w-3 h-3 rounded-sm flex-shrink-0" style={{ backgroundColor: safeCssColor(cat.color) }} />
                         <span className="text-sm text-foreground">{cat.name}</span>
                       </div>
                       <Button

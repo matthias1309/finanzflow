@@ -1,3 +1,4 @@
+import { safeCssColor } from "@/lib/config";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useState } from "react";
@@ -157,7 +158,7 @@ export default function Accounts() {
                 <CardContent className="pt-5 pb-4 px-5">
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="w-4 h-4 rounded-md flex-shrink-0 mt-0.5" style={{ backgroundColor: acc.color }} />
+                      <div className="w-4 h-4 rounded-md flex-shrink-0 mt-0.5" style={{ backgroundColor: safeCssColor(acc.color) }} />
                       <div>
                         <p className="text-sm font-medium text-foreground">{acc.name}</p>
                         <div className="flex items-center gap-2 mt-1">

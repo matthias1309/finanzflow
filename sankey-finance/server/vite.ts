@@ -12,7 +12,10 @@ export async function setupVite(server: Server, app: Express) {
   const serverOptions = {
     middlewareMode: true,
     hmr: { server, path: "/vite-hmr" },
-    allowedHosts: true as const,
+    // "true" erlaubt beliebige Hosts — in Dev auf localhost beschränken.
+    // Perplexity-Sandbox benötigt alle Subdomains (.perplexity.ai), daher
+    // nur in echtem localhost-Dev einschränken.
+    allowedHosts: process.env.PERPLEXITY_SANDBOX ? (true as const) : ["localhost", "127.0.0.1"],
   };
 
   const vite = await createViteServer({

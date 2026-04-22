@@ -24,7 +24,9 @@ app.use((req, res, next) => {
   res.on("finish", () => {
     if (req.path.startsWith("/api")) {
       const duration = Date.now() - start;
-      console.log(`${req.method} ${req.path} ${res.statusCode} in ${duration}ms`);
+      // Newlines aus req.path entfernen — verhindert Log-Injection via \r\n
+      const safePath = req.path.replace(/[\r\n]/g, "_");
+      console.log(`${req.method} ${safePath} ${res.statusCode} in ${duration}ms`);
     }
   });
   next();

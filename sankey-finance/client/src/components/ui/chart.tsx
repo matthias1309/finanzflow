@@ -95,8 +95,8 @@ ${colorConfig
     const color =
       itemConfig.theme?.[theme as keyof typeof itemConfig.theme] ||
       itemConfig.color
-    // Only allow valid CSS color values (hex, rgb, hsl, named colors)
-    const safeColor = color && /^(#[0-9a-fA-F]{3,8}|rgb\(|hsl\(|[a-z]+)/.test(color) ? color : null
+    // Vollständige Regex mit $ — verhindert Injection wie "rgb(0,0,0; injection)"
+    const safeColor = color && /^(#[0-9a-fA-F]{3,8}|rgb\(\d{1,3},\s*\d{1,3},\s*\d{1,3}\)|hsl\(\d{1,3},\s*\d{1,3}%,\s*\d{1,3}%\))$/i.test(color) ? color : null
     return safeColor ? `  --color-${sanitizeCssKey(key)}: ${safeColor};` : null
   })
   .join("\n")}

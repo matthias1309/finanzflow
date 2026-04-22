@@ -1,3 +1,4 @@
+import { safeCssColor } from "@/lib/config";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useState, useMemo } from "react";
@@ -115,7 +116,7 @@ export default function Dashboard() {
                 <Card key={acc.id} className="bg-card border-border" data-testid={`account-kpi-${acc.id}`}>
                   <CardContent className="pt-4 pb-3 px-4">
                     <div className="flex items-center gap-2 mb-2">
-                      <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: acc.color }} />
+                      <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: safeCssColor(acc.color) }} />
                       <span className="text-xs font-medium text-foreground truncate">{acc.name}</span>
                       <Badge variant="secondary" className="ml-auto text-xs border-0 px-1.5 py-0">{acc.bank}</Badge>
                     </div>

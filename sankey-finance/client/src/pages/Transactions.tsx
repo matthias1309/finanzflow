@@ -1,3 +1,4 @@
+import { safeCssColor } from "@/lib/config";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useState, useMemo } from "react";
@@ -81,7 +82,7 @@ export default function Transactions() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Alle Konten</SelectItem>
-              {accounts.map(a => <SelectItem key={a.id} value={String(a.id)}><span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-sm" style={{ backgroundColor: a.color }} />{a.name}</span></SelectItem>)}
+              {accounts.map(a => <SelectItem key={a.id} value={String(a.id)}><span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-sm" style={{ backgroundColor: safeCssColor(a.color) }} />{a.name}</span></SelectItem>)}
             </SelectContent>
           </Select>
 
@@ -131,7 +132,7 @@ export default function Transactions() {
                       <Select value={field.value ? String(field.value) : ""} onValueChange={v => field.onChange(parseInt(v))}>
                         <FormControl><SelectTrigger><SelectValue placeholder="Konto wählen…" /></SelectTrigger></FormControl>
                         <SelectContent>
-                          {accounts.map(a => <SelectItem key={a.id} value={String(a.id)}><span className="flex items-center gap-2"><span className="w-2 h-2 rounded-sm" style={{ backgroundColor: a.color }} />{a.name}</span></SelectItem>)}
+                          {accounts.map(a => <SelectItem key={a.id} value={String(a.id)}><span className="flex items-center gap-2"><span className="w-2 h-2 rounded-sm" style={{ backgroundColor: safeCssColor(a.color) }} />{a.name}</span></SelectItem>)}
                         </SelectContent>
                       </Select><FormMessage /></FormItem>
                   )} />
@@ -153,7 +154,7 @@ export default function Transactions() {
                       <Select value={field.value ? String(field.value) : ""} onValueChange={v => field.onChange(parseInt(v))}>
                         <FormControl><SelectTrigger><SelectValue placeholder="Kategorie wählen…" /></SelectTrigger></FormControl>
                         <SelectContent>
-                          {filteredCats.map(c => <SelectItem key={c.id} value={String(c.id)}><span className="flex items-center gap-2"><span className="w-2 h-2 rounded-sm" style={{ backgroundColor: c.color }} />{c.name}</span></SelectItem>)}
+                          {filteredCats.map(c => <SelectItem key={c.id} value={String(c.id)}><span className="flex items-center gap-2"><span className="w-2 h-2 rounded-sm" style={{ backgroundColor: safeCssColor(c.color) }} />{c.name}</span></SelectItem>)}
                         </SelectContent>
                       </Select><FormMessage /></FormItem>
                   )} />
@@ -222,10 +223,10 @@ export default function Transactions() {
                         <tr key={tx.id} className="border-b border-border/50 hover:bg-muted/25 transition-colors">
                           <td className="px-5 py-2.5 text-foreground max-w-xs truncate">{tx.description}</td>
                           <td className="px-5 py-2.5">
-                            {acc ? <span className="flex items-center gap-1.5 text-xs text-muted-foreground"><span className="w-2 h-2 rounded-sm" style={{ backgroundColor: acc.color }} />{acc.name}</span> : "—"}
+                            {acc ? <span className="flex items-center gap-1.5 text-xs text-muted-foreground"><span className="w-2 h-2 rounded-sm" style={{ backgroundColor: safeCssColor(acc.color) }} />{acc.name}</span> : "—"}
                           </td>
                           <td className="px-5 py-2.5">
-                            {cat ? <span className="flex items-center gap-1.5 text-xs text-muted-foreground"><span className="w-2 h-2 rounded-sm" style={{ backgroundColor: cat.color }} />{cat.name}</span> : <span className="text-xs text-muted-foreground/50">—</span>}
+                            {cat ? <span className="flex items-center gap-1.5 text-xs text-muted-foreground"><span className="w-2 h-2 rounded-sm" style={{ backgroundColor: safeCssColor(cat.color) }} />{cat.name}</span> : <span className="text-xs text-muted-foreground/50">—</span>}
                           </td>
                           <td className="px-5 py-2.5">
                             <Badge variant="secondary" className={`border-0 text-xs ${tx.type === "income" ? "bg-green-500/10 text-green-500" : tx.type === "transfer" ? "bg-blue-500/10 text-blue-400" : "bg-red-400/10 text-red-400"}`}>
