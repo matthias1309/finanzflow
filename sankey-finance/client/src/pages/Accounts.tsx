@@ -169,10 +169,10 @@ export default function Accounts() {
                       </div>
                     </div>
                     <div className="flex gap-1">
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={() => openEdit(acc)}>
+                      <Button data-testid={`button-edit-account-${acc.id}`} variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={() => openEdit(acc)}>
                         <Pencil size={13} />
                       </Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => deleteMut.mutate(acc.id)}>
+                      <Button data-testid={`button-delete-account-${acc.id}`} variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => deleteMut.mutate(acc.id)}>
                         <Trash2 size={13} />
                       </Button>
                     </div>

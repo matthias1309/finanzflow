@@ -24,13 +24,13 @@ export interface ParseResult {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function parseGermanAmount(s: string): number {
+export function parseGermanAmount(s: string): number {
   // Remove thousands separators (.), replace decimal comma with dot, strip currency symbol
   const clean = s.replace(/[€\s]/g, "").replace(/\./g, "").replace(",", ".");
   return parseFloat(clean);
 }
 
-function parseGermanDate(s: string): { iso: string; month: string } | null {
+export function parseGermanDate(s: string): { iso: string; month: string } | null {
   const m = s.match(/(\d{2})\.(\d{2})\.(\d{2,4})/);
   if (!m) return null;
   const day = m[1], mo = m[2];
@@ -55,7 +55,7 @@ async function extractPDFText(buffer: Buffer): Promise<string> {
 
 // ─── Bank detection ───────────────────────────────────────────────────────────
 
-function detectBank(text: string): string {
+export function detectBank(text: string): string {
   const t = text.toLowerCase();
   if (t.includes("ntsbdeb1") || t.includes("n26 bank") || (t.includes("n26") && t.includes("balance-audit"))) return "N26";
   if (t.includes("deutsche kreditbank") || t.includes("dkb") || t.includes("byladem1001")) return "DKB";
