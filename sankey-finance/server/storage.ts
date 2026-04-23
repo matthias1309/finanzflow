@@ -20,6 +20,7 @@ export interface IStorage {
   // Categories
   getCategories(): Category[];
   createCategory(data: InsertCategory): Category;
+  updateCategory(id: number, data: InsertCategory): Category | undefined;
   deleteCategory(id: number): void;
   // Transactions
   getTransactions(month?: string, accountId?: number): Transaction[];
@@ -46,9 +47,10 @@ export const storage: IStorage = {
   deleteAccount(id)        { db.delete(accounts).where(eq(accounts.id, id)).run(); },
 
   // ── Categories ────────────────────────────────────────────────────────────
-  getCategories()     { return db.select().from(categories).all(); },
-  createCategory(data){ return db.insert(categories).values(data).returning().get(); },
-  deleteCategory(id)  { db.delete(categories).where(eq(categories.id, id)).run(); },
+  getCategories()          { return db.select().from(categories).all(); },
+  createCategory(data)     { return db.insert(categories).values(data).returning().get(); },
+  updateCategory(id, data) { return db.update(categories).set(data).where(eq(categories.id, id)).returning().get(); },
+  deleteCategory(id)       { db.delete(categories).where(eq(categories.id, id)).run(); },
 
   // ── Transactions ──────────────────────────────────────────────────────────
   getTransactions(month?, accountId?) {

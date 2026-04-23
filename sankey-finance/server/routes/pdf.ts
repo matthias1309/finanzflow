@@ -26,7 +26,6 @@ const pdfRateLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders:   false,
   message: { error: "Zu viele Upload-Versuche. Bitte in 15 Minuten erneut versuchen." },
-  keyGenerator: (req) => req.ip ?? "unknown",
 });
 
 export const pdfRouter = Router();

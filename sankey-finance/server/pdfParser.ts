@@ -1,7 +1,9 @@
 // pdf2json uses CommonJS — import via require to avoid ESM interop issues.
 // In the CJS bundle produced by esbuild, require() is available natively.
 import { createRequire as _createRequire } from "module";
-const _require = typeof require !== "undefined" ? require : _createRequire("file:///");
+// CJS bundle (production): require is provided by esbuild runtime — use it directly.
+// ESM dev (tsx): require is undefined — fall back to createRequire with the module URL.
+const _require = typeof require !== "undefined" ? require : _createRequire(import.meta.url);
 const PDFParser = _require("pdf2json");
 
 export interface ParsedTransaction {
@@ -74,6 +76,13 @@ function detectBank(text: string): string {
 function parseN26(text: string): ParsedTransaction[] {
   const results: ParsedTransaction[] = [];
 
+  // Build holderPattern once — validate length and catch invalid syntax to prevent ReDoS
+  const holderPattern = (() => {
+    const raw = process.env.ACCOUNT_HOLDER_PATTERN;
+    if (!raw || raw.length > 500) return null;
+    try { return new RegExp(raw, "i"); } catch { return null; }
+  })();
+
   // Split by page breaks, then process each page's lines
   const pages = text.split(/----------------Page \(\d+\) Break----------------/);
 
@@ -129,12 +138,6 @@ const TX_LINE = /^(.{1,100}?)\s{2,}(\d{2}\.\d{2}\.\d{4})\s{2,}([+-]?\d{1,3}(?:\.
         // Stop at date-only or date+context lines
         if (/^\d{2}\.\d{2}\.\d{4}$/.test(prev)) continue;
         // Good context line: not just a date, not too long
-        // Kontoinhaber-Zeilen (Name + PLZ oder Straßenname) überspringen.
-        // Konfigurierbar über Umgebungsvariable ACCOUNT_HOLDER_PATTERN (Regex-String).
-        // Beispiel in supervisord .ini: ACCOUNT_HOLDER_PATTERN="Max Mustermann|Musterstraße"
-        const holderPattern = process.env.ACCOUNT_HOLDER_PATTERN
-          ? new RegExp(process.env.ACCOUNT_HOLDER_PATTERN, "i")
-          : null;
         const isAccountHolder = holderPattern ? holderPattern.test(prev) : false;
         if (prev.length > 2 && prev.length < 120 && !isAccountHolder) {
           contextLines.unshift(prev);
@@ -253,11 +256,11 @@ function parseGeneric(text: string): ParsedTransaction[] {
 
   const patterns = [
     // Two dates + description + amount
-    /^(\d{2}\.\d{2}\.\d{4})\s+\d{2}\.\d{2}\.\d{4}\s+(.+?)\s+([-+]?\d{1,3}(?:\.\d{3})*,\d{2})\s*(?:EUR|€)?$/,
+    /^(\d{2}\.\d{2}\.\d{4})\s+\d{2}\.\d{2}\.\d{4}\s+(.{1,300}?)\s+([-+]?\d{1,3}(?:\.\d{3})*,\d{2})\s*(?:EUR|€)?$/,
     // Single date + description + amount
-    /^(\d{2}\.\d{2}\.\d{4})\s+(.+?)\s+([-+]?\d{1,3}(?:\.\d{3})*,\d{2})\s*(?:EUR|€)?$/,
+    /^(\d{2}\.\d{2}\.\d{4})\s+(.{1,300}?)\s+([-+]?\d{1,3}(?:\.\d{3})*,\d{2})\s*(?:EUR|€)?$/,
     // Amount at start
-    /^([-+]?\d{1,3}(?:\.\d{3})*,\d{2})\s+(\d{2}\.\d{2}\.\d{4})\s+(.+)$/,
+    /^([-+]?\d{1,3}(?:\.\d{3})*,\d{2})\s+(\d{2}\.\d{2}\.\d{4})\s+(.{1,300})$/,
   ];
 
   for (const line of lines) {

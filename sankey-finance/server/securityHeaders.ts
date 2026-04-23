@@ -11,22 +11,36 @@ import { type Request, type Response, type NextFunction } from "express";
  * - Referrer-Leak: Referrer-Policy (strict-origin-when-cross-origin)
  * - HTTPS-Downgrade: Strict-Transport-Security (HSTS)
  */
+const isDev = process.env.NODE_ENV !== "production";
+
+// In development Vite needs 'unsafe-inline' + 'unsafe-eval' for React Fast Refresh
+// and external origins for Google Fonts. Production stays strict.
+const cspDirectives = isDev
+  ? {
+      defaultSrc:  ["'self'"],
+      scriptSrc:   ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+      styleSrc:    ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc:     ["'self'", "https://fonts.gstatic.com"],
+      imgSrc:      ["'self'", "data:"],
+      connectSrc:  ["'self'", "ws://localhost:*"],
+      frameSrc:    ["'none'"],
+      objectSrc:   ["'none'"],
+    }
+  : {
+      defaultSrc:  ["'self'"],
+      scriptSrc:   ["'self'"],
+      styleSrc:    ["'self'", "'unsafe-inline'"],
+      imgSrc:      ["'self'", "data:"],
+      fontSrc:     ["'self'"],
+      connectSrc:  ["'self'"],
+      frameSrc:    ["'none'"],
+      objectSrc:   ["'none'"],
+      baseUri:     ["'self'"],
+      formAction:  ["'self'"],
+    };
+
 export const securityHeadersMiddleware = helmet({
-  // Content-Security-Policy: nur eigene Ressourcen + inline-styles für Tailwind/shadcn
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc:     ["'self'"],
-      scriptSrc:      ["'self'"],
-      styleSrc:       ["'self'", "'unsafe-inline'"], // Tailwind benötigt inline styles
-      imgSrc:         ["'self'", "data:"],
-      fontSrc:        ["'self'"],
-      connectSrc:     ["'self'"],
-      frameSrc:       ["'none'"],
-      objectSrc:      ["'none'"],
-      baseUri:        ["'self'"],
-      formAction:     ["'self'"],
-    },
-  },
+  contentSecurityPolicy: { directives: cspDirectives },
   // Clickjacking-Schutz
   frameguard:         { action: "deny" },
   // MIME-Sniffing verhindern

@@ -22,7 +22,6 @@ export const authRateLimiter = rateLimit({
   legacyHeaders:    false,
   skipSuccessfulRequests: true,      // Zähler nur bei 401 erhöhen
   message:          { error: "Zu viele Login-Versuche. Bitte in 15 Minuten erneut versuchen." },
-  keyGenerator:     (req) => req.ip ?? "unknown",
 });
 
 // ─── Fail-Secure: Server verweigert Start ohne Passwort ───────────────────────

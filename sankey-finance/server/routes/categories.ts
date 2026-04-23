@@ -14,6 +14,16 @@ categoriesRouter.post("/", (req, res) => {
   res.status(201).json(storage.createCategory(parsed.data));
 });
 
+categoriesRouter.put("/:id", (req, res) => {
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) return res.status(400).json({ error: "Ungültige ID" });
+  const parsed = insertCategorySchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+  const updated = storage.updateCategory(id, parsed.data);
+  if (!updated) return res.status(404).json({ error: "Kategorie nicht gefunden" });
+  res.json(updated);
+});
+
 categoriesRouter.delete("/:id", (req, res) => {
   const id = parseInt(req.params.id);
   if (isNaN(id)) return res.status(400).json({ error: "Ungültige ID" });

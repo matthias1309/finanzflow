@@ -11,7 +11,6 @@ const batchRateLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders:   false,
   message: { error: "Zu viele Batch-Requests. Bitte in 15 Minuten erneut versuchen." },
-  keyGenerator: (req) => req.ip ?? "unknown",
 });
 
 export const transactionsRouter = Router();
