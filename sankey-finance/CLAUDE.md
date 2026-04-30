@@ -150,7 +150,7 @@ chmod +x deploy.sh
 ./deploy.sh
 ```
 
-`deploy.sh` kopiert die Dateien nach `/var/www/virtual/$USER/finanzflow/`, führt `npm ci --omit=dev` via `scl enable devtoolset-11` aus (nötig für `better-sqlite3` auf CentOS 7) und startet den supervisord-Dienst neu.
+`deploy.sh` kopiert die Dateien nach `/var/www/virtual/$USER/finanzflow/`, führt `npm ci --omit=dev` aus und startet den supervisord-Dienst neu. Voraussetzung: **Node.js 20** auf Uberspace (`uberspace tools versions use node 20`) — `better-sqlite3@12` benötigt Node ≥ 20 und liefert für Node 20 vorcompilierte Linux-Binaries, sodass kein g++-Compiler nötig ist.
 
 **Pflicht-Umgebungsvariablen (supervisord .ini):**
 

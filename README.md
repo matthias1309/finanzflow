@@ -3,7 +3,9 @@
 ## Voraussetzungen
 
 - Uberspace-Account mit SSH-Zugang
-- Node.js ≥ 18 (auf Uberspace standardmäßig verfügbar: `node --version`)
+- **Node.js 20** auf Uberspace (einmalig einrichten: `uberspace tools versions use node 20`)
+
+`better-sqlite3@12` und `@tailwindcss/oxide@4` benötigen Node ≥ 20. Mit Node 20 werden vorcompilierte Linux-Binaries für `better-sqlite3` genutzt — kein Compiler-Setup nötig.
 
 ---
 
@@ -145,9 +147,13 @@ NODE_ENV=production node /var/www/virtual/$USER/finanzflow/index.cjs
 
 **`Cannot find module` / `npm install` schlägt fehl:**
 ```bash
+# Erst Node 20 aktivieren (einmalig):
+uberspace tools versions use node 20
+hash -r
+
 cd /var/www/virtual/$USER/finanzflow
 rm -rf node_modules
-scl enable devtoolset-11 -- npm ci --omit=dev
+npm ci --omit=dev
 supervisorctl restart finanzflow
 ```
 

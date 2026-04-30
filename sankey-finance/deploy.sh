@@ -10,9 +10,9 @@ mkdir -p "$APP_DIR"
 cp -r dist/. "$APP_DIR/"
 cp package.json package-lock.json "$APP_DIR/"
 
-echo "==> Installiere Abhängigkeiten (devtoolset-11 für better-sqlite3) ..."
+echo "==> Installiere Abhängigkeiten ..."
 cd "$APP_DIR"
-scl enable devtoolset-11 -- npm ci --omit=dev
+npm ci --omit=dev
 
 echo "==> Starte Dienst neu ..."
 if supervisorctl status finanzflow &>/dev/null 2>&1; then
