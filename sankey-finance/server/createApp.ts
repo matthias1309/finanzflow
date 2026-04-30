@@ -10,6 +10,11 @@ export function createApp() {
   const app        = express();
   const httpServer = createServer(app);
 
+  // Uberspace terminates HTTPS at nginx and proxies via HTTP to Node.
+  // Without this, req.secure is false and express-session won't set
+  // the session cookie (cookie.secure=true requires req.secure=true).
+  app.set("trust proxy", 1);
+
   app.use(securityHeadersMiddleware);
   app.use(sessionMiddleware);
   app.use(authRateLimiter);
