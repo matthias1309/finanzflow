@@ -125,32 +125,51 @@ Spezifische Anforderungen (Rate-Limits, ReDoS-Schutz) stehen in [REQ-001](docume
 
 ## Deployment auf Uberspace
 
-**Build** immer mit beiden Variablen:
+**Uberspace-Daten:** `mattmaxx@giclas.uberspace.de`, App läuft unter `/finanzflow/`
+
+### Update-Prozess (Schritt für Schritt)
+
+**1. Lokal bauen** — immer mit beiden Variablen:
 
 ```bash
+cd sankey-finance
 DEPLOY_BASE="/finanzflow/" VITE_API_BASE="/finanzflow" npm run build
 ```
 
-`VITE_API_BASE` wird zur Build-Zeit in den Client-Bundle gebacken (`client/src/lib/config.ts`). Fehlt er, landen alle API-Calls auf `/api/…` statt `/finanzflow/api/…` → leeres Dashboard.
+`VITE_API_BASE` wird zur Build-Zeit in den Client-Bundle gebacken (`client/src/lib/config.ts`). Fehlt er, landen alle API-Calls auf `/api/…` statt `/finanzflow/api/…`.  
+**Falle:** Neue Client-Seiten müssen `API_BASE` aus `@/lib/config` importieren und alle `fetch()`-Calls damit prefixen — nie URLs hardcoden.
 
-**Package erstellen** (`node_modules` nicht einpacken — native Addons müssen auf dem Linux-Server kompiliert werden):
+**2. Archiv erstellen** — `node_modules` nicht einpacken (macOS-Binaries laufen nicht auf Linux):
 
 ```bash
 COPYFILE_DISABLE=1 tar -czf finanzflow-uberspace.tar.gz \
   dist/ package.json package-lock.json deploy.sh
 ```
 
-`COPYFILE_DISABLE=1` verhindert macOS-`._`-Metadateien im Archiv.
-
-**Auf Uberspace entpacken & deployen:**
+**3. Hochladen:**
 
 ```bash
+scp finanzflow-uberspace.tar.gz mattmaxx@giclas.uberspace.de:~
+```
+
+**4. Auf Uberspace deployen:**
+
+```bash
+ssh mattmaxx@giclas.uberspace.de
 tar -xzf finanzflow-uberspace.tar.gz
-chmod +x deploy.sh
 ./deploy.sh
 ```
 
-`deploy.sh` kopiert die Dateien nach `/var/www/virtual/$USER/finanzflow/`, führt `npm ci --omit=dev` aus und startet den supervisord-Dienst neu. Voraussetzung: **Node.js 20** auf Uberspace (`uberspace tools versions use node 20`) — `better-sqlite3@12` benötigt Node ≥ 20 und liefert für Node 20 vorcompilierte Linux-Binaries, sodass kein g++-Compiler nötig ist.
+`deploy.sh` kopiert Dateien nach `/var/www/virtual/mattmaxx/finanzflow/`, führt `npm ci --omit=dev` aus (lädt vorcompilierte Linux-Binary für `better-sqlite3@9`) und startet den supervisord-Dienst neu.
+
+### Bekannte Constraints
+
+| Thema | Detail |
+|---|---|
+| Node.js auf Uberspace | v18.20.8 (CentOS 7) — `uberspace tools versions use node 20` greift nicht zuverlässig |
+| `better-sqlite3` | Pinned auf `^9.6.0` — v12 benötigt Node ≥ 20, v9 hat Prebuilt-Binaries für Node 18 |
+| g++ | Zu alt für C++20 (Standard auf CentOS 7); v9 nutzt C++17, daher compilierbar mit `scl enable devtoolset-9` falls Prebuilt-Download fehlschlägt |
+| `node_modules` im Archiv | Niemals einpacken — macOS-Binaries sind nicht Linux-kompatibel |
 
 **Pflicht-Umgebungsvariablen (supervisord .ini):**
 
