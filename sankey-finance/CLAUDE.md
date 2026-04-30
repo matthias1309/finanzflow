@@ -170,6 +170,8 @@ tar -xzf finanzflow-uberspace.tar.gz
 | `better-sqlite3` | Pinned auf `^9.6.0` — v12 benötigt Node ≥ 20, v9 hat Prebuilt-Binaries für Node 18 |
 | g++ | Zu alt für C++20 (Standard auf CentOS 7); v9 nutzt C++17, daher compilierbar mit `scl enable devtoolset-9` falls Prebuilt-Download fehlschlägt |
 | `node_modules` im Archiv | Niemals einpacken — macOS-Binaries sind nicht Linux-kompatibel |
+| Session-Cookie / `trust proxy` | Uberspace terminiert HTTPS bei nginx und leitet intern per HTTP weiter. Ohne `app.set("trust proxy", 1)` setzt express-session den Cookie nicht (da `req.secure = false`), Login schlägt mit 401 fehl. Ist in `server/createApp.ts` gesetzt — nicht entfernen. |
+| API-URLs im Client | Alle `fetch()`-Calls müssen `API_BASE` aus `@/lib/config` nutzen — nie `/api/...` hardcoden. `API_BASE` wird beim Build mit `VITE_API_BASE=/finanzflow` eingebettet. |
 
 **Pflicht-Umgebungsvariablen (supervisord .ini):**
 
