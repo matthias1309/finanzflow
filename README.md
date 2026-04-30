@@ -7,55 +7,90 @@
 
 ---
 
-## Installation (Ersteinrichtung)
+## Update auf neue Version
 
-### Schritt 1 — Paket hochladen
+### Lokal: bauen und Paket erstellen
 
 ```bash
-scp finanzflow-uberspace.tar.gz nutzername@bellatrix.uberspace.de:~
+cd sankey-finance
+DEPLOY_BASE="/finanzflow/" VITE_API_BASE="/finanzflow" npm run build
+COPYFILE_DISABLE=1 tar -czf finanzflow-uberspace.tar.gz \
+  dist/ package.json package-lock.json deploy.sh
 ```
 
-*(Hostname je nach deinem Uberspace-Server anpassen — steht im Dashboard)*
+> `node_modules` wird **nicht** eingepackt — native Addons (`better-sqlite3`) müssen auf dem Linux-Server kompiliert werden, macOS-Binaries laufen dort nicht.
 
-### Schritt 2 — SSH verbinden
-
-```bash
-ssh nutzername@bellatrix.uberspace.de
-```
-
-### Schritt 3 — Entpacken & Setup ausführen
+### Hochladen und deployen
 
 ```bash
+scp finanzflow-uberspace.tar.gz mattmaxx@giclas.uberspace.de:~
+ssh mattmaxx@giclas.uberspace.de
 tar -xzf finanzflow-uberspace.tar.gz
-cd finanzflow-uberspace
-chmod +x setup.sh
-./setup.sh
+chmod +x deploy.sh
+./deploy.sh
 ```
 
 Das Skript erledigt automatisch:
 - App-Dateien nach `/var/www/virtual/$USER/finanzflow/` kopieren
-- `npm ci --omit=dev` ausführen (Abhängigkeiten installieren)
-- Freien Port reservieren
-- supervisord-Dienst anlegen und starten
-- Uberspace Web-Backend auf `/finanzflow` konfigurieren
+- `npm ci --omit=dev` via `scl enable devtoolset-11` ausführen (CentOS 7 braucht neueres g++ für `better-sqlite3`)
+- supervisord-Dienst neu starten
 
-### Schritt 4 — App aufrufen
-
-```
-https://DEIN-NUTZERNAME.uber.space/finanzflow
-```
+Die Datenbank (`~/finanzflow-data/finance.db`) wird dabei **nicht** verändert.
 
 ---
 
-## Update auf neue Version
+## Ersteinrichtung supervisord (einmalig)
 
-Einfach das neue Paket hochladen und `setup.sh` erneut ausführen.  
-Die Datenbank (`~/finanzflow-data/finance.db`) wird dabei **nicht** verändert — alle Daten bleiben erhalten.
+Falls der Dienst noch nicht existiert, muss er einmalig manuell angelegt werden.
+
+### 1. Freien Port reservieren
 
 ```bash
-tar -xzf finanzflow-uberspace-neu.tar.gz
-cd finanzflow-uberspace
-./setup.sh
+uberspace port add
+# → merke dir die ausgegebene Portnummer, z.B. 12345
+```
+
+### 2. Passwort-Hash erzeugen
+
+```bash
+node -e "const b=require('bcryptjs'); console.log(b.hashSync('DEIN_PASSWORT', 10))"
+```
+
+### 3. supervisord-Dienst anlegen
+
+```bash
+mkdir -p ~/etc/services.d/finanzflow
+cat > ~/etc/services.d/finanzflow/run << 'EOF'
+#!/bin/bash
+export NODE_ENV=production
+export PORT=12345
+export DB_PATH=/home/mattmaxx/finanzflow-data/finance.db
+export APP_USER=admin
+export APP_PASSWORD_HASH=HASH_AUS_SCHRITT_2
+export APP_ORIGIN=https://mattmaxx.uber.space
+export TOTP_ENCRYPTION_KEY=$(openssl rand -hex 32)
+export SESSION_MAX_AGE_HOURS=8
+export TOTP_ISSUER=FinanzFlow
+exec node /var/www/virtual/$USER/finanzflow/index.cjs
+EOF
+chmod +x ~/etc/services.d/finanzflow/run
+```
+
+> **Hinweis:** `TOTP_ENCRYPTION_KEY` muss dauerhaft gesetzt und gespeichert werden — wird er geändert, sind bestehende 2FA-Geheimnisse in der DB nicht mehr entschlüsselbar.
+
+### 4. Dienst starten und Web-Backend setzen
+
+```bash
+supervisorctl reread
+supervisorctl update
+supervisorctl status finanzflow
+uberspace web backend set /finanzflow --http --port 12345
+```
+
+### 5. App aufrufen
+
+```
+https://mattmaxx.uber.space/finanzflow
 ```
 
 ---
@@ -66,9 +101,6 @@ cd finanzflow-uberspace
 ~/
 ├── finanzflow-data/
 │   └── finance.db          ← SQLite-Datenbank (Buchungen, Konten, Kategorien)
-├── logs/
-│   └── finanzflow/
-│       └── current          ← aktuelle Log-Datei
 └── etc/
     └── services.d/
         └── finanzflow/
@@ -79,7 +111,7 @@ cd finanzflow-uberspace
 ├── public/                 ← React-Frontend (statische Dateien)
 │   ├── index.html
 │   └── assets/
-└── node_modules/           ← Laufzeit-Abhängigkeiten
+└── node_modules/           ← Laufzeit-Abhängigkeiten (auf Server kompiliert)
 ```
 
 ---
@@ -87,17 +119,9 @@ cd finanzflow-uberspace
 ## Dienst steuern
 
 ```bash
-# Status prüfen
 supervisorctl status finanzflow
-
-# Neu starten (z.B. nach Konfigurationsänderung)
 supervisorctl restart finanzflow
-
-# Stoppen
 supervisorctl stop finanzflow
-
-# Logs live verfolgen
-tail -f ~/logs/finanzflow/current
 ```
 
 ---
@@ -105,40 +129,42 @@ tail -f ~/logs/finanzflow/current
 ## Datenbank sichern
 
 ```bash
-# Backup erstellen
 cp ~/finanzflow-data/finance.db ~/finanzflow-backup-$(date +%Y%m%d).db
-
-# Auf lokalen Rechner kopieren
-scp nutzername@server.uberspace.de:~/finanzflow-data/finance.db ./
+scp mattmaxx@giclas.uberspace.de:~/finanzflow-data/finance.db ./
 ```
 
 ---
 
 ## Troubleshooting
 
+**`FATAL Exited too quickly`:**
+```bash
+# Prozess manuell starten, um den echten Fehler zu sehen:
+NODE_ENV=production node /var/www/virtual/$USER/finanzflow/index.cjs
+```
+
+**`Cannot find module` / `npm install` schlägt fehl:**
+```bash
+cd /var/www/virtual/$USER/finanzflow
+rm -rf node_modules
+scl enable devtoolset-11 -- npm ci --omit=dev
+supervisorctl restart finanzflow
+```
+
 **App nicht erreichbar:**
 ```bash
-# Dienst-Status prüfen
-supervisorctl status finanzflow
-
-# Web-Backend prüfen
 uberspace web backend list
-
-# Backend manuell setzen (PORT aus supervisord run-Skript ablesen)
-cat ~/etc/services.d/finanzflow/run
+cat ~/etc/services.d/finanzflow/run   # PORT ablesen
 uberspace web backend set /finanzflow --http --port XXXX
 ```
 
-**Logs prüfen:**
-```bash
-tail -50 ~/logs/finanzflow/current
-```
+**Leeres Dashboard nach Deploy:**  
+`VITE_API_BASE` fehlte beim Build → lokal neu bauen mit beiden Env-Variablen.
 
 **Port-Konflikt:**
 ```bash
-# Anderen freien Port wählen und run-Skript anpassen
 nano ~/etc/services.d/finanzflow/run
-# PORT=NEUE_PORTNUMMER setzen, dann:
+# PORT= anpassen, dann:
 uberspace web backend set /finanzflow --http --port NEUE_PORTNUMMER
 supervisorctl restart finanzflow
 ```

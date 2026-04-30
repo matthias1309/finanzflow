@@ -133,14 +133,24 @@ DEPLOY_BASE="/finanzflow/" VITE_API_BASE="/finanzflow" npm run build
 
 `VITE_API_BASE` wird zur Build-Zeit in den Client-Bundle gebacken (`client/src/lib/config.ts`). Fehlt er, landen alle API-Calls auf `/api/…` statt `/finanzflow/api/…` → leeres Dashboard.
 
-**Package erstellen:**
+**Package erstellen** (`node_modules` nicht einpacken — native Addons müssen auf dem Linux-Server kompiliert werden):
 
 ```bash
 COPYFILE_DISABLE=1 tar -czf finanzflow-uberspace.tar.gz \
-  dist/ node_modules/ package.json
+  dist/ package.json package-lock.json deploy.sh
 ```
 
 `COPYFILE_DISABLE=1` verhindert macOS-`._`-Metadateien im Archiv.
+
+**Auf Uberspace entpacken & deployen:**
+
+```bash
+tar -xzf finanzflow-uberspace.tar.gz
+chmod +x deploy.sh
+./deploy.sh
+```
+
+`deploy.sh` kopiert die Dateien nach `/var/www/virtual/$USER/finanzflow/`, führt `npm ci --omit=dev` via `scl enable devtoolset-11` aus (nötig für `better-sqlite3` auf CentOS 7) und startet den supervisord-Dienst neu.
 
 **Pflicht-Umgebungsvariablen (supervisord .ini):**
 
