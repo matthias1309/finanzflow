@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import SankeyChart from "@/components/SankeyChart";
+import TwoFactorSetup from "@/components/TwoFactorSetup";
 import { TrendingUp, TrendingDown, Wallet, PiggyBank, Landmark, Eye, EyeOff } from "lucide-react";
 import type { Account } from "@shared/schema";
 
@@ -92,6 +93,8 @@ export default function Dashboard() {
       </div>
 
       <div className="flex-1 p-8 space-y-6">
+        <TwoFactorSetup />
+
         {/* KPIs — berechnet nur aus sichtbaren Konten */}
         <div className="grid grid-cols-4 gap-4">
           {[

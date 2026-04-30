@@ -1,7 +1,9 @@
 import { Link, useLocation } from "wouter";
-import { BarChart3, List, Tag, TrendingUp, Sun, Moon, Upload, Landmark } from "lucide-react";
+import { BarChart3, List, Tag, TrendingUp, Sun, Moon, Upload, Landmark, LogOut } from "lucide-react";
 import { useTheme } from "@/context/ThemeContext";
 import { Button } from "@/components/ui/button";
+import { useQuery } from "@tanstack/react-query";
+import { queryClient } from "@/lib/queryClient";
 
 const navItems = [
   { href: "/", label: "Dashboard", icon: BarChart3 },
@@ -14,6 +16,17 @@ const navItems = [
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const { theme, toggle } = useTheme();
+
+  const { data: authStatus } = useQuery<{ authEnabled: boolean }>({
+    queryKey: ["/api/auth/2fa/status"],
+    queryFn: () => fetch("/api/auth/2fa/status").then(r => r.json()),
+  });
+
+  async function handleLogout() {
+    await fetch("/api/auth/logout", { method: "POST" });
+    queryClient.clear();
+    window.location.hash = "/login";
+  }
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -60,7 +73,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </nav>
 
         {/* Footer */}
-        <div className="px-4 py-4 border-t border-border space-y-3">
+        <div className="px-4 py-4 border-t border-border space-y-2">
           <Button
             data-testid="button-toggle-theme"
             variant="outline"
@@ -70,7 +83,19 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           >
             {theme === "dark" ? <><Sun size={13} />Light-Modus</> : <><Moon size={13} />Dark-Modus</>}
           </Button>
-          <div className="flex items-center gap-2 text-xs text-muted-foreground px-1">
+          {authStatus?.authEnabled && (
+            <Button
+              data-testid="button-logout"
+              variant="ghost"
+              size="sm"
+              className="w-full justify-start gap-2 text-xs font-medium text-muted-foreground hover:text-foreground"
+              onClick={handleLogout}
+            >
+              <LogOut size={13} />
+              Abmelden
+            </Button>
+          )}
+          <div className="flex items-center gap-2 text-xs text-muted-foreground px-1 pt-1">
             <TrendingUp size={12} />
             <span>Persönliche Finanzen</span>
           </div>

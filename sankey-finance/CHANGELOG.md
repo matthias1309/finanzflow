@@ -7,6 +7,22 @@ Format angelehnt an [Keep a Changelog](https://keepachangelog.com/de/1.0.0/).
 
 ## [Unreleased]
 
+## [0.5.0] – 2026-04-30
+
+### Hinzugefügt
+- **2FA-Setup-Flow im Dashboard** — vollständige UI für Einrichtung und Verwaltung von TOTP
+  - Banner "2FA noch nicht eingerichtet" mit "Jetzt einrichten"-Button (nur wenn Auth aktiv)
+  - Setup-Dialog: QR-Code (generiert aus `otpauth://`-URL), manueller Base32-Key, `InputOTP`-Feld zur Verifikation
+  - Recovery-Codes-Anzeige direkt nach Setup: 8 Codes im Grid, "Codes kopieren"-Button (einmaliges Anzeigen)
+  - Status-Zeile wenn 2FA aktiv: verbleibende Recovery-Codes + "Neu generieren"-Button
+  - Regenerierungs-Dialog: Bestätigungsschritt (Warnung dass alte Codes ungültig werden), danach neue Codes einmalig anzeigen
+- **Logout-Button** in der Sidebar (nur sichtbar wenn Auth aktiv)
+- **`npm run 2fa:reset`** — CLI-Script für Notfall-Reset auf dem Server (`script/reset2fa.ts`)
+- `authEnabled`-Flag im `GET /api/auth/2fa/status`-Response (Client zeigt UI nur wenn Auth aktiv)
+
+### Abhängigkeiten
+- `qrcode` hinzugefügt (QR-Code-Generierung im Browser)
+
 ## [0.4.0] – 2026-04-30
 
 ### Hinzugefügt

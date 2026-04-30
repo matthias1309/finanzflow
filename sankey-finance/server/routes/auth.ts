@@ -133,6 +133,7 @@ authRouter.get("/status", (req, res) => {
 // Status ist öffentlich (kein sensitiver Inhalt, nur boolean-Flags)
 authRouter.get("/2fa/status", (_req, res) => {
   res.json({
+    authEnabled:             authEnabled(),
     configured:              storage.getTotpConfigured(),
     recoveryCodesRemaining:  storage.getRecoveryCodesRemaining(),
   });
