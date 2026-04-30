@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import QRCode from "qrcode";
 import { apiRequest } from "@/lib/queryClient";
+import { API_BASE } from "@/lib/config";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -22,7 +23,7 @@ export default function TwoFactorSetup() {
 
   const { data: status } = useQuery<TwoFaStatus>({
     queryKey: ["/api/auth/2fa/status"],
-    queryFn: () => fetch("/api/auth/2fa/status").then(r => r.json()),
+    queryFn: () => fetch(`${API_BASE}/api/auth/2fa/status`).then(r => r.json()),
   });
 
   // ─── Setup-Dialog ─────────────────────────────────────────────────────────

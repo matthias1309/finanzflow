@@ -4,6 +4,7 @@ import { useTheme } from "@/context/ThemeContext";
 import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
+import { API_BASE } from "@/lib/config";
 
 const navItems = [
   { href: "/", label: "Dashboard", icon: BarChart3 },
@@ -19,11 +20,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   const { data: authStatus } = useQuery<{ authEnabled: boolean }>({
     queryKey: ["/api/auth/2fa/status"],
-    queryFn: () => fetch("/api/auth/2fa/status").then(r => r.json()),
+    queryFn: () => fetch(`${API_BASE}/api/auth/2fa/status`).then(r => r.json()),
   });
 
   async function handleLogout() {
-    await fetch("/api/auth/logout", { method: "POST" });
+    await fetch(`${API_BASE}/api/auth/logout`, { method: "POST" });
     queryClient.clear();
     window.location.hash = "/login";
   }
