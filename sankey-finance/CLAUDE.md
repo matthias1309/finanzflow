@@ -6,7 +6,7 @@ Persönliches Finanz-Dashboard für deutsche Bankkonten (N26, DKB, ING). React-S
 
 ```bash
 PORT=3000 npm run dev      # Nicht Port 5000 — macOS AirPlay belegt ihn
-npm test                   # Vitest: 50 Unit- + API-Tests (~700 ms)
+npm test                   # Vitest: Unit- + API-Tests
 npm run test:e2e           # Playwright E2E (erfordert laufenden Dev-Server)
 npm run build              # Lokaler Build (ohne Uberspace-Pfade)
 ```
@@ -34,6 +34,18 @@ tests/
   server/                 ← Vitest (Unit + API via Supertest)
   e2e/                    ← Playwright-Specs
 ```
+
+## Entwicklungsprozess
+
+Bei neuen Features oder Erweiterungen bestehender Features immer in dieser Reihenfolge:
+
+1. **REQ erstellen oder anpassen** — Acceptance Criteria (Gherkin-Szenarien) vollständig ausformulieren, bevor Code geschrieben wird
+2. **Tests schreiben** — direkt aus den AC abgeleitet (Vitest für Unit/API, Playwright für E2E)
+3. **Implementieren** — erst wenn REQ und Tests stehen
+4. **CHANGELOG.md erweitern** — unter `[Unreleased]` die Änderungen eintragen (Added / Changed / Fixed / Removed)
+5. **Committen und pushen** — erst nach Changelog-Eintrag
+
+Wenn TDD nicht möglich ist (z.B. rein visuelle Änderungen ohne messbare Assertions), explizit darauf hinweisen bevor weitergemacht wird.
 
 ## Architektur-Kernregeln
 
@@ -70,22 +82,38 @@ style={{ backgroundColor: safeCssColor(acc.color) }}  // ✅
 style={{ backgroundColor: acc.color }}                 // ❌
 ```
 
+## Sicherheitsregeln — nicht umgehen
+
+Diese Middleware-Schicht darf **nie** deaktiviert oder umgangen werden:
+
+| Middleware | Datei |
+|---|---|
+| `authRateLimiter` | `server/auth.ts` |
+| `basicAuthMiddleware` | `server/auth.ts` |
+| `csrfProtectionMiddleware` | `server/securityHeaders.ts` |
+| `securityHeadersMiddleware` | `server/securityHeaders.ts` |
+
+In `NODE_ENV !== 'production'` (dev + test) sind Auth und CSRF automatisch deaktiviert — das ist so gewollt und kein Bug.
+
+Spezifische Anforderungen (Rate-Limits, ReDoS-Schutz) stehen in [REQ-001](documentation/REQ/REQ-001-authentication.md) und [REQ-005](documentation/REQ/REQ-005-pdf-import.md).
+
 ## Features erweitern
 
 ### Neuen API-Endpunkt hinzufügen
 
-1. Neue Datei `server/routes/meinfeature.ts` — Router + Zod-Validierung
-2. In `server/routes.ts` registrieren: `app.use("/api/meinfeature", meinfeatureRouter)`
-3. API-Tests in `tests/server/api/meinfeature.test.ts` schreiben
-4. Arc42 Kapitel 5 (Building Block View) aktualisieren
+1. REQ-Datei erstellen oder anpassen, AC formulieren
+2. API-Tests in `tests/server/api/meinfeature.test.ts` schreiben
+3. Neue Datei `server/routes/meinfeature.ts` — Router + Zod-Validierung
+4. In `server/routes.ts` registrieren: `app.use("/api/meinfeature", meinfeatureRouter)`
+5. Arc42 Kapitel 5 (Building Block View) aktualisieren
 
 ### Neuen Bank-Parser hinzufügen
 
-1. `detectBank()` in `server/pdfParser.ts` um die Bank erweitern
-2. `parseXYZ(text: string): ParsedTransaction[]` Funktion hinzufügen
-3. In `parsePDF()` aufrufen (vor dem Generic-Fallback)
-4. Unit-Tests mit Fixture-Text in `tests/server/unit/pdfParser.test.ts`
-5. REQ-005 in `documentation/REQ/REQ-005-pdf-import.md` ergänzen
+1. REQ-005 in `documentation/REQ/REQ-005-pdf-import.md` ergänzen
+2. Unit-Tests mit Fixture-Text in `tests/server/unit/pdfParser.test.ts` schreiben
+3. `detectBank()` in `server/pdfParser.ts` um die Bank erweitern
+4. `parseXYZ(text: string): ParsedTransaction[]` Funktion hinzufügen
+5. In `parsePDF()` aufrufen (vor dem Generic-Fallback)
 
 ### Neues Datenbankfeld hinzufügen
 
@@ -94,21 +122,6 @@ style={{ backgroundColor: acc.color }}                 // ❌
 3. `CREATE TABLE IF NOT EXISTS` in `server/db.ts` um die Spalte erweitern — **kein** Migration-Tool, inline SQL
 4. Storage-Interface (`IStorage`) und -Implementierung in `server/storage.ts` aktualisieren
 5. Route-Handler anpassen
-
-## Sicherheitsregeln — nicht umgehen
-
-Diese Middleware-Schicht darf **nie** deaktiviert oder umgangen werden:
-
-| Middleware | Datei | Zweck |
-|---|---|---|
-| `authRateLimiter` | `server/auth.ts` | 10 Fehlversuche / 15 min pro IP |
-| `basicAuthMiddleware` | `server/auth.ts` | bcrypt + timing-sicher |
-| `csrfProtectionMiddleware` | `server/securityHeaders.ts` | Origin/Referer-Check |
-| `securityHeadersMiddleware` | `server/securityHeaders.ts` | Helmet CSP, HSTS, X-Frame |
-
-In `NODE_ENV !== 'production'` (dev + test) sind Auth und CSRF automatisch deaktiviert — das ist so gewollt und kein Bug.
-
-ReDoS-Schutz in `pdfParser.ts`: Regex-Quantifier immer begrenzen (`.{1,100}`, nie `.*` oder `.+`). Umgebungsvariablen-Regex auf 500 Zeichen + try/catch.
 
 ## Deployment auf Uberspace
 
@@ -136,8 +149,11 @@ NODE_ENV=production
 PORT=3001
 DB_PATH=/home/user/finanzflow/finance.db
 APP_USER=admin
-APP_PASSWORD_HASH=$2b$10$...   ; $$ escapen in supervisord
+APP_PASSWORD_HASH=$2b$10$...      ; $$ escapen in supervisord
 APP_ORIGIN=https://user.uberspace.de
+TOTP_ENCRYPTION_KEY=...           ; 32 zufällige Bytes als Hex (openssl rand -hex 32)
+SESSION_MAX_AGE_HOURS=8           ; optional, Standard: 8
+TOTP_ISSUER=FinanzFlow            ; optional, Name in der Authenticator-App
 ```
 
 ## Codestil

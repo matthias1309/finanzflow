@@ -18,6 +18,7 @@ This folder contains the software requirements for all features of the FinanzFlo
 | [REQ-010](REQ-010-month-navigation.md) | Month Filtering & Navigation       | Navigation  |
 | [REQ-011](REQ-011-batch-import.md)     | Batch Transaction Import           | Import      |
 | [REQ-012](REQ-012-theme.md)            | Dark / Light Theme                 | UI/UX       |
+| [REQ-013](REQ-013-2fa-totp.md)         | Two-Factor Authentication (TOTP)   | Security    |
 
 ## Document Structure
 

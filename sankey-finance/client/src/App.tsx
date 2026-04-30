@@ -9,6 +9,7 @@ import Transactions from "./pages/Transactions";
 import Categories from "./pages/Categories";
 import Accounts from "./pages/Accounts";
 import ImportPDF from "./pages/ImportPDF";
+import Login from "./pages/Login";
 import NotFound from "./pages/not-found";
 import Layout from "./components/Layout";
 
@@ -17,16 +18,21 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <Router hook={useHashLocation}>
-          <Layout>
-            <Switch>
-              <Route path="/" component={Dashboard} />
-              <Route path="/transactions" component={Transactions} />
-              <Route path="/import" component={ImportPDF} />
-              <Route path="/accounts" component={Accounts} />
-              <Route path="/categories" component={Categories} />
-              <Route component={NotFound} />
-            </Switch>
-          </Layout>
+          <Switch>
+            <Route path="/login" component={Login} />
+            <Route>
+              <Layout>
+                <Switch>
+                  <Route path="/" component={Dashboard} />
+                  <Route path="/transactions" component={Transactions} />
+                  <Route path="/import" component={ImportPDF} />
+                  <Route path="/accounts" component={Accounts} />
+                  <Route path="/categories" component={Categories} />
+                  <Route component={NotFound} />
+                </Switch>
+              </Layout>
+            </Route>
+          </Switch>
         </Router>
         <Toaster />
       </ThemeProvider>

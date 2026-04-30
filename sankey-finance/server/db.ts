@@ -1,6 +1,6 @@
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import Database from "better-sqlite3";
-import { categories } from "@shared/schema";
+import { categories, appSettings, recoveryCodes } from "@shared/schema";
 
 // DB_PATH kann per Umgebungsvariable überschrieben werden (z.B. Uberspace-Deployment).
 const DB_PATH = process.env.DB_PATH ?? "finance.db";
@@ -45,6 +45,17 @@ sqlite.exec(`
     transfer_to_account_id INTEGER,
     import_source          TEXT,
     original_text          TEXT
+  );
+
+  CREATE TABLE IF NOT EXISTS app_settings (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS recovery_codes (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    code_hash TEXT    NOT NULL,
+    used      INTEGER NOT NULL DEFAULT 0
   );
 `);
 

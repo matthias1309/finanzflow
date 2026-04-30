@@ -1,32 +1,23 @@
 import { type Request, type Response, type NextFunction } from "express";
-import bcrypt from "bcryptjs";
 import { timingSafeEqual } from "crypto";
 import rateLimit from "express-rate-limit";
 
-/**
- * Passwort-Hash einmalig generieren:
- *   node -e "const b=require('bcryptjs'); console.log(b.hashSync('MeinPasswort', 10))"
- * Den Hash als APP_PASSWORD_HASH in der supervisord .ini setzen.
- * In supervisord müssen $ als $$ escaped werden (je nach Version).
- */
-const PASSWORD_HASH = process.env.APP_PASSWORD_HASH ?? "";
-const APP_USER      = process.env.APP_USER ?? "admin";
+// ─── Brute-Force-Schutz ───────────────────────────────────────────────────────
 
-// ─── Brute-Force-Schutz ──────────────────────────────────────────────────────
-// Max. 10 fehlgeschlagene Login-Versuche pro IP in 15 Minuten.
-// Bei Überschreitung: 429 Too Many Requests für weitere 15 Minuten.
 export const authRateLimiter = rateLimit({
-  windowMs:         15 * 60 * 1000, // 15 Minuten
-  max:              10,              // max. Versuche pro Fenster
-  standardHeaders:  true,
-  legacyHeaders:    false,
-  skipSuccessfulRequests: true,      // Zähler nur bei 401 erhöhen
-  message:          { error: "Zu viele Login-Versuche. Bitte in 15 Minuten erneut versuchen." },
+  windowMs:               15 * 60 * 1000,
+  max:                    10,
+  standardHeaders:        true,
+  legacyHeaders:          false,
+  skipSuccessfulRequests: true,
+  skip:                   () => process.env.NODE_ENV === "test",
+  message:                { error: "Zu viele Login-Versuche. Bitte in 15 Minuten erneut versuchen." },
 });
 
-// ─── Fail-Secure: Server verweigert Start ohne Passwort ───────────────────────
-// Eine Finanz-App ohne Passwortschutz ist inakzeptabel.
-// Einzige Ausnahme: lokale Entwicklung (NODE_ENV !== "production").
+// ─── Fail-Secure: Server verweigert Start ohne Passwort ──────────��────────────
+
+const PASSWORD_HASH = process.env.APP_PASSWORD_HASH ?? "";
+
 if (!PASSWORD_HASH && process.env.NODE_ENV === "production") {
   console.error(
     "[FATAL] APP_PASSWORD_HASH ist nicht gesetzt.\n" +
@@ -37,60 +28,32 @@ if (!PASSWORD_HASH && process.env.NODE_ENV === "production") {
   process.exit(1);
 }
 
-/**
- * Vergleicht zwei Strings vollständig timing-sicher.
- *
- * Naive Implementierung:
- *   if (a.length !== b.length) return false  ← leakt Längeninformation per Timing
- *
- * Korrekte Implementierung: beide Strings in gleich große Puffer kopieren
- * und immer timingSafeEqual aufrufen — kein Early-Return bei falscher Länge.
- * Die Längenprüfung erfolgt danach als separate, nicht-timing-relevante Bedingung.
- */
-function safeStringEqual(a: string, b: string): boolean {
+// ─── Timing-sicherer String-Vergleich ────────────────────────────────────────
+
+export function safeStringEqual(a: string, b: string): boolean {
   const FIXED_LEN = 256;
   const aBuf = Buffer.alloc(FIXED_LEN);
   const bBuf = Buffer.alloc(FIXED_LEN);
   Buffer.from(a).copy(aBuf);
   Buffer.from(b).copy(bBuf);
-  // timingSafeEqual läuft immer — kein Early-Return bei Längendifferenz
-  const bufEqual    = timingSafeEqual(aBuf, bBuf);
-  const lenEqual    = a.length === b.length;
-  return bufEqual && lenEqual;
+  const bufEqual = timingSafeEqual(aBuf, bBuf);
+  return bufEqual && a.length === b.length;
 }
 
-/**
- * Basic-Auth-Middleware.
- * - Production ohne Hash: Server startet gar nicht (siehe oben).
- * - Development ohne Hash: Middleware durchgelassen (kein Schutz, aber kein Blocker).
- * - Mit Hash: Benutzername timing-sicher, Passwort via bcrypt.
- */
-export function basicAuthMiddleware(
-  req: Request,
-  res: Response,
-  next: NextFunction,
-): void {
+// ─── Session-Auth-Middleware ──────────────────────────────────────────────────
+// Ersetzt basicAuthMiddleware. Prüft session.authenticated statt Basic-Auth-Header.
+// Bypassed wenn APP_PASSWORD_HASH nicht gesetzt (dev/test).
+
+export function requireAuth(req: Request, res: Response, next: NextFunction): void {
   if (!PASSWORD_HASH) {
-    // Nur erreichbar in development (NODE_ENV !== "production")
     next();
     return;
   }
 
-  const authHeader = req.headers["authorization"] ?? "";
-
-  if (authHeader.startsWith("Basic ")) {
-    const decoded  = Buffer.from(authHeader.slice(6), "base64").toString("utf8");
-    const colonIdx = decoded.indexOf(":");
-    if (colonIdx !== -1) {
-      const user = decoded.slice(0, colonIdx);
-      const pass = decoded.slice(colonIdx + 1);
-      if (safeStringEqual(user, APP_USER) && bcrypt.compareSync(pass, PASSWORD_HASH)) {
-        next();
-        return;
-      }
-    }
+  if (req.session?.authenticated === true) {
+    next();
+    return;
   }
 
-  res.setHeader("WWW-Authenticate", 'Basic realm="FinanzFlow"');
-  res.status(401).send("Zugang verweigert");
+  res.status(401).json({ message: "Nicht angemeldet" });
 }

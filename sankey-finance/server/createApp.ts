@@ -1,7 +1,9 @@
 import express, { type Request, type Response, type NextFunction } from "express";
 import { createServer } from "http";
-import { basicAuthMiddleware, authRateLimiter } from "./auth";
+import { authRateLimiter, requireAuth } from "./auth";
+import { sessionMiddleware } from "./session";
 import { securityHeadersMiddleware, csrfProtectionMiddleware } from "./securityHeaders";
+import { authRouter } from "./routes/auth";
 import { registerRoutes } from "./routes";
 
 export function createApp() {
@@ -9,8 +11,8 @@ export function createApp() {
   const httpServer = createServer(app);
 
   app.use(securityHeadersMiddleware);
+  app.use(sessionMiddleware);
   app.use(authRateLimiter);
-  app.use(basicAuthMiddleware);
   app.use(csrfProtectionMiddleware);
 
   app.use(express.json({ limit: "200kb" }));
@@ -27,6 +29,12 @@ export function createApp() {
     });
     next();
   });
+
+  // Öffentliche Auth-Endpunkte — vor requireAuth registrieren
+  app.use("/api/auth", authRouter);
+
+  // Session-Authentifizierung für alle anderen /api/*-Routen
+  app.use("/api", requireAuth);
 
   registerRoutes(httpServer, app);
 

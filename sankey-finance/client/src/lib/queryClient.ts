@@ -3,6 +3,10 @@ import { API_BASE } from "./config";
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
+    if (res.status === 401) {
+      window.location.hash = "/login";
+      throw new Error("401: Nicht angemeldet");
+    }
     const text = (await res.text()) || res.statusText;
     throw new Error(`${res.status}: ${text}`);
   }

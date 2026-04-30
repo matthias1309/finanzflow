@@ -1,12 +1,14 @@
 import { eq, and } from "drizzle-orm";
+import bcrypt from "bcryptjs";
 import { db } from "./db";
 import {
-  accounts, categories, transactions, categoryRules,
+  accounts, categories, transactions, categoryRules, appSettings, recoveryCodes,
   type Account, type InsertAccount,
   type Category, type InsertCategory,
   type Transaction, type InsertTransaction,
   type CategoryRule,
 } from "@shared/schema";
+import { encryptSecret, decryptSecret, generateRecoveryCodePlaintext } from "./totp";
 
 // ─── Interface ────────────────────────────────────────────────────────────────
 
@@ -33,26 +35,39 @@ export interface IStorage {
   getCategoryRules(): CategoryRule[];
   suggestCategory(description: string): number | null;
   learnCategoryRules(entries: { description: string; categoryId: number }[]): void;
+  // TOTP / 2FA
+  getTotpConfigured(): boolean;
+  getTotpSecret(): string | null;
+  setTotpSecret(plainSecret: string): void;
+  getPendingTotpSecret(): string | null;
+  setPendingTotpSecret(plainSecret: string): void;
+  clearPendingTotpSecret(): void;
+  getTotpLastUsedToken(): string | null;
+  setTotpLastUsedToken(token: string): void;
+  generateAndStoreRecoveryCodes(): string[];
+  verifyAndConsumeRecoveryCode(code: string): boolean;
+  getRecoveryCodesRemaining(): number;
+  clearRecoveryCodes(): void;
 }
 
 // ─── Implementation ───────────────────────────────────────────────────────────
 
 export const storage: IStorage = {
 
-  // ── Accounts ──────────────────────────────────────────────────────────────
+  // ── Accounts ───────────────────────────────────────────────────���──────────
   getAccounts()            { return db.select().from(accounts).all(); },
   getAccount(id)           { return db.select().from(accounts).where(eq(accounts.id, id)).get(); },
   createAccount(data)      { return db.insert(accounts).values(data).returning().get(); },
   updateAccount(id, data)  { return db.update(accounts).set(data).where(eq(accounts.id, id)).returning().get(); },
   deleteAccount(id)        { db.delete(accounts).where(eq(accounts.id, id)).run(); },
 
-  // ── Categories ────────────────────────────────────────────────────────────
+  // ── Categories ──────────────────────────────────────────��─────────────────
   getCategories()          { return db.select().from(categories).all(); },
   createCategory(data)     { return db.insert(categories).values(data).returning().get(); },
   updateCategory(id, data) { return db.update(categories).set(data).where(eq(categories.id, id)).returning().get(); },
   deleteCategory(id)       { db.delete(categories).where(eq(categories.id, id)).run(); },
 
-  // ── Transactions ──────────────────────────────────────────────────────────
+  // ── Transactions ────────────────────────────���─────────────────────────────
   getTransactions(month?, accountId?) {
     const conditions = [
       month     ? eq(transactions.month,     month)     : null,
@@ -79,13 +94,9 @@ export const storage: IStorage = {
     return [...new Set(rows.map(r => r.month))].sort().reverse();
   },
 
-  // ── Category Rules ─────────────────────────────────────────────────────────
+  // ── Category Rules ────────────────────────��─────────────────────────���──────
   getCategoryRules() { return db.select().from(categoryRules).all(); },
 
-  /**
-   * Findet die beste Kategorie für eine Beschreibung anhand gespeicherter Keywords.
-   * Längeres Keyword gewinnt (spezifischer); bei Gleichstand gewinnt höherer hits-Wert.
-   */
   suggestCategory(description: string): number | null {
     const normalized = description.toLowerCase();
     const rules      = db.select().from(categoryRules).all();
@@ -106,10 +117,6 @@ export const storage: IStorage = {
     return best?.categoryId ?? null;
   },
 
-  /**
-   * Lernt aus bestätigten Import-Buchungen:
-   * Extrahiert ein normalisiertes Keyword und speichert / aktualisiert die Kategorie.
-   */
   learnCategoryRules(entries: { description: string; categoryId: number }[]): void {
     for (const { description, categoryId } of entries) {
       const keyword = extractKeyword(description);
@@ -131,15 +138,93 @@ export const storage: IStorage = {
       }
     }
   },
+
+  // ── TOTP / 2FA ──────────────────────────────��─────────────────────────────
+
+  getTotpConfigured() {
+    return getSetting("totp_configured") === "true";
+  },
+
+  getTotpSecret() {
+    const enc = getSetting("totp_secret");
+    if (!enc) return null;
+    return decryptSecret(enc);
+  },
+
+  setTotpSecret(plainSecret: string) {
+    upsertSetting("totp_secret",     encryptSecret(plainSecret));
+    upsertSetting("totp_configured", "true");
+  },
+
+  getPendingTotpSecret() {
+    const enc = getSetting("totp_pending_secret");
+    if (!enc) return null;
+    return decryptSecret(enc);
+  },
+
+  setPendingTotpSecret(plainSecret: string) {
+    upsertSetting("totp_pending_secret", encryptSecret(plainSecret));
+  },
+
+  clearPendingTotpSecret() {
+    db.delete(appSettings).where(eq(appSettings.key, "totp_pending_secret")).run();
+  },
+
+  getTotpLastUsedToken() {
+    return getSetting("totp_last_used_token");
+  },
+
+  setTotpLastUsedToken(token: string) {
+    upsertSetting("totp_last_used_token", token);
+  },
+
+  generateAndStoreRecoveryCodes(): string[] {
+    db.delete(recoveryCodes).run();
+    const plainCodes: string[] = [];
+    for (let i = 0; i < 8; i++) {
+      const plain = generateRecoveryCodePlaintext();
+      const hash  = bcrypt.hashSync(plain, 10);
+      db.insert(recoveryCodes).values({ codeHash: hash, used: 0 }).run();
+      plainCodes.push(plain);
+    }
+    return plainCodes;
+  },
+
+  verifyAndConsumeRecoveryCode(code: string): boolean {
+    const unused = db.select().from(recoveryCodes).where(eq(recoveryCodes.used, 0)).all();
+    for (const row of unused) {
+      if (bcrypt.compareSync(code, row.codeHash)) {
+        db.update(recoveryCodes).set({ used: 1 }).where(eq(recoveryCodes.id, row.id)).run();
+        return true;
+      }
+    }
+    return false;
+  },
+
+  getRecoveryCodesRemaining(): number {
+    return db.select().from(recoveryCodes).where(eq(recoveryCodes.used, 0)).all().length;
+  },
+
+  clearRecoveryCodes() {
+    db.delete(recoveryCodes).run();
+  },
 };
 
-// ─── Hilfsfunktionen ──────────────────────────────────────────────────────────
+// ─── Hilfsfunktionen ───────────────────────────���─────────────────────────────���
 
-/**
- * Extrahiert das relevanteste Keyword aus einer Buchungsbeschreibung.
- * Nimmt den Payee-Namen links vom ersten Trennzeichen " – " / " - ",
- * dann den ersten Token wenn dieser ≥ 4 Zeichen lang ist.
- */
+function getSetting(key: string): string | null {
+  return db.select().from(appSettings).where(eq(appSettings.key, key)).get()?.value ?? null;
+}
+
+function upsertSetting(key: string, value: string): void {
+  const existing = db.select().from(appSettings).where(eq(appSettings.key, key)).get();
+  if (existing) {
+    db.update(appSettings).set({ value }).where(eq(appSettings.key, key)).run();
+  } else {
+    db.insert(appSettings).values({ key, value }).run();
+  }
+}
+
 function extractKeyword(description: string): string {
   const normalized = description.toLowerCase().trim();
   const payee      = normalized.split(/ – | - /)[0].trim();

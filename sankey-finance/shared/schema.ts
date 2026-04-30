@@ -35,6 +35,19 @@ export const transactions = sqliteTable("transactions", {
   originalText: text("original_text"),     // raw line from PDF for reference
 });
 
+// ─── App Settings (Key-Value für interne Konfiguration) ──────
+export const appSettings = sqliteTable("app_settings", {
+  key:   text("key").primaryKey(),
+  value: text("value").notNull(),
+});
+
+// ─── Recovery Codes (2FA Backup-Codes) ───────────────────────
+export const recoveryCodes = sqliteTable("recovery_codes", {
+  id:       integer("id").primaryKey({ autoIncrement: true }),
+  codeHash: text("code_hash").notNull(),
+  used:     integer("used").notNull().default(0),
+});
+
 // ─── Category Rules (Auto-Kategorisierung) ──────────────────
 // Lernende Regeln: keyword → category. Wird beim Bestätigen eines Imports
 // automatisch gespeichert und beim nächsten Upload als Vorauswahl genutzt.

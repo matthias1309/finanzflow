@@ -292,18 +292,32 @@ server/
 ### 6.1 User Login
 
 ```
-Browser                     Express
-  │                           │
-  │── GET /finanzflow/ ───────►│
-  │                           │ authRateLimiter checks IP
-  │                           │ basicAuthMiddleware: no header
-  │◄── 401 WWW-Authenticate ──│
-  │                           │
-  │ User enters credentials   │
-  │── GET / (Basic Auth) ─────►│
-  │                           │ bcrypt.compareSync(pass, hash)
-  │                           │ timingSafeEqual(user, APP_USER)
-  │◄── 200 (SPA HTML) ────────│
+Browser                     Express                       SQLite
+  │                           │                              │
+  │── GET /finanzflow/ ───────►│                              │
+  │                           │ sessionMiddleware: no cookie  │
+  │◄── 302 /login ────────────│                              │
+  │                           │                              │
+  │── GET /login ─────────────►│                              │
+  │◄── 200 (Login-Page HTML) ─│                              │
+  │                           │                              │
+  │ Nutzer gibt User+Passwort ein                             │
+  │── POST /api/auth/login ───►│                              │
+  │                           │ authRateLimiter checks IP    │
+  │                           │ bcrypt.compareSync(pass,hash)│
+  │                           │ session.pendingTotp = true   │
+  │◄── 200 { step: "totp" } ──│                              │
+  │                           │                              │
+  │ Nutzer gibt TOTP-Code ein  │                              │
+  │── POST /api/auth/totp ────►│                              │
+  │                           │── SELECT totp_secret ───────►│
+  │                           │ totp.verify(code, secret)    │
+  │                           │ session.authenticated = true │
+  │◄── 200 { ok: true } ──────│                              │
+  │                           │                              │
+  │── GET /finanzflow/ ───────►│                              │
+  │                           │ sessionMiddleware: valid ✓   │
+  │◄── 200 (SPA HTML) ────────│                              │
 ```
 
 ### 6.2 Dashboard Load
@@ -471,11 +485,25 @@ finanzflow-uberspace.tar.gz
 
 **Authentication**
 
-HTTP Basic Auth is applied globally via `basicAuthMiddleware` (before all routes). The flow:
-1. Parse `Authorization: Basic <base64>` header
-2. Constant-time username comparison via `timingSafeEqual` with fixed-size buffers (prevents timing attacks)
-3. Password verification via `bcrypt.compareSync` (bcrypt is inherently constant-time for equal-length hashes)
-4. 401 + `WWW-Authenticate` on failure
+Session-based two-factor authentication (see ADR-007). The flow:
+
+1. `POST /api/auth/login` — password step
+   - `authRateLimiter` checks IP (10 failures / 15 min)
+   - Constant-time username comparison via `timingSafeEqual` with fixed-size buffers
+   - Password verification via `bcrypt.compareSync`
+   - On success: `req.session.pendingTotp = true` (session not yet fully authenticated)
+
+2. `POST /api/auth/totp` — TOTP step
+   - Decrypts stored TOTP secret (AES-256)
+   - `totp.verify({ token, secret })` with ±1 window (30 s drift tolerance)
+   - Replay protection: last-used token timestamp stored in DB
+   - Recovery code path: bcrypt-compare against stored hashes; code marked used on match
+   - On success: `req.session.authenticated = true`
+
+3. Session middleware on all protected routes
+   - Checks `req.session.authenticated === true`
+   - Bypassed when `APP_PASSWORD_HASH` is unset (development / test mode)
+   - On failure: `302 /login` (HTML requests) or `401` (API requests)
 
 **Brute-Force Protection**
 
@@ -601,7 +629,7 @@ Chart colors (Sankey diagram) are passed as props from the theme-aware parent co
 
 ---
 
-### ADR-002 — HTTP Basic Auth instead of session-based login
+### ADR-002 — HTTP Basic Auth instead of session-based login *(superseded by ADR-007)*
 
 **Context:** The application needs to protect a single user's financial data.
 
@@ -613,6 +641,8 @@ Chart colors (Sankey diagram) are passed as props from the theme-aware parent co
 - ✅ `bcrypt.compareSync` is inherently slow (10 rounds), making brute force impractical
 - ⚠️ Credentials are sent on every request (mitigated by HTTPS on Uberspace)
 - ⚠️ No "logout" mechanism — browser caches credentials until closed (acceptable for single-user)
+
+> **Superseded by ADR-007.** HTTP Basic Auth does not support a second authentication factor. Replaced by session-based auth + TOTP.
 
 ---
 
@@ -654,6 +684,29 @@ Chart colors (Sankey diagram) are passed as props from the theme-aware parent co
 - ✅ Supertest tests call `createApp()` and pass `app` directly — no port conflicts, no process startup
 - ✅ `setupFiles` in Vitest set `DB_PATH=:memory:` before any module runs, so each test file gets an isolated fresh database
 - ✅ Auth and CSRF are automatically bypassed in test mode (same logic as dev)
+
+---
+
+### ADR-007 — Session-based authentication with TOTP (replaces ADR-002)
+
+**Context:** HTTP Basic Auth (ADR-002) sends credentials on every request and provides no mechanism for a second authentication factor. A personal finance application on a public URL warrants stronger protection.
+
+**Decision:** Replace HTTP Basic Auth with session-based authentication and TOTP as a mandatory second factor.
+
+- Login page (`GET /login`) collects username + password; on success the session is marked `pendingTotp: true`
+- TOTP page collects a 6-digit code (or recovery code); on success the session is marked `authenticated: true`
+- Session cookie flags: `httpOnly`, `Secure`, `SameSite=Strict`; TTL configurable via `SESSION_MAX_AGE_HOURS` (default 8 h)
+- TOTP secret encrypted at rest with AES-256 (`TOTP_ENCRYPTION_KEY` env var)
+- 8 single-use recovery codes generated at setup, stored as bcrypt hashes
+- Auth bypassed when `APP_PASSWORD_HASH` is unset (development / test mode)
+
+**Consequences:**
+- ✅ Credentials sent only once at login, not on every request
+- ✅ Explicit logout possible (server-side session destruction)
+- ✅ Second factor (TOTP) defeats credential-only attacks
+- ✅ Recovery codes prevent permanent lockout if TOTP device is lost
+- ⚠️ Server-side session store required (memorystore with TTL — already a dependency)
+- ⚠️ TOTP_ENCRYPTION_KEY must be kept secret and backed up; loss requires CLI 2FA reset
 
 ---
 
@@ -755,14 +808,14 @@ The current theme (dark/light) is stored only in React state. A page reload rese
 
 ---
 
-### Risk 4 — Basic Auth credential caching by browser
+### Risk 4 — Basic Auth credential caching by browser *(mitigated)*
 
-**Likelihood:** Medium (depends on browser behaviour)  
-**Impact:** Low (single-user, trusted device assumed)  
+**Likelihood:** N/A — resolved  
+**Impact:** N/A — resolved  
 
-Browsers cache Basic Auth credentials and resend them on every request. There is no explicit logout — the user must close the browser tab or clear credentials.
+Previously: browsers cached Basic Auth credentials with no explicit logout mechanism.
 
-**Mitigation:** Not mitigated. Session-based auth with a logout button would solve this but adds complexity (session store, CSRF token).
+**Mitigation:** Resolved by ADR-007. Session-based auth with explicit logout (`POST /api/auth/logout`) destroys the server-side session and clears the cookie.
 
 ---
 
@@ -784,8 +837,12 @@ Browsers cache Basic Auth credentials and resend them on every request. There is
 | **Sankey diagram** | A flow chart where the width of each band is proportional to the flow quantity. FinanzFlow uses it to visualize money flowing from income categories through accounts to expense categories. |
 | **KPI** | Key Performance Indicator. In FinanzFlow: total monthly income and total monthly expenses per account. |
 | **IBAN** | International Bank Account Number. A standardized bank account identifier used in Europe. Stored optionally per account. |
-| **Basic Auth** | HTTP Basic Authentication. Credentials are Base64-encoded and sent in the `Authorization` header on every request. |
-| **bcrypt** | A password hashing algorithm with a configurable cost factor. Used to store the application password hash. |
+| **Basic Auth** | HTTP Basic Authentication. Credentials are Base64-encoded and sent in the `Authorization` header on every request. Superseded by session-based auth + TOTP (ADR-007). |
+| **bcrypt** | A password hashing algorithm with a configurable cost factor. Used to store the application password hash and recovery code hashes. |
+| **TOTP** | Time-based One-Time Password (RFC 6238). Generates a 6-digit code every 30 seconds from a shared secret. Used as the second factor in 2FA. |
+| **2FA** | Two-Factor Authentication. Requires two independent proofs of identity: something you know (password) and something you have (TOTP device). |
+| **Session cookie** | An `httpOnly`, `Secure`, `SameSite=Strict` cookie that carries a session ID. The session state (authenticated, pendingTotp) is stored server-side in memorystore. |
+| **Recovery code** | A single-use backup code generated during 2FA setup. Allows login if the TOTP device is unavailable. Stored as bcrypt hashes; invalidated on use. |
 | **CSP** | Content Security Policy. An HTTP header that restricts which resources a browser may load, mitigating XSS. |
 | **CSRF** | Cross-Site Request Forgery. An attack where a malicious site triggers a state-changing request to the victim site using the browser's cached credentials. |
 | **ReDoS** | Regular Expression Denial of Service. An attack that causes catastrophic backtracking in poorly written regex, freezing the server. |
