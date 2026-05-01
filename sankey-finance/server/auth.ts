@@ -14,18 +14,38 @@ export const authRateLimiter = rateLimit({
   message:                { error: "Zu viele Login-Versuche. Bitte in 15 Minuten erneut versuchen." },
 });
 
-// ─── Fail-Secure: Server verweigert Start ohne Passwort ──────────��────────────
+// ─── Fail-Secure: Server verweigert Start bei fehlenden Pflicht-Variablen ────
 
 const PASSWORD_HASH = process.env.APP_PASSWORD_HASH ?? "";
 
-if (!PASSWORD_HASH && process.env.NODE_ENV === "production") {
-  console.error(
-    "[FATAL] APP_PASSWORD_HASH ist nicht gesetzt.\n" +
-    "        Die App startet im production-Modus nicht ohne Passwortschutz.\n" +
-    "        Hash erzeugen: node -e \"const b=require('bcryptjs'); console.log(b.hashSync('DeinPasswort', 10))\"\n" +
-    "        Dann APP_PASSWORD_HASH in der supervisord .ini setzen."
-  );
-  process.exit(1);
+if (process.env.NODE_ENV === "production") {
+  const fatal = (msg: string) => { console.error(`[FATAL] ${msg}`); process.exit(1); };
+
+  if (!PASSWORD_HASH) {
+    fatal(
+      "APP_PASSWORD_HASH ist nicht gesetzt.\n" +
+      "        Hash erzeugen: node -e \"const b=require('bcryptjs'); console.log(b.hashSync('DeinPasswort', 10))\"\n" +
+      "        Dann APP_PASSWORD_HASH in der supervisord .ini setzen."
+    );
+  }
+
+  const sessionSecret = process.env.SESSION_SECRET ?? "";
+  if (sessionSecret.length < 32) {
+    fatal(
+      "SESSION_SECRET fehlt oder ist zu kurz (mind. 32 Zeichen).\n" +
+      "        Erzeugen: openssl rand -hex 32\n" +
+      "        Dann SESSION_SECRET in der supervisord .ini setzen."
+    );
+  }
+
+  const totpKey = process.env.TOTP_ENCRYPTION_KEY ?? "";
+  if (totpKey.length !== 64) {
+    fatal(
+      "TOTP_ENCRYPTION_KEY fehlt oder hat falsche Länge (muss 64 Hex-Zeichen sein).\n" +
+      "        Erzeugen: openssl rand -hex 32\n" +
+      "        Dann TOTP_ENCRYPTION_KEY in der supervisord .ini setzen."
+    );
+  }
 }
 
 // ─── Timing-sicherer String-Vergleich ────────────────────────────────────────

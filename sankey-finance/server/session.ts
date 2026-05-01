@@ -5,6 +5,7 @@ declare module "express-session" {
   interface SessionData {
     authenticated?: boolean;
     pendingTotp?:   boolean;
+    stepUpAt?:      number;
   }
 }
 

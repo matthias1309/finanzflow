@@ -22,6 +22,19 @@ function requireSession(req: Request, res: Response, next: NextFunction): void {
   res.status(401).json({ message: "Nicht angemeldet" });
 }
 
+// ─── Middleware: Step-up-Verifikation (für destruktive 2FA-Operationen) ──────
+// Wenn 2FA konfiguriert ist, muss der aktuelle TOTP-Code in den letzten 5 Min
+// über POST /api/auth/step-up bestätigt worden sein.
+
+const STEP_UP_VALIDITY_MS = 5 * 60 * 1000;
+
+function requireStepUp(req: Request, res: Response, next: NextFunction): void {
+  if (!authEnabled() || !storage.getTotpConfigured()) { next(); return; }
+  const stepUpAt = req.session?.stepUpAt ?? 0;
+  if (Date.now() - stepUpAt <= STEP_UP_VALIDITY_MS) { next(); return; }
+  res.status(403).json({ message: "Step-up-Verifizierung erforderlich", code: "STEP_UP_REQUIRED" });
+}
+
 // ─── POST /api/auth/login ─────────────────────────────────────────────────────
 
 authRouter.post("/login", authRateLimiter, (req, res) => {
@@ -49,14 +62,20 @@ authRouter.post("/login", authRateLimiter, (req, res) => {
   }
 
   if (!storage.getTotpConfigured()) {
-    req.session.authenticated = true;
-    res.json({ step: "done" });
+    req.session.regenerate((err) => {
+      if (err) { res.status(500).json({ message: "Session-Fehler" }); return; }
+      req.session.authenticated = true;
+      res.json({ step: "done" });
+    });
     return;
   }
 
-  req.session.pendingTotp   = true;
-  req.session.authenticated = false;
-  res.json({ step: "totp" });
+  req.session.regenerate((err) => {
+    if (err) { res.status(500).json({ message: "Session-Fehler" }); return; }
+    req.session.pendingTotp   = true;
+    req.session.authenticated = false;
+    res.json({ step: "totp" });
+  });
 });
 
 // ─── POST /api/auth/totp ──────────────────────────────────────────────────────
@@ -81,9 +100,11 @@ authRouter.post("/totp", (req, res) => {
 
   // Recovery-Code?
   if (storage.verifyAndConsumeRecoveryCode(code)) {
-    req.session.pendingTotp   = false;
-    req.session.authenticated = true;
-    res.json({ ok: true });
+    req.session.regenerate((err) => {
+      if (err) { res.status(500).json({ message: "Session-Fehler" }); return; }
+      req.session.authenticated = true;
+      res.json({ ok: true });
+    });
     return;
   }
 
@@ -105,9 +126,11 @@ authRouter.post("/totp", (req, res) => {
   }
 
   storage.setTotpLastUsedToken(code);
-  req.session.pendingTotp   = false;
-  req.session.authenticated = true;
-  res.json({ ok: true });
+  req.session.regenerate((err) => {
+    if (err) { res.status(500).json({ message: "Session-Fehler" }); return; }
+    req.session.authenticated = true;
+    res.json({ ok: true });
+  });
 });
 
 // ─── POST /api/auth/logout ────────────────────────────────────────────────────
@@ -128,6 +151,41 @@ authRouter.get("/status", (req, res) => {
   });
 });
 
+// ─── POST /api/auth/step-up ───────────────────────────────────────────────────
+
+authRouter.post("/step-up", requireSession, (req, res) => {
+  if (!storage.getTotpConfigured()) {
+    res.status(400).json({ message: "2FA nicht konfiguriert" });
+    return;
+  }
+
+  const { code } = req.body ?? {};
+  if (!code) {
+    res.status(400).json({ message: "Code erforderlich" });
+    return;
+  }
+
+  const secret = storage.getTotpSecret();
+  if (!secret) {
+    res.status(500).json({ message: "TOTP-Secret fehlt" });
+    return;
+  }
+
+  if (storage.getTotpLastUsedToken() === code) {
+    res.status(401).json({ message: "Dieser Code wurde bereits verwendet" });
+    return;
+  }
+
+  if (!verifyTotpToken(code, secret)) {
+    res.status(401).json({ message: "Ungültiger Code" });
+    return;
+  }
+
+  storage.setTotpLastUsedToken(code);
+  req.session.stepUpAt = Date.now();
+  res.json({ ok: true });
+});
+
 // ─── 2FA-Management ───────────────────────────────────────────────────────────
 
 // Status ist öffentlich (kein sensitiver Inhalt, nur boolean-Flags)
@@ -142,14 +200,14 @@ authRouter.get("/2fa/status", (_req, res) => {
 // Setup und Recovery erfordern eingeloggte Session
 authRouter.use("/2fa", requireSession);
 
-authRouter.post("/2fa/setup", (req, res) => {
+authRouter.post("/2fa/setup", requireStepUp, (req, res) => {
   const appUser = process.env.APP_USER ?? "admin";
   const secret  = generateTotpSecret();
   storage.setPendingTotpSecret(secret);
   res.json({ secret, otpAuthUrl: getTotpAuthUrl(appUser, secret) });
 });
 
-authRouter.post("/2fa/verify-setup", (req, res) => {
+authRouter.post("/2fa/verify-setup", requireStepUp, (req, res) => {
   const { code } = req.body ?? {};
   if (!code) {
     res.status(400).json({ message: "Code erforderlich" });
@@ -172,6 +230,6 @@ authRouter.post("/2fa/verify-setup", (req, res) => {
   res.json({ recoveryCodes: storage.generateAndStoreRecoveryCodes() });
 });
 
-authRouter.post("/2fa/regenerate-recovery", (_req, res) => {
+authRouter.post("/2fa/regenerate-recovery", requireStepUp, (_req, res) => {
   res.json({ recoveryCodes: storage.generateAndStoreRecoveryCodes() });
 });

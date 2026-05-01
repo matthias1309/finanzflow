@@ -182,7 +182,8 @@ DB_PATH=/home/user/finanzflow/finance.db
 APP_USER=admin
 APP_PASSWORD_HASH=$2b$10$...      ; $$ escapen in supervisord
 APP_ORIGIN=https://user.uberspace.de
-TOTP_ENCRYPTION_KEY=...           ; 32 zufällige Bytes als Hex (openssl rand -hex 32)
+SESSION_SECRET=...                ; mind. 32 Zeichen: openssl rand -hex 32
+TOTP_ENCRYPTION_KEY=...           ; 32 zufällige Bytes als Hex: openssl rand -hex 32
 SESSION_MAX_AGE_HOURS=8           ; optional, Standard: 8
 TOTP_ISSUER=FinanzFlow            ; optional, Name in der Authenticator-App
 ```

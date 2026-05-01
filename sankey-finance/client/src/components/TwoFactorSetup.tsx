@@ -17,6 +17,17 @@ interface TwoFaStatus {
 
 type SetupStep = "qr" | "codes";
 type RegenStep = "confirm" | "codes";
+type PendingAction = "setup" | "regen";
+
+function parseApiError(e: unknown, fallback: string): string {
+  try {
+    const msg = (e as any)?.message ?? "";
+    const json = JSON.parse(msg.replace(/^\d+:\s*/, ""));
+    return json.message ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
 
 export default function TwoFactorSetup() {
   const queryClient = useQueryClient();
@@ -25,6 +36,13 @@ export default function TwoFactorSetup() {
     queryKey: ["/api/auth/2fa/status"],
     queryFn: () => fetch(`${API_BASE}/api/auth/2fa/status`).then(r => r.json()),
   });
+
+  // ─── Step-up-Dialog ───────────────────────────────────────────────────────
+  const [stepUpOpen,    setStepUpOpen]    = useState(false);
+  const [stepUpCode,    setStepUpCode]    = useState("");
+  const [stepUpError,   setStepUpError]   = useState("");
+  const [stepUpLoading, setStepUpLoading] = useState(false);
+  const [pendingAction, setPendingAction] = useState<PendingAction>("setup");
 
   // ─── Setup-Dialog ─────────────────────────────────────────────────────────
   const [setupOpen,   setSetupOpen]   = useState(false);
@@ -37,9 +55,9 @@ export default function TwoFactorSetup() {
   const [recoveryCodes, setRecoveryCodes] = useState<string[]>([]);
 
   // ─── Regenerierung-Dialog ──────────────────────────────────────────────────
-  const [regenOpen,   setRegenOpen]   = useState(false);
-  const [regenStep,   setRegenStep]   = useState<RegenStep>("confirm");
-  const [regenCodes,  setRegenCodes]  = useState<string[]>([]);
+  const [regenOpen,    setRegenOpen]    = useState(false);
+  const [regenStep,    setRegenStep]    = useState<RegenStep>("confirm");
+  const [regenCodes,   setRegenCodes]   = useState<string[]>([]);
   const [regenLoading, setRegenLoading] = useState(false);
 
   // ─── Clipboard ────────────────────────────────────────────────────────────
@@ -51,8 +69,47 @@ export default function TwoFactorSetup() {
     setTimeout(() => setCopied(false), 2000);
   }
 
-  // ─── Setup starten ────────────────────────────────────────────────────────
-  async function openSetup() {
+  // ─── Step-up ──────────────────────────────────────────────────────────────
+
+  function openStepUp(action: PendingAction) {
+    setPendingAction(action);
+    setStepUpCode("");
+    setStepUpError("");
+    setStepUpOpen(true);
+  }
+
+  function closeStepUp() {
+    setStepUpOpen(false);
+    setStepUpCode("");
+    setStepUpError("");
+  }
+
+  async function handleStepUp() {
+    if (stepUpCode.length < 6) return;
+    setStepUpLoading(true);
+    setStepUpError("");
+    try {
+      await apiRequest("POST", "/api/auth/step-up", { code: stepUpCode });
+      setStepUpOpen(false);
+      setStepUpCode("");
+      if (pendingAction === "setup") {
+        await doSetup();
+      } else {
+        setRegenStep("confirm");
+        setRegenCodes([]);
+        setRegenOpen(true);
+      }
+    } catch (e) {
+      setStepUpError(parseApiError(e, "Ungültiger Code – bitte erneut versuchen."));
+      setStepUpCode("");
+    } finally {
+      setStepUpLoading(false);
+    }
+  }
+
+  // ─── Setup ────────────────────────────────────────────────────────────────
+
+  async function doSetup() {
     setLoading(true);
     setError("");
     setCode("");
@@ -73,6 +130,14 @@ export default function TwoFactorSetup() {
     }
   }
 
+  function openSetup() {
+    if (status?.configured) {
+      openStepUp("setup");
+    } else {
+      doSetup();
+    }
+  }
+
   async function handleVerify() {
     if (code.length < 6) return;
     setError("");
@@ -82,7 +147,7 @@ export default function TwoFactorSetup() {
       setRecoveryCodes(data.recoveryCodes);
       setSetupStep("codes");
     } catch (e: any) {
-      setError(e.message ?? "Ungültiger Code – bitte erneut versuchen.");
+      setError(parseApiError(e, "Ungültiger Code – bitte erneut versuchen."));
       setCode("");
     } finally {
       setLoading(false);
@@ -99,6 +164,7 @@ export default function TwoFactorSetup() {
   }
 
   // ─── Recovery-Codes neu generieren ────────────────────────────────────────
+
   async function handleRegen() {
     setRegenLoading(true);
     try {
@@ -161,7 +227,7 @@ export default function TwoFactorSetup() {
             variant="ghost"
             size="sm"
             className="text-xs text-muted-foreground hover:text-foreground gap-1.5"
-            onClick={() => { setRegenStep("confirm"); setRegenCodes([]); setRegenOpen(true); }}
+            onClick={() => openStepUp("regen")}
             data-testid="button-regen-recovery"
           >
             <RefreshCw size={12} />
@@ -169,6 +235,48 @@ export default function TwoFactorSetup() {
           </Button>
         </div>
       )}
+
+      {/* ── Step-up-Dialog ────────────────────────────────────────────────── */}
+      <Dialog open={stepUpOpen} onOpenChange={(open) => { if (!open) closeStepUp(); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Identität bestätigen</DialogTitle>
+            <DialogDescription>
+              Gib den aktuellen Code aus deiner Authenticator-App ein, um fortzufahren.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col items-center gap-4 py-2">
+            <div className="w-full space-y-2">
+              <div className="flex justify-center">
+                <InputOTP
+                  maxLength={6}
+                  value={stepUpCode}
+                  onChange={setStepUpCode}
+                  onComplete={handleStepUp}
+                  data-testid="input-step-up-code"
+                >
+                  <InputOTPGroup>
+                    {[0, 1, 2, 3, 4, 5].map(i => <InputOTPSlot key={i} index={i} />)}
+                  </InputOTPGroup>
+                </InputOTP>
+              </div>
+              {stepUpError && (
+                <p className="text-xs text-red-400 text-center" role="alert">{stepUpError}</p>
+              )}
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={closeStepUp}>Abbrechen</Button>
+            <Button
+              onClick={handleStepUp}
+              disabled={stepUpCode.length < 6 || stepUpLoading}
+              data-testid="button-confirm-step-up"
+            >
+              {stepUpLoading ? "Wird geprüft…" : "Bestätigen"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* ── Setup-Dialog ──────────────────────────────────────────────────── */}
       <Dialog open={setupOpen} onOpenChange={(open) => { if (!open) closeSetup(); }}>

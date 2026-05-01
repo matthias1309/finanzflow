@@ -4,7 +4,9 @@ import { generateSecret, generateSync, verifySync, generateURI } from "otplib";
 function getEncryptionKey(): Buffer {
   const hex = process.env.TOTP_ENCRYPTION_KEY ?? "";
   if (hex.length !== 64) {
-    return Buffer.alloc(32, 0);
+    throw new Error(
+      "TOTP_ENCRYPTION_KEY fehlt oder ist ungültig. Erzeugen: openssl rand -hex 32"
+    );
   }
   return Buffer.from(hex, "hex");
 }
