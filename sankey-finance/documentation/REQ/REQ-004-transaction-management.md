@@ -91,6 +91,19 @@ Feature: Transaction Management
     When the API receives a transaction with month "April-2026"
     Then the response status is 400
     And the error indicates the month format must be YYYY-MM
+
+  Scenario: Kontoübertrag erhöht den Saldo des Zielkontos
+    Given Konten "Girokonto" und "Gemeinschaftskonto" existieren
+    And eine Übertrag-Transaktion von 200 € von "Girokonto" nach "Gemeinschaftskonto" für "2026-04" wurde angelegt
+    When GET /api/summary/2026-04 aufgerufen wird
+    Then enthält accountSummaries[Gemeinschaftskonto].transfersIn den Wert 200
+    And der angezeigte Saldo von "Gemeinschaftskonto" beträgt 200 €
+    And der angezeigte Saldo von "Girokonto" beträgt 0 € (Übertrag ist kein Ausgaben-Posten)
+
+  Scenario: Mehrere eingehende Überträge werden summiert
+    Given "Girokonto" überweist 100 € und 150 € in zwei separaten Überträgen nach "Gemeinschaftskonto"
+    When GET /api/summary/2026-04 aufgerufen wird
+    Then enthält accountSummaries[Gemeinschaftskonto].transfersIn den Wert 250
 ```
 
 ## Notes

@@ -12,7 +12,7 @@
  */
 import { describe, it, expect, beforeAll } from "vitest";
 import request from "supertest";
-import { generateSync } from "otplib";
+import { authenticator } from "otplib";
 
 const TEST_USER     = "admin";
 const TEST_PASSWORD = "TestPass123!";
@@ -49,7 +49,7 @@ beforeAll(async () => {
 async function loginWithTotp(totpSecret: string): Promise<request.SuperAgentTest> {
   const sessionAgent = request.agent(app);
   await sessionAgent.post("/api/auth/login").send({ username: TEST_USER, password: TEST_PASSWORD });
-  const code = generateSync({ secret: totpSecret });
+  const code = authenticator.generate(totpSecret);
   await sessionAgent.post("/api/auth/totp").send({ code });
   return sessionAgent;
 }
@@ -142,7 +142,7 @@ describe("POST /api/auth/2fa/setup", () => {
     expect(setupRes.status).toBe(200);
     const { secret } = setupRes.body as { secret: string };
 
-    const code = generateSync({ secret });
+    const code = authenticator.generate(secret);
     const verifyRes = await passwordSession
       .post("/api/auth/2fa/verify-setup")
       .send({ code });
@@ -208,7 +208,7 @@ describe("Recovery codes", () => {
   beforeAll(async () => {
     const setupRes = await passwordSession.post("/api/auth/2fa/setup");
     totpSecretForRecovery = setupRes.body.secret;
-    const code = generateSync({ secret: totpSecretForRecovery });
+    const code = authenticator.generate(totpSecretForRecovery);
     const verifyRes = await passwordSession
       .post("/api/auth/2fa/verify-setup")
       .send({ code });
@@ -267,7 +267,7 @@ describe("Full login flow (password → TOTP → authenticated session)", () => 
   beforeAll(async () => {
     const setupRes = await passwordSession.post("/api/auth/2fa/setup");
     totpSecret = setupRes.body.secret;
-    const code = generateSync({ secret: totpSecret });
+    const code = authenticator.generate(totpSecret);
     await passwordSession.post("/api/auth/2fa/verify-setup").send({ code });
   });
 
@@ -287,7 +287,7 @@ describe("Full login flow (password → TOTP → authenticated session)", () => 
   it("rejects a TOTP code that was already used in the same 30-second window (replay protection)", async () => {
     const agent1 = request.agent(app);
     await agent1.post("/api/auth/login").send({ username: TEST_USER, password: TEST_PASSWORD });
-    const code = generateSync({ secret: totpSecret });
+    const code = authenticator.generate(totpSecret);
     await agent1.post("/api/auth/totp").send({ code });
 
     // Same code used again in a fresh login

@@ -20,6 +20,8 @@ interface AccountSummary {
   expenseByCategory:  Record<number, CategoryTotal>;
   /** toAccountId → Betrag */
   transfersOut:       Record<number, number>;
+  /** Summe aller eingehenden Überträge auf dieses Konto */
+  transfersIn:        number;
 }
 
 // ─── Route ────────────────────────────────────────────────────────────────────
@@ -69,6 +71,7 @@ function buildAccountSummaries(
       incomeByCategory:  {},
       expenseByCategory: {},
       transfersOut:      {},
+      transfersIn:       0,
     };
   }
 
@@ -95,6 +98,13 @@ function buildAccountSummaries(
       const abs = Math.abs(tx.amount);
       summary.totalExpenses += abs;
       addToCategory(summary.expenseByCategory, catId, catName, catColor, abs);
+    }
+  }
+
+  for (const summary of Object.values(summaries)) {
+    for (const [toAccId, amount] of Object.entries(summary.transfersOut)) {
+      const target = summaries[parseInt(toAccId)];
+      if (target) target.transfersIn += amount;
     }
   }
 

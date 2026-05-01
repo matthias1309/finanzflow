@@ -1,5 +1,5 @@
 import { createCipheriv, createDecipheriv, randomBytes } from "crypto";
-import { generateSecret, generateSync, verifySync, generateURI } from "otplib";
+import { authenticator } from "otplib";
 
 function getEncryptionKey(): Buffer {
   const hex = process.env.TOTP_ENCRYPTION_KEY ?? "";
@@ -29,24 +29,25 @@ export function decryptSecret(ciphertext: string): string {
 }
 
 export function generateTotpSecret(): string {
-  return generateSecret();
+  return authenticator.generateSecret();
 }
 
 export function getTotpAuthUrl(username: string, secret: string): string {
   const issuer = process.env.TOTP_ISSUER ?? "FinanzFlow";
-  return generateURI({ label: username, secret, issuer });
+  return authenticator.keyuri(username, issuer, secret);
 }
 
 export function verifyTotpToken(token: string, secret: string): boolean {
   try {
-    const result = verifySync({ token, secret });
-    return typeof result === "object" ? result.valid : result;
+    return authenticator.verify({ token, secret });
   } catch {
     return false;
   }
 }
 
-export { generateSync as generateTotpCode };
+export function generateTotpCode(secret: string): string {
+  return authenticator.generate(secret);
+}
 
 export function generateRecoveryCodePlaintext(): string {
   return randomBytes(10).toString("hex");

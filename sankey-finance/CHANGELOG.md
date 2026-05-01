@@ -7,6 +7,9 @@ Format angelehnt an [Keep a Changelog](https://keepachangelog.com/de/1.0.0/).
 
 ## [Unreleased]
 
+### Behoben
+- **Kontoübertrag: Saldo des Zielkontos korrekt berechnet** — `GET /api/summary/:month` befüllt nun `transfersIn` für das Empfängerkonto; die Dashboard-Kontoübersicht addiert eingehende Überträge zum Saldo (`Einnahmen − Ausgaben + transfersIn`). Bisher zeigte das Zielkonto 0 € wenn die importierte Eingangs-Transaktion gelöscht wurde, um Doppelzählung im Sankey zu vermeiden.
+
 ## [0.5.0] – 2026-04-30
 
 ### Hinzugefügt

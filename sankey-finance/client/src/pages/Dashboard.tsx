@@ -26,6 +26,7 @@ interface AccountSummary {
   incomeByCategory: Record<number, { name: string; color: string; total: number }>;
   expenseByCategory: Record<number, { name: string; color: string; total: number }>;
   transfersOut: Record<number, number>;
+  transfersIn: number;
 }
 
 interface SummaryData {
@@ -135,7 +136,7 @@ export default function Dashboard() {
             {summary.accounts.map(acc => {
               const s       = summary.accountSummaries[acc.id];
               if (!s) return null;
-              const bal     = s.totalIncome - s.totalExpenses;
+              const bal     = s.totalIncome - s.totalExpenses + s.transfersIn;
               const hidden  = hiddenAccounts.has(acc.id);
               return (
                 <Card

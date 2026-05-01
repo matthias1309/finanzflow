@@ -160,15 +160,17 @@ tar -xzf finanzflow-uberspace.tar.gz
 ./deploy.sh
 ```
 
-`deploy.sh` kopiert Dateien nach `/var/www/virtual/mattmaxx/finanzflow/`, führt `npm ci --omit=dev` aus (lädt vorcompilierte Linux-Binary für `better-sqlite3@9`) und startet den supervisord-Dienst neu.
+`deploy.sh` kopiert Dateien nach `/var/www/virtual/mattmaxx/finanzflow/`, installiert Abhängigkeiten in zwei Schritten (siehe Constraints unten) und startet den supervisord-Dienst neu.
 
 ### Bekannte Constraints
 
 | Thema | Detail |
 |---|---|
-| Node.js auf Uberspace | v18.20.8 (CentOS 7) — `uberspace tools versions use node 20` greift nicht zuverlässig |
-| `better-sqlite3` | Pinned auf `^9.6.0` — v12 benötigt Node ≥ 20, v9 hat Prebuilt-Binaries für Node 18 |
-| g++ | Zu alt für C++20 (Standard auf CentOS 7); v9 nutzt C++17, daher compilierbar mit `scl enable devtoolset-9` falls Prebuilt-Download fehlschlägt |
+| Node.js auf Uberspace | Node 18.20.8 (CentOS 7) — `uberspace tools version use node 18` |
+| `better-sqlite3` | Pinned auf `^9.6.0` — nutzt C++17; kein prebuilt für CentOS 7, daher kompiliert `deploy.sh` via node-gyp@9 + `scl enable devtoolset-9` (GCC 9). Lokal (Node 25) kein prebuilt → `npm install --ignore-scripts` verwenden. |
+| node-gyp auf Uberspace | npm liefert node-gyp@10 (C++20), CentOS 7 hat max. GCC 9. `deploy.sh` installiert node-gyp@9 in `/tmp/finanzflow-ngv9` und ruft es direkt auf. |
+| `otplib` | Pinned auf `^12.0.1` — v13 zieht `@noble/hashes@2.x` und `@scure/base@2.x` rein, beide ESM-only, nicht mit CJS-Bundle auf Node 18 kompatibel. |
+| `@scure/base` / `@noble/hashes` overrides | Im `overrides`-Block auf `^1.2.0` resp. `^1.6.0` gehalten — v2 beider Pakete ist ESM-only und nicht per `require()` aus dem CJS-Bundle ladbar (Node 18). |
 | `node_modules` im Archiv | Niemals einpacken — macOS-Binaries sind nicht Linux-kompatibel |
 | Session-Cookie / `trust proxy` | Uberspace terminiert HTTPS bei nginx und leitet intern per HTTP weiter. Ohne `app.set("trust proxy", 1)` setzt express-session den Cookie nicht (da `req.secure = false`), Login schlägt mit 401 fehl. Ist in `server/createApp.ts` gesetzt — nicht entfernen. |
 | API-URLs im Client | Alle `fetch()`-Calls müssen `API_BASE` aus `@/lib/config` nutzen — nie `/api/...` hardcoden. `API_BASE` wird beim Build mit `VITE_API_BASE=/finanzflow` eingebettet. |
@@ -205,3 +207,5 @@ TOTP_ISSUER=FinanzFlow            ; optional, Name in der Authenticator-App
 | `EADDRINUSE` auf Port 5000 | macOS AirPlay Receiver | `PORT=3000 npm run dev` |
 | `import.meta`-Warning im Build | esbuild CJS-Bundle + `import.meta.url` in pdfParser | Harmlos — Dead Code im CJS-Pfad |
 | `._`-Dateien im tar.gz | macOS `tar` schreibt Metadaten | `COPYFILE_DISABLE=1 tar …` |
+| `ERR_REQUIRE_ESM` beim Start | `@noble/hashes` oder `@scure/base` v2 im Lock | `overrides` in `package.json` prüfen; `otplib` nicht auf v13 upgraden |
+| Tests laufen nicht lokal | `better-sqlite3 v9` hat kein prebuilt für Node 25 | `npm install --ignore-scripts` verwenden; Tests nur auf Node 18/20 lauffähig |
