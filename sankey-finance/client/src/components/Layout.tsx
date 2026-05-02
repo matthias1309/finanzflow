@@ -1,10 +1,11 @@
 import { Link, useLocation } from "wouter";
-import { BarChart3, List, Tag, TrendingUp, Sun, Moon, Upload, Landmark, LogOut } from "lucide-react";
+import { BarChart3, List, Tag, TrendingUp, Sun, Moon, Upload, Landmark, LogOut, Menu, X } from "lucide-react";
 import { useTheme } from "@/context/ThemeContext";
 import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { API_BASE } from "@/lib/config";
+import { useState } from "react";
 
 const navItems = [
   { href: "/", label: "Dashboard", icon: BarChart3 },
@@ -14,9 +15,21 @@ const navItems = [
   { href: "/categories", label: "Kategorien", icon: Tag },
 ];
 
+const Logo = ({ size = 32 }: { size?: number }) => (
+  <svg aria-label="FinanzFlow Logo" viewBox="0 0 32 32" width={size} height={size} fill="none" className="flex-shrink-0">
+    <rect width="32" height="32" rx="6" fill="hsl(163 80% 28%)" />
+    <rect x="5" y="9" width="8" height="4" rx="1.5" fill="white" opacity="0.9" />
+    <rect x="5" y="16" width="12" height="4" rx="1.5" fill="white" opacity="0.7" />
+    <rect x="19" y="9" width="8" height="11" rx="1.5" fill="white" opacity="0.5" />
+    <path d="M13 11 Q16 11 19 11" stroke="white" strokeWidth="1.5" opacity="0.6" />
+    <path d="M17 18 Q18 18 19 15" stroke="white" strokeWidth="1.5" opacity="0.4" />
+  </svg>
+);
+
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const { theme, toggle } = useTheme();
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   const { data: authStatus } = useQuery<{ authEnabled: boolean }>({
     queryKey: ["/api/auth/2fa/status"],
@@ -31,23 +44,52 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen bg-background">
-      <aside className="w-60 flex-shrink-0 border-r border-border flex flex-col bg-card">
-        {/* Logo */}
-        <div className="h-16 flex items-center px-6 border-b border-border">
-          <div className="flex items-center gap-2.5">
-            <svg aria-label="FinanzFlow Logo" viewBox="0 0 32 32" width="32" height="32" fill="none" className="flex-shrink-0">
-              <rect width="32" height="32" rx="6" fill="hsl(163 80% 28%)" />
-              <rect x="5" y="9" width="8" height="4" rx="1.5" fill="white" opacity="0.9" />
-              <rect x="5" y="16" width="12" height="4" rx="1.5" fill="white" opacity="0.7" />
-              <rect x="19" y="9" width="8" height="11" rx="1.5" fill="white" opacity="0.5" />
-              <path d="M13 11 Q16 11 19 11" stroke="white" strokeWidth="1.5" opacity="0.6" />
-              <path d="M17 18 Q18 18 19 15" stroke="white" strokeWidth="1.5" opacity="0.4" />
-            </svg>
+      {/* Mobile top bar — only visible below md breakpoint */}
+      <header className="md:hidden fixed top-0 left-0 right-0 z-30 h-14 bg-card border-b border-border flex items-center justify-between px-4">
+        <div className="flex items-center gap-2.5">
+          <Logo size={28} />
+          <span className="text-sm font-semibold tracking-tight text-foreground">FinanzFlow</span>
+        </div>
+        <button
+          className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted"
+          onClick={() => setDrawerOpen(true)}
+          aria-label="Menü öffnen"
+        >
+          <Menu size={20} />
+        </button>
+      </header>
+
+      {/* Backdrop — closes drawer on tap */}
+      {drawerOpen && (
+        <div
+          className="md:hidden fixed inset-0 z-40 bg-black/50"
+          onClick={() => setDrawerOpen(false)}
+        />
+      )}
+
+      {/* Sidebar — desktop: static in flex row; mobile: fixed slide-in drawer */}
+      <aside
+        className={`
+          w-60 flex-shrink-0 border-r border-border flex flex-col bg-card
+          fixed inset-y-0 left-0 z-50 transition-transform duration-300 ease-in-out
+          md:static md:translate-x-0
+          ${drawerOpen ? "translate-x-0" : "-translate-x-full"}
+        `}
+      >
+        <div className="h-14 md:h-16 flex items-center px-6 border-b border-border">
+          <div className="flex items-center gap-2.5 flex-1">
+            <Logo size={32} />
             <span className="text-sm font-semibold tracking-tight text-foreground">FinanzFlow</span>
           </div>
+          <button
+            className="md:hidden p-1 rounded text-muted-foreground hover:text-foreground"
+            onClick={() => setDrawerOpen(false)}
+            aria-label="Menü schließen"
+          >
+            <X size={16} />
+          </button>
         </div>
 
-        {/* Navigation */}
         <nav className="flex-1 py-4 px-3" aria-label="Hauptnavigation">
           <ul className="space-y-0.5" role="list">
             {navItems.map(({ href, label, icon: Icon }) => {
@@ -57,6 +99,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   <Link href={href}>
                     <a
                       data-testid={`nav-${label.toLowerCase().replace(/\s+/g, "-")}`}
+                      onClick={() => setDrawerOpen(false)}
                       className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors ${
                         active
                           ? "bg-primary/15 text-primary font-medium"
@@ -73,7 +116,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           </ul>
         </nav>
 
-        {/* Footer */}
         <div className="px-4 py-4 border-t border-border space-y-2">
           <Button
             data-testid="button-toggle-theme"
@@ -103,7 +145,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      <main className="flex-1 flex flex-col min-w-0 overflow-auto">
+      <main className="flex-1 flex flex-col min-w-0 overflow-auto pt-14 md:pt-0">
         {children}
       </main>
     </div>

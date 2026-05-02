@@ -69,7 +69,7 @@ export default function Accounts() {
 
   return (
     <div className="flex flex-col flex-1">
-      <div className="px-8 py-6 border-b border-border flex items-center justify-between">
+      <div className="px-4 py-4 md:px-8 md:py-6 border-b border-border flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-foreground">Konten</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Giro-, Tagesgeld- und Mietkonten verwalten</p>
@@ -140,7 +140,7 @@ export default function Accounts() {
         </Dialog>
       </div>
 
-      <div className="flex-1 p-8">
+      <div className="flex-1 p-4 md:p-8">
         {isLoading ? (
           <div className="space-y-3">{[1,2,3].map(i => <div key={i} className="h-16 bg-muted rounded animate-pulse" />)}</div>
         ) : accounts.length === 0 ? (
@@ -152,7 +152,7 @@ export default function Accounts() {
             </Button>
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {accounts.map(acc => (
               <Card key={acc.id} className="bg-card border-border" data-testid={`account-card-${acc.id}`}>
                 <CardContent className="pt-5 pb-4 px-5">

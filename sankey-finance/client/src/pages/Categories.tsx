@@ -185,7 +185,7 @@ export default function Categories() {
 
   return (
     <div className="flex flex-col flex-1">
-      <div className="px-8 py-6 border-b border-border flex items-center justify-between">
+      <div className="px-4 py-4 md:px-8 md:py-6 border-b border-border flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-foreground">Kategorien</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Einnahmen- und Ausgabenkategorien verwalten</p>
@@ -231,8 +231,8 @@ export default function Categories() {
         </DialogContent>
       </Dialog>
 
-      <div className="flex-1 p-8">
-        <div className="grid grid-cols-2 gap-6">
+      <div className="flex-1 p-4 md:p-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <Card className="bg-card border-border">
             <CardHeader className="pb-2 px-5 pt-5">
               <CardTitle className="text-xs font-semibold uppercase tracking-wide text-green-400">

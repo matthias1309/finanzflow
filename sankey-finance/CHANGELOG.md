@@ -7,6 +7,9 @@ Format angelehnt an [Keep a Changelog](https://keepachangelog.com/de/1.0.0/).
 
 ## [Unreleased]
 
+### Hinzugefügt
+- **Mobile-Responsive UI (REQ-014)** — Hamburger-Menü mit Slide-in Drawer für Smartphones (<768 px); Sidebar wird bei Klick auf Nav-Link oder Backdrop automatisch geschlossen; fixierte Top-Bar mit Logo auf Mobile; responsive Grids auf allen Seiten (`grid-cols-2 lg:grid-cols-4` für KPIs, `grid-cols-1 sm:grid-cols-2 lg:grid-cols-3` für Konten, `grid-cols-1 md:grid-cols-2` für Kategorien/Kontoübersicht); Abstände skalieren von `p-4` auf Mobile bis `p-8` auf Desktop
+
 ### Behoben
 - **Kontoübertrag: Saldo des Zielkontos korrekt berechnet** — `GET /api/summary/:month` befüllt nun `transfersIn` für das Empfängerkonto; die Dashboard-Kontoübersicht addiert eingehende Überträge zum Saldo (`Einnahmen − Ausgaben + transfersIn`). Bisher zeigte das Zielkonto 0 € wenn die importierte Eingangs-Transaktion gelöscht wurde, um Doppelzählung im Sankey zu vermeiden.
 

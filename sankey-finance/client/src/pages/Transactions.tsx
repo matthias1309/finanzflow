@@ -70,12 +70,12 @@ export default function Transactions() {
 
   return (
     <div className="flex flex-col flex-1">
-      <div className="px-8 py-6 border-b border-border flex items-center justify-between">
+      <div className="px-4 py-4 md:px-8 md:py-6 border-b border-border flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-xl font-semibold">Buchungen</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Alle Konten · manuelle Eingabe</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <Select value={filterAccountId} onValueChange={setFilterAccountId}>
             <SelectTrigger className="w-40 bg-card border-border text-sm h-9">
               <SelectValue placeholder="Alle Konten" />
@@ -175,9 +175,9 @@ export default function Transactions() {
         </div>
       </div>
 
-      <div className="flex-1 p-8 space-y-5">
+      <div className="flex-1 p-4 md:p-8 space-y-5">
         {/* Summary row */}
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {[
             { label: "Einnahmen", v: totalIncome, c: "text-green-500" },
             { label: "Ausgaben", v: totalExp, c: "text-red-400" },

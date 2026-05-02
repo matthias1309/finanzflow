@@ -167,12 +167,12 @@ export default function ImportPDF() {
   return (
     <TooltipProvider>
     <div className="flex flex-col flex-1">
-      <div className="px-8 py-6 border-b border-border">
+      <div className="px-4 py-4 md:px-8 md:py-6 border-b border-border">
         <h1 className="text-xl font-semibold text-foreground">PDF importieren</h1>
         <p className="text-sm text-muted-foreground mt-0.5">Kontoauszüge von ING, DKB oder N26 hochladen</p>
       </div>
 
-      <div className="flex-1 p-8 space-y-6">
+      <div className="flex-1 p-4 md:p-8 space-y-6">
         {/* Upload area */}
         <Card className="bg-card border-border">
           <CardContent className="pt-5 pb-5 px-6">

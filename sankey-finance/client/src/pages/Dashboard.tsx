@@ -76,7 +76,7 @@ export default function Dashboard() {
 
   return (
     <div className="flex flex-col flex-1">
-      <div className="px-8 py-6 border-b border-border flex items-center justify-between">
+      <div className="px-4 py-4 md:px-8 md:py-6 border-b border-border flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold text-foreground">Finanzübersicht</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Geldfluss über alle Konten visualisiert</p>
@@ -93,11 +93,11 @@ export default function Dashboard() {
         </Select>
       </div>
 
-      <div className="flex-1 p-8 space-y-6">
+      <div className="flex-1 p-4 md:p-8 space-y-6">
         <TwoFactorSetup />
 
         {/* KPIs — berechnet nur aus sichtbaren Konten */}
-        <div className="grid grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[
             { label: "Einnahmen", value: filteredSummary?.totalIncome ?? 0, color: "text-green-500", icon: TrendingUp },
             { label: "Ausgaben",  value: filteredSummary?.totalExpenses ?? 0, color: "text-red-400",   icon: TrendingDown },
@@ -132,7 +132,7 @@ export default function Dashboard() {
 
         {/* Per-account breakdown — alle Konten anzeigen, ausgeblendete gedimmt */}
         {summary && summary.accounts.length > 0 && (
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {summary.accounts.map(acc => {
               const s       = summary.accountSummaries[acc.id];
               if (!s) return null;

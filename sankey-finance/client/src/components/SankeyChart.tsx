@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import * as d3 from "d3";
 import { sankey as d3Sankey, sankeyLinkHorizontal, sankeyLeft } from "d3-sankey";
 import { useTheme } from "@/context/ThemeContext";
+import { ZoomIn, ZoomOut, RotateCcw } from "lucide-react";
 import type { Account } from "@shared/schema";
 
 interface CategoryBucket {
@@ -30,9 +31,12 @@ function fmt(v: number) {
   return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(v);
 }
 
+const MIN_CHART_WIDTH = 900;
+
 export default function SankeyChart({ accountSummaries, accounts, totalIncome, totalExpenses }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown>>();
   const { theme } = useTheme();
   const isDark = theme === "dark";
 
@@ -58,7 +62,6 @@ export default function SankeyChart({ accountSummaries, accounts, totalIncome, t
     for (const acc of accounts) {
       const sum = accountSummaries[acc.id];
       if (!sum) continue;
-      const netFlow = sum.totalIncome - sum.totalExpenses;
       if (sum.totalIncome === 0 && sum.totalExpenses === 0 && Object.keys(sum.transfersOut).length === 0) continue;
 
       accountNodes.push({ id: `acc_${acc.id}`, label: acc.name, color: acc.color, total: sum.totalIncome });
@@ -124,9 +127,11 @@ export default function SankeyChart({ accountSummaries, accounts, totalIncome, t
 
     if (linkList.length === 0) return;
 
-    const width = containerRef.current.clientWidth || 900;
+    // Always render at minimum chart width so labels never collapse on narrow viewports
+    const width = Math.max(MIN_CHART_WIDTH, containerRef.current.clientWidth || MIN_CHART_WIDTH);
     const rowCount = Math.max(incomeCats.size, accountNodes.length, expenseCats.size);
-    const height = Math.max(520, rowCount * 56 + 60);
+    const accountFloor = accountNodes.length * 80 + 80;
+    const height = Math.max(560, rowCount * 80 + 80, accountFloor);
     const margin = { top: 24, right: 170, bottom: 24, left: 170 };
 
     const svg = d3.select(svgRef.current);
@@ -137,7 +142,7 @@ export default function SankeyChart({ accountSummaries, accounts, totalIncome, t
       .nodeId((_d, i) => i)
       .nodeAlign(sankeyLeft)
       .nodeWidth(16)
-      .nodePadding(12)
+      .nodePadding(16)
       .extent([[margin.left, margin.top], [width - margin.right, height - margin.bottom]]);
 
     const graph = sankeyLayout({
@@ -242,7 +247,27 @@ export default function SankeyChart({ accountSummaries, accounts, totalIncome, t
       .attr("fill", colors.expenseVal)
       .text((d: any) => fmt(expenseCats.get(d.label)?.total ?? 0));
 
+    // Set up zoom + pan (pinch-to-zoom works natively via d3-zoom)
+    const zoom = d3.zoom<SVGSVGElement, unknown>()
+      .scaleExtent([0.3, 3])
+      .on("zoom", (event) => {
+        g.attr("transform", event.transform.toString());
+      });
+    svg.call(zoom);
+    svg.on("dblclick.zoom", null); // prevent accidental double-tap zoom
+    zoomRef.current = zoom;
+
   }, [accountSummaries, accounts, theme]);
+
+  function zoomBy(factor: number) {
+    if (!svgRef.current || !zoomRef.current) return;
+    d3.select(svgRef.current).transition().duration(250).call(zoomRef.current.scaleBy, factor);
+  }
+
+  function zoomReset() {
+    if (!svgRef.current || !zoomRef.current) return;
+    d3.select(svgRef.current).transition().duration(300).call(zoomRef.current.transform, d3.zoomIdentity);
+  }
 
   const hasData = accounts.some(a => {
     const s = accountSummaries[a.id];
@@ -262,8 +287,33 @@ export default function SankeyChart({ accountSummaries, accounts, totalIncome, t
   }
 
   return (
-    <div ref={containerRef} className="w-full overflow-x-auto">
-      <svg ref={svgRef} className="w-full" />
+    <div className="space-y-2">
+      <div className="flex items-center justify-end gap-1">
+        <button
+          onClick={() => zoomBy(1.4)}
+          className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+          title="Vergrößern"
+        >
+          <ZoomIn size={14} />
+        </button>
+        <button
+          onClick={() => zoomBy(1 / 1.4)}
+          className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+          title="Verkleinern"
+        >
+          <ZoomOut size={14} />
+        </button>
+        <button
+          onClick={zoomReset}
+          className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+          title="Zoom zurücksetzen"
+        >
+          <RotateCcw size={14} />
+        </button>
+      </div>
+      <div ref={containerRef} className="w-full overflow-x-auto overflow-y-hidden">
+        <svg ref={svgRef} style={{ display: "block", cursor: "grab" }} />
+      </div>
     </div>
   );
 }
