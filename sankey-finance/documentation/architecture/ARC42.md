@@ -1,7 +1,7 @@
 # FinanzFlow — Software Architecture (Arc42)
 
-**Version:** 1.0  
-**Date:** 2026-04-23  
+**Version:** 1.1  
+**Date:** 2026-05-03  
 **Status:** Current  
 
 ---
@@ -66,8 +66,8 @@ FinanzFlow is a **personal finance dashboard** for a single user managing German
 | **SQLite** as database | No dedicated DB server required; Uberspace provides no managed DB |
 | **Uberspace shared hosting** | No root access, no Docker, no custom ports below 1024 |
 | **CJS bundle for production** | esbuild compiles server to CJS (`dist/index.cjs`) for maximum Node.js compatibility |
-| **Single user only** | Basic Auth supports exactly one credential pair; no user table needed |
-| **No client-side persistence of sensitive data** | Theme state lives in React state only; no localStorage, no cookies beyond Basic Auth |
+| **Single user only** | Session-based auth + TOTP supports exactly one credential pair (via env vars); no user table needed |
+| **No client-side persistence of sensitive data** | Theme state lives in React state only; no localStorage, no cookies beyond the session cookie |
 
 ### 2.2 Organisational Constraints
 
@@ -118,7 +118,7 @@ FinanzFlow is a **personal finance dashboard** for a single user managing German
 ```
 Browser
   │  HTTPS (port 443 via Uberspace reverse proxy)
-  │  Basic Auth header on every request
+  │  Session cookie (httpOnly, Secure, SameSite=Strict)
   ▼
 Uberspace Apache reverse proxy
   │  Forwards /finanzflow/* → Node.js process (port 3001)
@@ -134,7 +134,7 @@ SQLite (finance.db, local file)
 
 | Interface | Protocol | Format |
 |---|---|---|
-| Browser ↔ Server | HTTP/1.1 with Basic Auth | JSON (API), HTML/JS/CSS (SPA) |
+| Browser ↔ Server | HTTP/1.1 with session cookie | JSON (API), HTML/JS/CSS (SPA) |
 | Server ↔ SQLite | better-sqlite3 (synchronous FFI) | Binary SQLite |
 | User → Server | `multipart/form-data` | PDF upload |
 
@@ -222,14 +222,17 @@ client/src/
 server/
 ├── index.ts          Entry point: createApp() + listen() + vite/static setup
 ├── createApp.ts      App factory (no listen) — used by tests and index.ts
-├── auth.ts           basicAuthMiddleware, authRateLimiter
+├── auth.ts           requireAuth middleware, authRateLimiter, safeStringEqual
+├── session.ts        express-session configuration (memorystore, cookie flags)
+├── totp.ts           TOTP secret encryption/decryption (AES-256), token verification
 ├── securityHeaders.ts helmet CSP (dev/prod split), csrfProtectionMiddleware
-├── db.ts             SQLite connection + schema migration + category seeding
+├── db.ts             SQLite connection + PRAGMA foreign_keys + schema migration + category seeding
 ├── storage.ts        IStorage interface + implementation (Drizzle ORM façade)
 ├── pdfParser.ts      PDF text extraction + bank-specific + generic parsers
 ├── static.ts         Production static file serving from dist/public/
 ├── vite.ts           Vite dev server in middleware mode
 └── routes/
+    ├── auth.ts             POST /api/auth/login, /totp, /logout, 2FA management
     ├── accounts.ts         GET/POST/PUT/DELETE /api/accounts
     ├── categories.ts       GET/POST/PUT/DELETE /api/categories
     ├── transactions.ts     GET/POST/PATCH/PUT/DELETE + POST /batch
@@ -282,7 +285,7 @@ server/
 
 - `transactions.amount` is always positive; `type` (`income` / `expense` / `transfer`) determines sign semantics
 - `transactions.transfer_to_account_id` is set only for `type = 'transfer'`; these rows are excluded from income/expense aggregation
-- No foreign key constraints are enforced by SQLite in this schema (simplifies tests); referential integrity is maintained by application logic
+- Foreign key constraints are enforced via `PRAGMA foreign_keys = ON` (set in `db.ts` at startup); referential integrity is guaranteed by the DB engine
 - Schema migration is inline in `db.ts` using `CREATE TABLE IF NOT EXISTS` — no migration tool needed for a single-user app
 
 ---
@@ -823,7 +826,6 @@ Previously: browsers cached Basic Auth credentials with no explicit logout mecha
 
 | Item | Description | Effort |
 |---|---|---|
-| No DB foreign key enforcement | SQLite supports FK constraints with `PRAGMA foreign_keys = ON` but it is not enabled. Orphaned transactions (account deleted) are not cleaned up. | Low |
 | No pagination on `/api/transactions` | Returns all transactions for a month. May be slow for accounts with thousands of entries. | Medium |
 | No input sanitization on `description` | Descriptions from PDFs and manual input are stored and returned as-is. React escaping prevents XSS, but very long descriptions could cause layout issues. | Low |
 | `staleTime: Infinity` in React Query | Data is never refetched automatically. Works fine for a single user, but a second tab would show stale data after mutations. | Low |

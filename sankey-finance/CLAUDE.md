@@ -42,8 +42,9 @@ Bei neuen Features oder Erweiterungen bestehender Features immer in dieser Reihe
 1. **REQ erstellen oder anpassen** — Acceptance Criteria (Gherkin-Szenarien) vollständig ausformulieren, bevor Code geschrieben wird
 2. **Tests schreiben** — direkt aus den AC abgeleitet (Vitest für Unit/API, Playwright für E2E)
 3. **Implementieren** — erst wenn REQ und Tests stehen
-4. **CHANGELOG.md erweitern** — unter `[Unreleased]` die Änderungen eintragen (Added / Changed / Fixed / Removed)
-5. **Committen und pushen** — erst nach Changelog-Eintrag
+4. **Arc42 aktualisieren** — betroffene Kapitel in `documentation/architecture/ARC42.md` anpassen: Kapitel 5 (Building Block View) bei neuen Komponenten/Routen, Kapitel 6 (Runtime View) bei neuen Abläufen, Kapitel 8 (Crosscutting Concepts) bei übergreifenden Änderungen (Auth, Sicherheit, Logging)
+5. **CHANGELOG.md erweitern** — unter `[Unreleased]` die Änderungen eintragen (Added / Changed / Fixed / Removed)
+6. **Committen und pushen** — erst nach Changelog-Eintrag
 
 Wenn TDD nicht möglich ist (z.B. rein visuelle Änderungen ohne messbare Assertions), explizit darauf hinweisen bevor weitergemacht wird.
 

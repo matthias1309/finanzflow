@@ -61,7 +61,12 @@ export function safeStringEqual(a: string, b: string): boolean {
 }
 
 // ─── Session-Auth-Middleware ──────────────────────────────────────────────────
-// Ersetzt basicAuthMiddleware. Prüft session.authenticated statt Basic-Auth-Header.
+// Prüft ausschließlich session.authenticated — nicht APP_USER oder APP_PASSWORD_HASH.
+// Das ist korrekt: Benutzername + Passwort werden einmalig beim Login in
+// POST /api/auth/login geprüft (safeStringEqual + bcrypt). Danach trägt die
+// Session den Beweis der erfolgreichen Authentifizierung. Jede Route erneut gegen
+// Env-Vars zu prüfen wäre redundant und würde einen Env-Var-Wechsel zur Laufzeit
+// als Logout-Mechanismus missbrauchen.
 // Bypassed wenn APP_PASSWORD_HASH nicht gesetzt (dev/test).
 
 export function requireAuth(req: Request, res: Response, next: NextFunction): void {
