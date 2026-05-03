@@ -829,6 +829,7 @@ Previously: browsers cached Basic Auth credentials with no explicit logout mecha
 | No pagination on `/api/transactions` | Returns all transactions for a month. May be slow for accounts with thousands of entries. | Medium |
 | No input sanitization on `description` | Descriptions from PDFs and manual input are stored and returned as-is. React escaping prevents XSS, but very long descriptions could cause layout issues. | Low |
 | `staleTime: Infinity` in React Query | Data is never refetched automatically. Works fine for a single user, but a second tab would show stale data after mutations. | Low |
+| `'unsafe-inline'` in production `style-src` | `ChartStyle` in `chart.tsx` injects a `<style>` tag via `dangerouslySetInnerHTML` to set CSS custom properties for both light and dark mode (`.dark [data-chart=…]`). This cannot be replaced by `style=""` attributes. Fix requires CSP nonces (`style-src-elem 'nonce-…'` + `style-src-attr 'unsafe-inline'`) threaded from Express through the HTML into `ChartStyle`. **Accepted risk:** chart colors originate from the DB, are validated by a strict color regex before storage and before rendering — no user-supplied free text reaches the CSS output. The attack path (SQL-injection → poisoned color → CSS exfiltration) is blocked by Drizzle + Zod upstream. | Medium |
 
 ---
 
