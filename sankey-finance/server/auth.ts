@@ -56,8 +56,11 @@ export function safeStringEqual(a: string, b: string): boolean {
   const bBuf = Buffer.alloc(FIXED_LEN);
   Buffer.from(a).copy(aBuf);
   Buffer.from(b).copy(bBuf);
-  const bufEqual = timingSafeEqual(aBuf, bBuf);
-  return bufEqual && a.length === b.length;
+  // Both comparisons are evaluated unconditionally before combining,
+  // preventing && short-circuit from leaking whether the buffer comparison passed.
+  const bufsMatch = timingSafeEqual(aBuf, bBuf);
+  const lensMatch = a.length === b.length;
+  return bufsMatch && lensMatch;
 }
 
 // ─── Session-Auth-Middleware ──────────────────────────────────────────────────
