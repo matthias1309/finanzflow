@@ -6,6 +6,7 @@ declare module "express-session" {
     authenticated?: boolean;
     pendingTotp?:   boolean;
     stepUpAt?:      number;
+    userId?:        number;
   }
 }
 

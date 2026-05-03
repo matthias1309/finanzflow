@@ -2,17 +2,42 @@ import { eq, and } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { db } from "./db";
 import {
-  accounts, categories, transactions, categoryRules, appSettings, recoveryCodes,
+  accounts, categories, transactions, categoryRules, recoveryCodes, users,
   type Account, type InsertAccount,
   type Category, type InsertCategory,
   type Transaction, type InsertTransaction,
   type CategoryRule,
+  type User,
 } from "@shared/schema";
 import { encryptSecret, decryptSecret, generateRecoveryCodePlaintext } from "./totp";
 
 // ─── Interface ────────────────────────────────────────────────────────────────
 
 export interface IStorage {
+  // Users
+  getUsers(): User[];
+  getUserById(id: number): User | undefined;
+  getUserByUsername(username: string): User | undefined;
+  createUser(data: { username: string; passwordHash: string; isAdmin?: number }): User;
+  updateUser(id: number, data: { isAdmin: number }): User | undefined;
+  updateUserPassword(id: number, passwordHash: string): void;
+  deleteUser(id: number): void;
+  countAdmins(): number;
+  // Per-User TOTP
+  getUserTotpConfigured(userId: number): boolean;
+  getUserTotpSecret(userId: number): string | null;
+  setUserTotpSecret(userId: number, plainSecret: string): void;
+  getUserPendingTotpSecret(userId: number): string | null;
+  setUserPendingTotpSecret(userId: number, plainSecret: string): void;
+  clearUserPendingTotpSecret(userId: number): void;
+  getUserTotpLastUsedToken(userId: number): string | null;
+  setUserTotpLastUsedToken(userId: number, token: string): void;
+  resetUserTotp(userId: number): void;
+  // Per-User Recovery Codes
+  generateAndStoreUserRecoveryCodes(userId: number): string[];
+  verifyAndConsumeUserRecoveryCode(userId: number, code: string): boolean;
+  getUserRecoveryCodesRemaining(userId: number): number;
+  clearUserRecoveryCodes(userId: number): void;
   // Accounts
   getAccounts(): Account[];
   getAccount(id: number): Account | undefined;
@@ -35,24 +60,117 @@ export interface IStorage {
   getCategoryRules(): CategoryRule[];
   suggestCategory(description: string): number | null;
   learnCategoryRules(entries: { description: string; categoryId: number }[]): void;
-  // TOTP / 2FA
-  getTotpConfigured(): boolean;
-  getTotpSecret(): string | null;
-  setTotpSecret(plainSecret: string): void;
-  getPendingTotpSecret(): string | null;
-  setPendingTotpSecret(plainSecret: string): void;
-  clearPendingTotpSecret(): void;
-  getTotpLastUsedToken(): string | null;
-  setTotpLastUsedToken(token: string): void;
-  generateAndStoreRecoveryCodes(): string[];
-  verifyAndConsumeRecoveryCode(code: string): boolean;
-  getRecoveryCodesRemaining(): number;
-  clearRecoveryCodes(): void;
 }
 
 // ─── Implementation ───────────────────────────────────────────────────────────
 
 export const storage: IStorage = {
+
+  // ── Users ─────────────────────────────────────────────────────────────────
+  getUsers() { return db.select().from(users).all(); },
+  getUserById(id) { return db.select().from(users).where(eq(users.id, id)).get(); },
+  getUserByUsername(username) { return db.select().from(users).where(eq(users.username, username)).get(); },
+
+  createUser({ username, passwordHash, isAdmin = 0 }) {
+    return db.insert(users).values({
+      username, passwordHash, isAdmin,
+      totpEnabled: 0,
+      createdAt: new Date().toISOString(),
+    }).returning().get();
+  },
+
+  updateUser(id, data) {
+    return db.update(users).set(data).where(eq(users.id, id)).returning().get();
+  },
+
+  updateUserPassword(id, passwordHash) {
+    db.update(users).set({ passwordHash }).where(eq(users.id, id)).run();
+  },
+
+  deleteUser(id) { db.delete(users).where(eq(users.id, id)).run(); },
+
+  countAdmins() {
+    return db.select().from(users).where(eq(users.isAdmin, 1)).all().length;
+  },
+
+  // ── Per-User TOTP ──────────────────────────────────────────────────────────
+  getUserTotpConfigured(userId) {
+    return db.select().from(users).where(eq(users.id, userId)).get()?.totpEnabled === 1;
+  },
+
+  getUserTotpSecret(userId) {
+    const enc = db.select().from(users).where(eq(users.id, userId)).get()?.totpSecret;
+    if (!enc) return null;
+    return decryptSecret(enc);
+  },
+
+  setUserTotpSecret(userId, plainSecret) {
+    db.update(users).set({ totpSecret: encryptSecret(plainSecret), totpEnabled: 1 }).where(eq(users.id, userId)).run();
+  },
+
+  getUserPendingTotpSecret(userId) {
+    const enc = db.select().from(users).where(eq(users.id, userId)).get()?.totpPendingSecret;
+    if (!enc) return null;
+    return decryptSecret(enc);
+  },
+
+  setUserPendingTotpSecret(userId, plainSecret) {
+    db.update(users).set({ totpPendingSecret: encryptSecret(plainSecret) }).where(eq(users.id, userId)).run();
+  },
+
+  clearUserPendingTotpSecret(userId) {
+    db.update(users).set({ totpPendingSecret: null }).where(eq(users.id, userId)).run();
+  },
+
+  getUserTotpLastUsedToken(userId) {
+    return db.select().from(users).where(eq(users.id, userId)).get()?.totpLastUsedToken ?? null;
+  },
+
+  setUserTotpLastUsedToken(userId, token) {
+    db.update(users).set({ totpLastUsedToken: token }).where(eq(users.id, userId)).run();
+  },
+
+  resetUserTotp(userId) {
+    db.update(users).set({
+      totpSecret: null, totpEnabled: 0, totpPendingSecret: null, totpLastUsedToken: null,
+    }).where(eq(users.id, userId)).run();
+    db.delete(recoveryCodes).where(eq(recoveryCodes.userId, userId)).run();
+  },
+
+  // ── Per-User Recovery Codes ────────────────────────────────────────────────
+  generateAndStoreUserRecoveryCodes(userId) {
+    db.delete(recoveryCodes).where(eq(recoveryCodes.userId, userId)).run();
+    const plainCodes: string[] = [];
+    for (let i = 0; i < 8; i++) {
+      const plain = generateRecoveryCodePlaintext();
+      db.insert(recoveryCodes).values({ userId, codeHash: bcrypt.hashSync(plain, 10), used: 0 }).run();
+      plainCodes.push(plain);
+    }
+    return plainCodes;
+  },
+
+  verifyAndConsumeUserRecoveryCode(userId, code) {
+    const unused = db.select().from(recoveryCodes)
+      .where(and(eq(recoveryCodes.userId, userId), eq(recoveryCodes.used, 0)))
+      .all();
+    for (const row of unused) {
+      if (bcrypt.compareSync(code, row.codeHash)) {
+        db.update(recoveryCodes).set({ used: 1 }).where(eq(recoveryCodes.id, row.id)).run();
+        return true;
+      }
+    }
+    return false;
+  },
+
+  getUserRecoveryCodesRemaining(userId) {
+    return db.select().from(recoveryCodes)
+      .where(and(eq(recoveryCodes.userId, userId), eq(recoveryCodes.used, 0)))
+      .all().length;
+  },
+
+  clearUserRecoveryCodes(userId) {
+    db.delete(recoveryCodes).where(eq(recoveryCodes.userId, userId)).run();
+  },
 
   // ── Accounts ───────────────────────────────────────────────────���──────────
   getAccounts()            { return db.select().from(accounts).all(); },
@@ -139,91 +257,9 @@ export const storage: IStorage = {
     }
   },
 
-  // ── TOTP / 2FA ──────────────────────────────��─────────────────────────────
-
-  getTotpConfigured() {
-    return getSetting("totp_configured") === "true";
-  },
-
-  getTotpSecret() {
-    const enc = getSetting("totp_secret");
-    if (!enc) return null;
-    return decryptSecret(enc);
-  },
-
-  setTotpSecret(plainSecret: string) {
-    upsertSetting("totp_secret",     encryptSecret(plainSecret));
-    upsertSetting("totp_configured", "true");
-  },
-
-  getPendingTotpSecret() {
-    const enc = getSetting("totp_pending_secret");
-    if (!enc) return null;
-    return decryptSecret(enc);
-  },
-
-  setPendingTotpSecret(plainSecret: string) {
-    upsertSetting("totp_pending_secret", encryptSecret(plainSecret));
-  },
-
-  clearPendingTotpSecret() {
-    db.delete(appSettings).where(eq(appSettings.key, "totp_pending_secret")).run();
-  },
-
-  getTotpLastUsedToken() {
-    return getSetting("totp_last_used_token");
-  },
-
-  setTotpLastUsedToken(token: string) {
-    upsertSetting("totp_last_used_token", token);
-  },
-
-  generateAndStoreRecoveryCodes(): string[] {
-    db.delete(recoveryCodes).run();
-    const plainCodes: string[] = [];
-    for (let i = 0; i < 8; i++) {
-      const plain = generateRecoveryCodePlaintext();
-      const hash  = bcrypt.hashSync(plain, 10);
-      db.insert(recoveryCodes).values({ codeHash: hash, used: 0 }).run();
-      plainCodes.push(plain);
-    }
-    return plainCodes;
-  },
-
-  verifyAndConsumeRecoveryCode(code: string): boolean {
-    const unused = db.select().from(recoveryCodes).where(eq(recoveryCodes.used, 0)).all();
-    for (const row of unused) {
-      if (bcrypt.compareSync(code, row.codeHash)) {
-        db.update(recoveryCodes).set({ used: 1 }).where(eq(recoveryCodes.id, row.id)).run();
-        return true;
-      }
-    }
-    return false;
-  },
-
-  getRecoveryCodesRemaining(): number {
-    return db.select().from(recoveryCodes).where(eq(recoveryCodes.used, 0)).all().length;
-  },
-
-  clearRecoveryCodes() {
-    db.delete(recoveryCodes).run();
-  },
 };
 
-// ─── Hilfsfunktionen ───────────────────────────���─────────────────────────────���
-
-function getSetting(key: string): string | null {
-  return db.select().from(appSettings).where(eq(appSettings.key, key)).get()?.value ?? null;
-}
-
-function upsertSetting(key: string, value: string): void {
-  const existing = db.select().from(appSettings).where(eq(appSettings.key, key)).get();
-  if (existing) {
-    db.update(appSettings).set({ value }).where(eq(appSettings.key, key)).run();
-  } else {
-    db.insert(appSettings).values({ key, value }).run();
-  }
-}
+// ─── Hilfsfunktionen ──────────────────────────────────────────────────────────
 
 function extractKeyword(description: string): string {
   const normalized = description.toLowerCase().trim();

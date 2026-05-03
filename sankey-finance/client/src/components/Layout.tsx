@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { BarChart3, List, Tag, TrendingUp, Sun, Moon, Upload, Landmark, LogOut, Menu, X } from "lucide-react";
+import { BarChart3, List, Tag, TrendingUp, Sun, Moon, Upload, Landmark, LogOut, Menu, X, Users } from "lucide-react";
 import { useTheme } from "@/context/ThemeContext";
 import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
@@ -7,7 +7,7 @@ import { queryClient } from "@/lib/queryClient";
 import { API_BASE } from "@/lib/config";
 import { useState } from "react";
 
-const navItems = [
+const baseNavItems = [
   { href: "/", label: "Dashboard", icon: BarChart3 },
   { href: "/transactions", label: "Buchungen", icon: List },
   { href: "/import", label: "PDF importieren", icon: Upload },
@@ -35,6 +35,16 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     queryKey: ["/api/auth/2fa/status"],
     queryFn: () => fetch(`${API_BASE}/api/auth/2fa/status`).then(r => r.json()),
   });
+
+  const { data: me } = useQuery<{ username: string; isAdmin: boolean }>({
+    queryKey: ["/api/auth/me"],
+    queryFn: () => fetch(`${API_BASE}/api/auth/me`).then(r => r.ok ? r.json() : null),
+    retry: false,
+  });
+
+  const navItems = me?.isAdmin
+    ? [...baseNavItems, { href: "/users", label: "Benutzer", icon: Users }]
+    : baseNavItems;
 
   async function handleLogout() {
     await fetch(`${API_BASE}/api/auth/logout`, { method: "POST" });
@@ -138,10 +148,18 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               Abmelden
             </Button>
           )}
-          <div className="flex items-center gap-2 text-xs text-muted-foreground px-1 pt-1">
-            <TrendingUp size={12} />
-            <span>Persönliche Finanzen</span>
-          </div>
+          {me?.username && (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground px-1 pt-1">
+              <TrendingUp size={12} />
+              <span>{me.username}</span>
+            </div>
+          )}
+          {!me?.username && (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground px-1 pt-1">
+              <TrendingUp size={12} />
+              <span>Persönliche Finanzen</span>
+            </div>
+          )}
         </div>
       </aside>
 

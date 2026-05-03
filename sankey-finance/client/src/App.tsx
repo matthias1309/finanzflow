@@ -10,6 +10,7 @@ import Categories from "./pages/Categories";
 import Accounts from "./pages/Accounts";
 import ImportPDF from "./pages/ImportPDF";
 import Login from "./pages/Login";
+import Users from "./pages/Users";
 import NotFound from "./pages/not-found";
 import Layout from "./components/Layout";
 
@@ -28,6 +29,7 @@ function App() {
                   <Route path="/import" component={ImportPDF} />
                   <Route path="/accounts" component={Accounts} />
                   <Route path="/categories" component={Categories} />
+                  <Route path="/users" component={Users} />
                   <Route component={NotFound} />
                 </Switch>
               </Layout>

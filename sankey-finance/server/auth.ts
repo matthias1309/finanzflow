@@ -1,6 +1,7 @@
 import { type Request, type Response, type NextFunction } from "express";
 import { timingSafeEqual } from "crypto";
 import rateLimit from "express-rate-limit";
+import { storage } from "./storage";
 
 // ─── Brute-Force-Schutz ───────────────────────────────────────────────────────
 
@@ -20,6 +21,13 @@ const PASSWORD_HASH = process.env.APP_PASSWORD_HASH ?? "";
 
 if (process.env.NODE_ENV === "production") {
   const fatal = (msg: string) => { console.error(`[FATAL] ${msg}`); process.exit(1); };
+
+  if (!process.env.APP_USER) {
+    fatal(
+      "APP_USER ist nicht gesetzt.\n" +
+      "        Benutzernamen in der supervisord .ini setzen."
+    );
+  }
 
   if (!PASSWORD_HASH) {
     fatal(
@@ -84,4 +92,25 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
   }
 
   res.status(401).json({ message: "Nicht angemeldet" });
+}
+
+export function requireAdmin(req: Request, res: Response, next: NextFunction): void {
+  if (!PASSWORD_HASH) {
+    next();
+    return;
+  }
+
+  const userId = req.session?.userId;
+  if (!userId) {
+    res.status(401).json({ message: "Nicht angemeldet" });
+    return;
+  }
+
+  const user = storage.getUserById(userId);
+  if (!user || user.isAdmin !== 1) {
+    res.status(403).json({ message: "Kein Zugriff" });
+    return;
+  }
+
+  next();
 }

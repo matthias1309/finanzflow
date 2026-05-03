@@ -8,11 +8,13 @@ damit mein Konto auch dann geschützt ist, wenn mein Passwort kompromittiert wir
 
 ## Background
 
-TOTP (Time-based One-Time Password, RFC 6238) erzeugt alle 30 Sekunden einen 6-stelligen Code in einer Authenticator-App (Google Authenticator, Authy, 1Password o.ä.). Beim ersten Dashboard-Aufruf nach der Einführung dieses Features wird der Nutzer durch den Setup-Flow geführt.
+TOTP (Time-based One-Time Password, RFC 6238) erzeugt alle 30 Sekunden einen 6-stelligen Code in einer Authenticator-App (Google Authenticator, Authy, 1Password o.ä.). Jeder Benutzer richtet sein eigenes TOTP ein. Der Setup-Flow wird beim ersten Login ausgelöst, wenn noch kein TOTP eingerichtet ist — direkt nach der Passwort-Prüfung, bevor der Benutzer das Dashboard erreicht.
 
 **8 Einmal-Recovery-Codes** werden direkt nach dem Setup angezeigt — genau einmal. Jeder Code kann nur einmal für einen Login verwendet werden. Über das Dashboard können neue Codes generiert werden (invalidiert alle alten).
 
-**Notfall-Reset via CLI:** Falls weder TOTP noch Recovery-Codes verfügbar sind, kann 2FA über einen Server-Befehl zurückgesetzt werden.
+**Notfall-Reset via CLI:** Falls weder TOTP noch Recovery-Codes verfügbar sind, kann 2FA über einen Server-Befehl zurückgesetzt werden. Der Befehl erwartet `--user <username>`, um den betroffenen Benutzer zu spezifizieren.
+
+**Admin-Reset via UI:** Ein Admin kann das TOTP eines beliebigen Benutzers über die User-Verwaltungsseite zurücksetzen (siehe REQ-015).
 
 **Umgebungsvariablen:**
 
@@ -26,11 +28,11 @@ TOTP (Time-based One-Time Password, RFC 6238) erzeugt alle 30 Sekunden einen 6-s
 ```gherkin
 Feature: TOTP-Setup und Verwaltung
 
-  Scenario: Dashboard zeigt Setup-Prompt wenn 2FA nicht eingerichtet ist
-    Given der Nutzer ist eingeloggt (nur Passwort, 2FA noch nicht konfiguriert)
-    When der Nutzer das Dashboard aufruft
-    Then wird ein deutlicher Hinweis angezeigt "2FA noch nicht eingerichtet"
-    And ein Button "2FA jetzt einrichten" ist sichtbar
+  Scenario: Benutzer wird nach Passwort-Login zum Setup weitergeleitet wenn 2FA nicht eingerichtet ist
+    Given der Benutzer hat Username und Passwort korrekt eingegeben
+    And 2FA ist für diesen Benutzer noch nicht konfiguriert
+    Then wird der Benutzer direkt zum TOTP-Setup-Flow weitergeleitet
+    And kann das Dashboard erst nach abgeschlossenem Setup aufrufen
 
   Scenario: Setup-Flow — QR-Code wird angezeigt
     Given der Nutzer klickt auf "2FA jetzt einrichten"
@@ -67,18 +69,18 @@ Feature: TOTP-Setup und Verwaltung
     And alle alten Recovery-Codes sind dauerhaft ungültig
 
   Scenario: 2FA zurücksetzen via CLI
-    Given der Nutzer hat keinen Zugriff mehr auf TOTP und alle Recovery-Codes sind verbraucht
-    When der Serverbefehl "npm run 2fa:reset" auf dem Server ausgeführt wird
-    Then wird 2FA deaktiviert und der TOTP-Secret gelöscht
+    Given der Benutzer "admin" hat keinen Zugriff mehr auf TOTP und alle Recovery-Codes sind verbraucht
+    When der Serverbefehl "npm run 2fa:reset -- --user admin" auf dem Server ausgeführt wird
+    Then wird 2FA für "admin" deaktiviert und der TOTP-Secret gelöscht
     And beim nächsten Login-Versuch reicht das Passwort allein
-    And das Dashboard zeigt den Setup-Prompt erneut an
+    And der Benutzer wird nach dem Passwort-Login direkt zum TOTP-Setup-Flow weitergeleitet
 ```
 
 ## Notes
 
-- Der TOTP-Secret wird verschlüsselt in der Datenbank gespeichert (AES-256, Key via Umgebungsvariable `TOTP_ENCRYPTION_KEY`).
+- Der TOTP-Secret wird pro Benutzer verschlüsselt in der `users`-Tabelle gespeichert (AES-256, Key via Umgebungsvariable `TOTP_ENCRYPTION_KEY`).
 - Recovery-Codes werden als bcrypt-Hashes gespeichert — nie im Klartext.
 - Zeitfenster für TOTP-Validierung: ±1 Schritt (±30 s) gegen Uhr-Drift auf Client oder Server.
 - Jeder TOTP-Code darf nur einmal pro 30-s-Fenster akzeptiert werden (Replay-Schutz via last-used-timestamp in DB).
-- Der Setup-Flow ist nur zugänglich wenn der Nutzer eingeloggt ist (Passwort-Auth bereits erfolgt).
-- `npm run 2fa:reset` ist ein separates Script (`script/reset2fa.ts`), das direkt auf die DB schreibt — kein API-Endpunkt.
+- Der Setup-Flow ist nur zugänglich wenn der Benutzer die Passwort-Auth bereits abgeschlossen hat.
+- `npm run 2fa:reset -- --user <username>` ist ein separates Script (`script/reset2fa.ts`), das direkt auf die DB schreibt — kein API-Endpunkt. Fehlt `--user`, gibt das Script eine Fehlermeldung mit Verwendungshinweis aus.

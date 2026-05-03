@@ -12,6 +12,8 @@ damit meine persönlichen Finanzdaten nicht von Dritten eingesehen werden könne
 
 FinanzFlow ist auf einer öffentlichen URL deployed. Alle Routen — API und Frontend — müssen geschützt sein. Die App verwendet eine eigene Login-Seite mit session-basierter Authentifizierung: nach erfolgreichem Login (Passwort + TOTP) wird ein Session-Cookie gesetzt. HTTP Basic Auth wird nicht mehr verwendet.
 
+Benutzerdaten (Username, Passwort-Hash, Admin-Flag, TOTP-Secret) werden in der `users`-Tabelle der Datenbank gespeichert. Beim Serverstart wird der Benutzer aus `APP_USER` und `APP_PASSWORD_HASH` in die DB synchronisiert (upsert mit `isAdmin=true`). Anlegen und Verwalten weiterer Benutzer ist in REQ-015 beschrieben.
+
 In development mode (`NODE_ENV=development`) ist Auth vollständig deaktiviert, damit Entwicklungs- und Test-Workflows nicht blockiert werden.
 
 **Session-Konfiguration:**
@@ -26,9 +28,8 @@ Feature: Session-basierte Authentifizierung mit 2FA
 
   Background:
     Given die App läuft im production mode
-    And APP_PASSWORD_HASH ist auf einen gültigen bcrypt-Hash von "secret" gesetzt
-    And APP_USER ist auf "admin" gesetzt
-    And 2FA ist bereits eingerichtet
+    And ein Benutzer "admin" mit Passwort "secret" existiert in der Datenbank
+    And 2FA ist für "admin" bereits eingerichtet
 
   Scenario: Erfolgreicher Login mit korrektem Passwort und TOTP
     Given der Nutzer ist auf der Login-Seite
@@ -79,8 +80,8 @@ Feature: Session-basierte Authentifizierung mit 2FA
     And der Cookie wird gelöscht
     And der Nutzer wird zur Login-Seite weitergeleitet
 
-  Scenario: Produktionsstart ohne Passwort-Hash schlägt fehl
-    Given APP_PASSWORD_HASH ist nicht gesetzt
+  Scenario: Produktionsstart ohne APP_USER oder APP_PASSWORD_HASH schlägt fehl
+    Given APP_USER oder APP_PASSWORD_HASH ist nicht gesetzt
     And NODE_ENV ist "production"
     When der Server startet
     Then beendet sich der Server mit einer fatalen Fehlermeldung
@@ -95,8 +96,8 @@ Feature: Session-basierte Authentifizierung mit 2FA
 
 ## Notes
 
-- Passwortvergleich verwendet `timingSafeEqual` mit fixen 256-Byte-Puffern gegen Timing-Angriffe.
+- Passwortvergleich verwendet `timingSafeEqual` mit fixen 256-Byte-Puffern gegen Timing-Angriffe. Der Benutzereintrag wird anhand des Usernamens aus der `users`-Tabelle geladen; existiert er nicht, wird trotzdem ein Dummy-Vergleich durchgeführt (Timing-Leak verhindern).
 - Der Brute-Force-Limiter zählt nur fehlgeschlagene Requests (`skipSuccessfulRequests: true`).
 - Bcrypt-Kostenfaktor: 10. Passwort-Hashes werden nie geloggt oder in API-Responses zurückgegeben.
 - TOTP-Verifikation: RFC 6238, Zeitfenster ±1 Schritt (30 s) gegen Uhr-Drift. Jeder Code ist nur einmal verwendbar (Replay-Schutz).
-- Session-Daten werden server-seitig im Memory-Store gehalten (memorystore, TTL = Session-Dauer).
+- Session-Daten werden server-seitig im Memory-Store gehalten (memorystore, TTL = Session-Dauer). Die Session enthält die Benutzer-ID; alle geschützten Routen lesen den Benutzer anhand dieser ID aus der DB.

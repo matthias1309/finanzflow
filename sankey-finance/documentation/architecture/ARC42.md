@@ -1,6 +1,6 @@
 # FinanzFlow — Software Architecture (Arc42)
 
-**Version:** 1.1  
+**Version:** 1.2  
 **Date:** 2026-05-03  
 **Status:** Current  
 

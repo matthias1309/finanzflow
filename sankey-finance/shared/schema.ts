@@ -2,6 +2,43 @@ import { sqliteTable, text, integer, real } from "drizzle-orm/sqlite-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
+// ─── Users ───────────────────────────────────────────────────
+export const users = sqliteTable("users", {
+  id:                integer("id").primaryKey({ autoIncrement: true }),
+  username:          text("username").notNull().unique(),
+  passwordHash:      text("password_hash").notNull(),
+  isAdmin:           integer("is_admin").notNull().default(0),
+  totpSecret:        text("totp_secret"),
+  totpEnabled:       integer("totp_enabled").notNull().default(0),
+  totpPendingSecret: text("totp_pending_secret"),
+  totpLastUsedToken: text("totp_last_used_token"),
+  createdAt:         text("created_at").notNull(),
+});
+
+export type User = typeof users.$inferSelect;
+export type PublicUser = Omit<User, "passwordHash" | "totpSecret" | "totpPendingSecret" | "totpLastUsedToken">;
+
+const passwordSchema = z.string().min(8, "Passwort muss mindestens 8 Zeichen haben");
+
+export const createUserSchema = z.object({
+  username: z.string().min(1, "Benutzername erforderlich"),
+  password: passwordSchema,
+  isAdmin:  z.boolean().optional().default(false),
+});
+
+export const updateUserSchema = z.object({
+  isAdmin: z.boolean(),
+});
+
+export const changePasswordSchema = z.object({
+  newPassword: passwordSchema,
+  oldPassword: z.string().optional(),
+});
+
+export type CreateUserInput    = z.infer<typeof createUserSchema>;
+export type UpdateUserInput    = z.infer<typeof updateUserSchema>;
+export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
+
 // ─── Accounts ────────────────────────────────────────────────
 export const accounts = sqliteTable("accounts", {
   id: integer("id").primaryKey({ autoIncrement: true }),
@@ -41,9 +78,10 @@ export const appSettings = sqliteTable("app_settings", {
   value: text("value").notNull(),
 });
 
-// ─── Recovery Codes (2FA Backup-Codes) ───────────────────────
+// ─── Recovery Codes (2FA Backup-Codes, per User) ─────────────
 export const recoveryCodes = sqliteTable("recovery_codes", {
   id:       integer("id").primaryKey({ autoIncrement: true }),
+  userId:   integer("user_id"),
   codeHash: text("code_hash").notNull(),
   used:     integer("used").notNull().default(0),
 });
