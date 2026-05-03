@@ -131,6 +131,7 @@ export default function Categories() {
       setEditingCategory(null);
       toast({ title: "Kategorie gespeichert" });
     },
+    onError: (err: Error) => { toast({ title: err.message ?? "Fehler beim Speichern", variant: "destructive" }); },
   });
 
   const deleteMut = useMutation({

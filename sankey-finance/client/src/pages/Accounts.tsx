@@ -43,7 +43,7 @@ export default function Accounts() {
 
   const { data: accounts = [], isLoading } = useQuery<Account[]>({ queryKey: ["/api/accounts"] });
 
-  const defaultValues = { name: "", bank: "ING", color: PRESET_COLORS[0], type: "checking", iban: "" };
+  const defaultValues = { name: "", bank: "ING", color: PRESET_COLORS[0], type: "checking", iban: null as string | null };
   const form = useForm<FormData>({ resolver: zodResolver(formSchema), defaultValues });
 
   const createMut = useMutation({
@@ -54,6 +54,7 @@ export default function Accounts() {
   const updateMut = useMutation({
     mutationFn: ({ id, data }: { id: number; data: FormData }) => apiRequest("PUT", `/api/accounts/${id}`, data).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/accounts"] }); setOpen(false); toast({ title: "Konto aktualisiert" }); },
+    onError: (err: Error) => { toast({ title: err.message ?? "Fehler beim Speichern", variant: "destructive" }); },
   });
 
   const deleteMut = useMutation({
@@ -62,7 +63,7 @@ export default function Accounts() {
   });
 
   const openNew = () => { setEditAcc(null); form.reset(defaultValues); setOpen(true); };
-  const openEdit = (a: Account) => { setEditAcc(a); form.reset({ name: a.name, bank: a.bank, color: a.color, type: a.type, iban: a.iban ?? "" }); setOpen(true); };
+  const openEdit = (a: Account) => { setEditAcc(a); form.reset({ name: a.name, bank: a.bank, color: a.color, type: a.type, iban: a.iban }); setOpen(true); };
   const onSubmit = (data: FormData) => editAcc ? updateMut.mutate({ id: editAcc.id, data }) : createMut.mutate(data);
 
   const typeLabel = (t: string) => TYPES.find(x => x.value === t)?.label ?? t;
@@ -113,7 +114,15 @@ export default function Accounts() {
 
                 <FormField control={form.control} name="iban" render={({ field }) => (
                   <FormItem><FormLabel>IBAN (optional)</FormLabel>
-                    <FormControl><Input data-testid="input-iban" placeholder="DE89 3704 0044 0532 0130 00" {...field} /></FormControl>
+                    <FormControl>
+                      <Input
+                        data-testid="input-iban"
+                        placeholder="DE89 3704 0044 0532 0130 00"
+                        {...field}
+                        value={(field.value as string | null | undefined) ?? ""}
+                        onChange={e => field.onChange(e.target.value || null)}
+                      />
+                    </FormControl>
                     <FormMessage /></FormItem>
                 )} />
 

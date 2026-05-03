@@ -7,6 +7,12 @@ Format angelehnt an [Keep a Changelog](https://keepachangelog.com/de/1.0.0/).
 
 ## [Unreleased]
 
+### Behoben
+- **Speichern-Button bei Bearbeitung nicht klickbar** — Konto-, Kategorie- und Buchungs-Dialoge konnten beim Bearbeiten nicht gespeichert werden
+  - `ibanSchema` lehnte leeren String `""` ab; IBAN-Feld wird nun intern als `null` (statt `""`) verwaltet, leerer Input wird zu `null` konvertiert
+  - `accountTypeSchema` fehlte Wert `"other"` (Typ „Sonstiges" war im Formular wählbar, aber nicht im Schema erlaubt)
+  - Alle drei Edit-Mutations (`updateAccount`, `updateTransaction`, `editCategory`) zeigen jetzt einen Fehler-Toast wenn der API-Call scheitert
+
 ### Hinzugefügt
 - **Multi-User-Verwaltung (REQ-015)** — Admins können weitere Benutzer anlegen, löschen, Admin-Status vergeben, Passwörter setzen und 2FA zurücksetzen
   - Neue Seite `/users` (nur für Admins sichtbar): Benutzerliste mit Admin-Badge, TOTP-Status, Dialoge für alle Aktionen

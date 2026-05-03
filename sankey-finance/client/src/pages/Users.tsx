@@ -86,8 +86,11 @@ export default function UsersPage() {
   });
 
   const pwMut = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: PasswordForm }) =>
-      apiRequest("PATCH", `/api/users/${id}/password`, data).then(r => r.json()),
+    mutationFn: ({ id, data }: { id: number; data: PasswordForm }) => {
+      const payload: { newPassword: string; oldPassword?: string } = { newPassword: data.newPassword };
+      if (data.oldPassword) payload.oldPassword = data.oldPassword;
+      return apiRequest("PATCH", `/api/users/${id}/password`, payload).then(r => r.json());
+    },
     onSuccess: (data) => {
       if (data.message && !data.ok) {
         toast({ title: data.message, variant: "destructive" });
@@ -96,6 +99,9 @@ export default function UsersPage() {
       setPwUser(null);
       pwForm.reset();
       toast({ title: "Passwort gesetzt" });
+    },
+    onError: (err: Error) => {
+      toast({ title: err.message ?? "Fehler beim Speichern", variant: "destructive" });
     },
   });
 

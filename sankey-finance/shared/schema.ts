@@ -108,7 +108,7 @@ const hexColorSchema = z.string().regex(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/, "U
 const ibanSchema = z.string().regex(/^[A-Z]{2}\d{2}[A-Z0-9]{4,30}$/, "Ungültige IBAN").nullable().optional();
 
 /** Erlaubte Konto-Typen */
-const accountTypeSchema = z.enum(["checking", "savings", "rental", "investment", "cash"]);
+const accountTypeSchema = z.enum(["checking", "savings", "rental", "investment", "cash", "other"]);
 
 /** Erlaubte Kategorie-Typen */
 const categoryTypeSchema = z.enum(["income", "expense", "transfer"]);

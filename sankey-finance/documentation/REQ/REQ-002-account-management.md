@@ -16,9 +16,9 @@ An account represents a real-world bank or financial account (e.g., a checking a
 |--------|--------|----------|-------|
 | name   | string | yes      | Free-text label |
 | bank   | string | yes      | One of: ING, DKB, N26, Sparkasse, Deutsche Bank, Volksbank, Sonstige |
-| type   | string | yes      | One of: checking, savings, rental, investment, cash |
+| type   | string | yes      | One of: checking, savings, rental, investment, cash, other |
 | color  | string | yes      | Hex color: `#rrggbb` or `#rgb` |
-| iban   | string | no       | Must match `^[A-Z]{2}\d{2}[A-Z0-9]{4,30}$` if provided |
+| iban   | string | no       | Must match `^[A-Z]{2}\d{2}[A-Z0-9]{4,30}$` if provided; empty/absent means no IBAN |
 
 ## Acceptance Criteria
 
@@ -46,6 +46,13 @@ Feature: Account Management
     And changes the name to "Gehaltskonto"
     And saves
     Then the account name is updated to "Gehaltskonto"
+    And a success toast is shown
+
+  Scenario: Edit an account without IBAN
+    Given an account "Sparkonto" exists with no IBAN
+    When the user clicks the edit icon on that account
+    And saves without entering an IBAN
+    Then the account is saved successfully
     And a success toast is shown
 
   Scenario: Delete an account
