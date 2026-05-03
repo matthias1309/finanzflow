@@ -8,7 +8,26 @@ Format angelehnt an [Keep a Changelog](https://keepachangelog.com/de/1.0.0/).
 ## [Unreleased]
 
 ### Hinzugefügt
+- **Multi-User-Verwaltung (REQ-015)** — Admins können weitere Benutzer anlegen, löschen, Admin-Status vergeben, Passwörter setzen und 2FA zurücksetzen
+  - Neue Seite `/users` (nur für Admins sichtbar): Benutzerliste mit Admin-Badge, TOTP-Status, Dialoge für alle Aktionen
+  - Jeder Benutzer hat eigenes TOTP und eigene Recovery-Codes in der Datenbank
+  - Erster Admin wird beim Serverstart aus `APP_USER`/`APP_PASSWORD_HASH` upserted (idempotent)
+  - Letzter Admin ist vor Löschung und Degradierung geschützt
+  - `GET /api/auth/me` gibt den eingeloggten Benutzernamen und Admin-Status zurück (Sidebar zeigt Benutzernamen)
+  - Neue API-Endpunkte: `GET /api/users`, `POST /api/users`, `PATCH /api/users/:id`, `DELETE /api/users/:id`, `PATCH /api/users/:id/password`, `POST /api/users/:id/2fa-reset`
+  - Neue Datenbanktabelle: `users` mit TOTP-Feldern; `recovery_codes` um `user_id` erweitert
+  - **22 API-Tests** (`tests/server/api/users.test.ts`) und **Playwright E2E-Tests** (`tests/e2e/users.spec.ts`)
+  - **REQ-015** `documentation/REQ/REQ-015-user-management.md` mit 16 Gherkin-Szenarien
+  - **ADR-008** in ARC42: Entscheidung für Multi-User mit geteiltem Datensatz dokumentiert
 - **Mobile-Responsive UI (REQ-014)** — Hamburger-Menü mit Slide-in Drawer für Smartphones (<768 px); Sidebar wird bei Klick auf Nav-Link oder Backdrop automatisch geschlossen; fixierte Top-Bar mit Logo auf Mobile; responsive Grids auf allen Seiten (`grid-cols-2 lg:grid-cols-4` für KPIs, `grid-cols-1 sm:grid-cols-2 lg:grid-cols-3` für Konten, `grid-cols-1 md:grid-cols-2` für Kategorien/Kontoübersicht); Abstände skalieren von `p-4` auf Mobile bis `p-8` auf Desktop
+
+### Geändert
+- **Auth-Login nutzt Datenbank** — `POST /api/auth/login` sucht Benutzer per `storage.getUserByUsername()`; bei unbekanntem Benutzernamen wird ein Dummy-Hash verglichen (Timing-Schutz gegen Username-Enumeration)
+- **Session speichert `userId`** — nach Login enthält `req.session.userId` die DB-ID des Benutzers; alle TOTP-Operationen arbeiten per-User
+- **TOTP per User** — `totp_secret`, `totp_enabled`, `totp_pending_secret`, `totp_last_used_token` in der `users`-Tabelle statt in `app_settings`
+- `requireAdmin`-Middleware in `server/auth.ts` schützt alle `/api/users`-Routen
+- `REQ-001-authentication.md` und `REQ-013-2fa-totp.md` aktualisiert (Multi-User-Kontext, per-User TOTP)
+- `npm run 2fa:reset` erwartet jetzt `--user <username>` als Pflichtargument
 
 ### Behoben
 - **Kontoübertrag: Saldo des Zielkontos korrekt berechnet** — `GET /api/summary/:month` befüllt nun `transfersIn` für das Empfängerkonto; die Dashboard-Kontoübersicht addiert eingehende Überträge zum Saldo (`Einnahmen − Ausgaben + transfersIn`). Bisher zeigte das Zielkonto 0 € wenn die importierte Eingangs-Transaktion gelöscht wurde, um Doppelzählung im Sankey zu vermeiden.

@@ -27,7 +27,7 @@
 
 ### 1.1 Requirements Overview
 
-FinanzFlow is a **personal finance dashboard** for a single user managing German bank accounts (N26, DKB, ING). It provides:
+FinanzFlow is a **personal finance dashboard** for managing German bank accounts (N26, DKB, ING). Multiple users share a single dataset; admin users can manage all accounts and other users. It provides:
 
 - **PDF import** of bank statements with automatic transaction parsing
 - **Category management** with a learning system that auto-suggests categories on repeat imports
@@ -35,6 +35,7 @@ FinanzFlow is a **personal finance dashboard** for a single user managing German
 - **Dashboard** showing KPIs (total income / expenses) and a Sankey cash-flow diagram
 - **Month navigation** to review any historical month with data
 - **Dark/light theme** toggle that adapts all UI including chart colors
+- **User management** for admins: create users, assign admin privileges, set passwords, reset 2FA
 
 ### 1.2 Quality Goals
 
@@ -50,7 +51,8 @@ FinanzFlow is a **personal finance dashboard** for a single user managing German
 
 | Role | Concern |
 |---|---|
-| End User (sole user) | Secure access, correct financial data, convenient import |
+| Admin User | Secure access, user management (create/delete users, reset 2FA, set passwords) |
+| Regular User | Secure access, correct financial data, convenient import |
 | Developer (sole developer) | Clean codebase, testability, easy deployment |
 | Uberspace Hosting | Stable process, bounded resource usage, supervisord compatibility |
 
@@ -66,7 +68,7 @@ FinanzFlow is a **personal finance dashboard** for a single user managing German
 | **SQLite** as database | No dedicated DB server required; Uberspace provides no managed DB |
 | **Uberspace shared hosting** | No root access, no Docker, no custom ports below 1024 |
 | **CJS bundle for production** | esbuild compiles server to CJS (`dist/index.cjs`) for maximum Node.js compatibility |
-| **Single user only** | Session-based auth + TOTP supports exactly one credential pair (via env vars); no user table needed |
+| **Multi-user with shared dataset** | All users see and edit the same accounts, transactions, and categories; no per-user data isolation |
 | **No client-side persistence of sensitive data** | Theme state lives in React state only; no localStorage, no cookies beyond the session cookie |
 
 ### 2.2 Organisational Constraints
@@ -203,9 +205,11 @@ client/src/
 │   ├── Categories.tsx        Category CRUD with edit dialog
 │   ├── Transactions.tsx      Transaction list, filter by month
 │   ├── ImportPDF.tsx         PDF upload, transaction preview, batch confirm
+│   ├── Users.tsx             User management (admin only): create, delete, toggle admin, set password, reset 2FA
+│   ├── Login.tsx             Login form (username + password → TOTP → authenticated)
 │   └── not-found.tsx         404 fallback
 └── components/
-    └── ui/                   shadcn/ui primitives (Button, Dialog, Select, …)
+    └── ui/                   shadcn/ui primitives (Button, Dialog, Select, Switch, …)
 ```
 
 **Key client dependencies:**
@@ -215,6 +219,8 @@ client/src/
 | `queryClient.ts` | Central `apiRequest()` wraps `fetch` with `API_BASE` prefix; `getQueryFn` used as default React Query fetcher |
 | `Dashboard.tsx` | Computes `filteredSummary` (visibility-filtered account data) in a `useMemo`, passes it to `SankeyChart` |
 | `ImportPDF.tsx` | Uploads PDF → receives parsed preview → user confirms → `POST /api/transactions/batch` → `POST /api/category-rules/learn` |
+| `Users.tsx` | Admin-only page: lists users with admin badge and TOTP status; dialogs for create, set password, delete, 2FA reset |
+| `Layout.tsx` | Renders nav items; adds `/users` link only when `GET /api/auth/me` returns `isAdmin: true`; shows logged-in username |
 
 ### 5.3 Level 2 — Server
 
@@ -222,17 +228,18 @@ client/src/
 server/
 ├── index.ts          Entry point: createApp() + listen() + vite/static setup
 ├── createApp.ts      App factory (no listen) — used by tests and index.ts
-├── auth.ts           requireAuth middleware, authRateLimiter, safeStringEqual
-├── session.ts        express-session configuration (memorystore, cookie flags)
+├── auth.ts           requireAuth + requireAdmin middleware, authRateLimiter, safeStringEqual
+├── session.ts        express-session configuration (memorystore, cookie flags, userId)
 ├── totp.ts           TOTP secret encryption/decryption (AES-256), token verification
 ├── securityHeaders.ts helmet CSP (dev/prod split), csrfProtectionMiddleware
-├── db.ts             SQLite connection + PRAGMA foreign_keys + schema migration + category seeding
+├── db.ts             SQLite connection + PRAGMA foreign_keys + schema migration + admin seeding
 ├── storage.ts        IStorage interface + implementation (Drizzle ORM façade)
 ├── pdfParser.ts      PDF text extraction + bank-specific + generic parsers
 ├── static.ts         Production static file serving from dist/public/
 ├── vite.ts           Vite dev server in middleware mode
 └── routes/
-    ├── auth.ts             POST /api/auth/login, /totp, /logout, 2FA management
+    ├── auth.ts             POST /api/auth/login, /totp, /logout, GET /me, 2FA management
+    ├── users.ts            GET/POST/PATCH/DELETE /api/users + password + 2fa-reset
     ├── accounts.ts         GET/POST/PUT/DELETE /api/accounts
     ├── categories.ts       GET/POST/PUT/DELETE /api/categories
     ├── transactions.ts     GET/POST/PATCH/PUT/DELETE + POST /batch
@@ -246,8 +253,9 @@ server/
 | Component | Responsibility |
 |---|---|
 | `createApp.ts` | Assembles middleware stack + registers routes; returns `{ app, httpServer }` |
-| `db.ts` | Opens SQLite, runs `CREATE TABLE IF NOT EXISTS` migrations, seeds default categories |
+| `db.ts` | Opens SQLite, runs `CREATE TABLE IF NOT EXISTS` migrations, seeds default categories, upserts admin user from ENV |
 | `storage.ts` | Thin Drizzle ORM wrapper — all queries, no business logic |
+| `auth.ts` | `requireAuth`: session guard (bypassed in dev/test). `requireAdmin`: checks `isAdmin` flag in DB for the session's `userId` |
 | `pdfParser.ts` | `parsePDF(buffer)` → detects bank → runs bank-specific parser → deduplicates → returns `ParseResult` |
 | `summary.ts` | Aggregates transactions by account and category for a given month; shapes data for the Sankey diagram |
 | `categoryRules.ts` | Learns keyword→category mappings from confirmed imports; applies longest-match rule on suggestion |
@@ -255,38 +263,50 @@ server/
 ### 5.4 Level 2 — Database
 
 ```
-┌──────────────┐      ┌─────────────────┐
-│   accounts   │◄─────│  transactions   │
-│              │      │                 │
-│ id (PK)      │      │ id (PK)         │
-│ name         │      │ month (YYYY-MM) │
-│ bank         │      │ date            │
-│ color        │      │ description     │
-│ type         │      │ amount          │
-│ iban         │      │ account_id (FK) │
-└──────────────┘      │ category_id(FK) │
-                      │ type            │
-┌──────────────┐      │ transfer_to_acc │
-│  categories  │◄─────│ import_source   │
-│              │      │ original_text   │
-│ id (PK)      │      └─────────────────┘
-│ name         │
-│ type         │      ┌─────────────────┐
-│ color        │      │ category_rules  │
-└──────────────┘      │                 │
-                      │ id (PK)         │
-                      │ keyword (UNIQUE) │
-                      │ category_id     │
-                      │ hits            │
-                      └─────────────────┘
+┌──────────────────┐   ┌─────────────────┐
+│     users        │   │  recovery_codes │
+│                  │   │                 │
+│ id (PK)          │◄──│ id (PK)         │
+│ username (UNIQUE)│   │ user_id (FK)    │
+│ password_hash    │   │ code_hash       │
+│ is_admin         │   │ used            │
+│ totp_secret      │   └─────────────────┘
+│ totp_enabled     │
+│ totp_pending_sec │   ┌──────────────┐      ┌─────────────────┐
+│ totp_last_token  │   │   accounts   │◄─────│  transactions   │
+│ created_at       │   │              │      │                 │
+└──────────────────┘   │ id (PK)      │      │ id (PK)         │
+                       │ name         │      │ month (YYYY-MM) │
+                       │ bank         │      │ date            │
+                       │ color        │      │ description     │
+                       │ type         │      │ amount          │
+                       │ iban         │      │ account_id (FK) │
+                       └──────────────┘      │ category_id(FK) │
+                                             │ type            │
+                       ┌──────────────┐      │ transfer_to_acc │
+                       │  categories  │◄─────│ import_source   │
+                       │              │      │ original_text   │
+                       │ id (PK)      │      └─────────────────┘
+                       │ name         │
+                       │ type         │      ┌─────────────────┐
+                       │ color        │      │ category_rules  │
+                       └──────────────┘      │                 │
+                                             │ id (PK)         │
+                                             │ keyword (UNIQUE) │
+                                             │ category_id     │
+                                             │ hits            │
+                                             └─────────────────┘
 ```
 
 **Schema notes:**
 
+- `users.is_admin` is `0` or `1`; at least one admin must exist at all times (enforced by routes)
+- `users.totp_secret` is AES-256 encrypted (key from `TOTP_ENCRYPTION_KEY`); `null` until TOTP is set up
+- `recovery_codes.user_id` links codes to their owner; codes are bcrypt-hashed and marked `used = 1` on redemption
 - `transactions.amount` is always positive; `type` (`income` / `expense` / `transfer`) determines sign semantics
 - `transactions.transfer_to_account_id` is set only for `type = 'transfer'`; these rows are excluded from income/expense aggregation
 - Foreign key constraints are enforced via `PRAGMA foreign_keys = ON` (set in `db.ts` at startup); referential integrity is guaranteed by the DB engine
-- Schema migration is inline in `db.ts` using `CREATE TABLE IF NOT EXISTS` — no migration tool needed for a single-user app
+- Schema migration is inline in `db.ts` using `CREATE TABLE IF NOT EXISTS` + `tryExec("ALTER TABLE …")` for additive column migrations — no migration tool needed
 
 ---
 
@@ -298,7 +318,7 @@ server/
 Browser                     Express                       SQLite
   │                           │                              │
   │── GET /finanzflow/ ───────►│                              │
-  │                           │ sessionMiddleware: no cookie  │
+  │                           │ requireAuth: no session      │
   │◄── 302 /login ────────────│                              │
   │                           │                              │
   │── GET /login ─────────────►│                              │
@@ -307,20 +327,28 @@ Browser                     Express                       SQLite
   │ Nutzer gibt User+Passwort ein                             │
   │── POST /api/auth/login ───►│                              │
   │                           │ authRateLimiter checks IP    │
+  │                           │── SELECT * FROM users ──────►│
+  │                           │   WHERE username = ?         │
   │                           │ bcrypt.compareSync(pass,hash)│
+  │                           │ session.userId = user.id     │
   │                           │ session.pendingTotp = true   │
   │◄── 200 { step: "totp" } ──│                              │
   │                           │                              │
   │ Nutzer gibt TOTP-Code ein  │                              │
   │── POST /api/auth/totp ────►│                              │
   │                           │── SELECT totp_secret ───────►│
+  │                           │   FROM users WHERE id = ?    │
   │                           │ totp.verify(code, secret)    │
   │                           │ session.authenticated = true │
   │◄── 200 { ok: true } ──────│                              │
   │                           │                              │
   │── GET /finanzflow/ ───────►│                              │
-  │                           │ sessionMiddleware: valid ✓   │
+  │                           │ requireAuth: valid ✓         │
   │◄── 200 (SPA HTML) ────────│                              │
+  │                           │                              │
+  │── GET /api/auth/me ───────►│                              │
+  │                           │── SELECT username, is_admin ►│
+  │◄── { username, isAdmin } ─│                              │
 ```
 
 ### 6.2 Dashboard Load
@@ -488,25 +516,30 @@ finanzflow-uberspace.tar.gz
 
 **Authentication**
 
-Session-based two-factor authentication (see ADR-007). The flow:
+Session-based two-factor authentication (see ADR-007) with DB-backed multi-user support (see ADR-008). The flow:
 
 1. `POST /api/auth/login` — password step
    - `authRateLimiter` checks IP (10 failures / 15 min)
-   - Constant-time username comparison via `timingSafeEqual` with fixed-size buffers
+   - `storage.getUserByUsername(username)` — looks up user in DB; if not found, a dummy hash is compared to prevent timing-based username enumeration
    - Password verification via `bcrypt.compareSync`
-   - On success: `req.session.pendingTotp = true` (session not yet fully authenticated)
+   - On success: `req.session.userId = user.id`, `req.session.pendingTotp = true`
 
 2. `POST /api/auth/totp` — TOTP step
-   - Decrypts stored TOTP secret (AES-256)
-   - `totp.verify({ token, secret })` with ±1 window (30 s drift tolerance)
-   - Replay protection: last-used token timestamp stored in DB
-   - Recovery code path: bcrypt-compare against stored hashes; code marked used on match
+   - Reads TOTP secret from `users` table via `storage.getUserTotpSecret(userId)`
+   - Decrypts stored secret (AES-256); `totp.verify({ token, secret })` with ±1 window (30 s drift tolerance)
+   - Replay protection: last-used token stored per user in `users.totp_last_used_token`
+   - Recovery code path: bcrypt-compare against `recovery_codes` rows for this user; code marked `used = 1` on match
    - On success: `req.session.authenticated = true`
 
-3. Session middleware on all protected routes
+3. `requireAuth` middleware on all protected routes
    - Checks `req.session.authenticated === true`
    - Bypassed when `APP_PASSWORD_HASH` is unset (development / test mode)
    - On failure: `302 /login` (HTML requests) or `401` (API requests)
+
+4. `requireAdmin` middleware on admin-only routes (`/api/users/*`)
+   - Reads `userId` from session; calls `storage.getUserById(userId)`
+   - Returns `403` if user not found or `isAdmin !== 1`
+   - Bypassed when `APP_PASSWORD_HASH` is unset (development / test mode)
 
 **Brute-Force Protection**
 
@@ -713,6 +746,22 @@ Chart colors (Sankey diagram) are passed as props from the theme-aware parent co
 
 ---
 
+### ADR-008 — Multi-user management with shared dataset
+
+**Context:** The original design assumed a single user identified by `APP_USER`/`APP_PASSWORD_HASH` environment variables. A household or small group needing shared access had no way to add further users without sharing credentials, and per-user TOTP was impossible.
+
+**Decision:** Introduce a `users` table in SQLite. The ENV-var user is upserted into this table on every server start (idempotent seeding). Additional users are managed via the `/api/users` endpoints, accessible only to admins. All users share one dataset — no per-user data isolation. Each user has their own TOTP secret and recovery codes stored in the `users` / `recovery_codes` tables. An `isAdmin` flag controls access to user-management features. At least one admin must exist at all times (enforced by the API).
+
+**Consequences:**
+- ✅ Multiple people can log in independently with their own credentials and TOTP devices
+- ✅ Admin user stays synchronized with ENV vars — no manual DB seeding step needed after deploy
+- ✅ Per-user TOTP eliminates shared authenticator app secrets
+- ✅ All existing auth tests continue to work — `/api/auth/2fa/status` falls back to the APP_USER's status for unauthenticated requests
+- ⚠️ All users have equal read/write access to all financial data — no per-user data isolation
+- ⚠️ If `APP_USER`/`APP_PASSWORD_HASH` change in ENV, the seeding upsert updates the DB user silently (intended behavior; document in ops runbook)
+
+---
+
 ### ADR-006 — esbuild CJS bundle for production server
 
 **Context:** The server is written in ESM TypeScript. Uberspace runs Node.js ≥ 18. `better-sqlite3` and `pdf2json` are native CJS modules.
@@ -791,12 +840,12 @@ Banks change their PDF layout without notice. A layout change can cause the pars
 
 ### Risk 2 — Single-process SQLite under concurrent load
 
-**Likelihood:** Very Low (single user)  
+**Likelihood:** Low (small number of users)  
 **Impact:** Low  
 
-SQLite serializes writes. If multiple tabs send concurrent mutations, one will block briefly. `better-sqlite3` uses a synchronous API, so there is no connection pool.
+SQLite serializes writes. With multiple concurrent users, write operations queue behind each other. `better-sqlite3` uses a synchronous API, so there is no connection pool; a slow write blocks the Node.js event loop briefly.
 
-**Mitigation:** Not mitigated — the design intentionally accepts this limitation for a single-user app. If multi-user support were required, a migration to PostgreSQL would be necessary.
+**Mitigation:** Accepted for the target audience (household / small group, rarely concurrent). All writes are fast point mutations (single-row inserts/updates). If load were to grow significantly, migration to PostgreSQL would be the appropriate next step.
 
 ---
 
@@ -837,6 +886,7 @@ Previously: browsers cached Basic Auth credentials with no explicit logout mecha
 
 | Term | Definition |
 |---|---|
+| **Admin (User-Rolle)** | A user with `is_admin = 1` in the `users` table. Admins can create and delete users, toggle admin status of others, set any user's password, and reset 2FA. At least one admin must exist at all times. |
 | **Sankey diagram** | A flow chart where the width of each band is proportional to the flow quantity. FinanzFlow uses it to visualize money flowing from income categories through accounts to expense categories. |
 | **KPI** | Key Performance Indicator. In FinanzFlow: total monthly income and total monthly expenses per account. |
 | **IBAN** | International Bank Account Number. A standardized bank account identifier used in Europe. Stored optionally per account. |
@@ -845,7 +895,7 @@ Previously: browsers cached Basic Auth credentials with no explicit logout mecha
 | **TOTP** | Time-based One-Time Password (RFC 6238). Generates a 6-digit code every 30 seconds from a shared secret. Used as the second factor in 2FA. |
 | **2FA** | Two-Factor Authentication. Requires two independent proofs of identity: something you know (password) and something you have (TOTP device). |
 | **Session cookie** | An `httpOnly`, `Secure`, `SameSite=Strict` cookie that carries a session ID. The session state (authenticated, pendingTotp) is stored server-side in memorystore. |
-| **Recovery code** | A single-use backup code generated during 2FA setup. Allows login if the TOTP device is unavailable. Stored as bcrypt hashes; invalidated on use. |
+| **Recovery code** | A single-use backup code generated during 2FA setup. Allows login if the TOTP device is unavailable. Stored as bcrypt hashes per user; invalidated on use. |
 | **CSP** | Content Security Policy. An HTTP header that restricts which resources a browser may load, mitigating XSS. |
 | **CSRF** | Cross-Site Request Forgery. An attack where a malicious site triggers a state-changing request to the victim site using the browser's cached credentials. |
 | **ReDoS** | Regular Expression Denial of Service. An attack that causes catastrophic backtracking in poorly written regex, freezing the server. |
