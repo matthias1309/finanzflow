@@ -6,7 +6,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertCategorySchema } from "@shared/schema";
 import type { Category } from "@shared/schema";
-import { z } from "zod";
+import { type ZodType } from "zod";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,113 +22,38 @@ const PRESET_COLORS = [
   "#d19900", "#a13544", "#7a39bb", "#7a7974",
 ];
 
-const formSchema = insertCategorySchema.extend({});
-type FormData = z.infer<typeof formSchema>;
+// Explicit type to work around drizzle-zod v0.8 / Zod v3 type inference mismatch
+type FormData = { name: string; type: "income" | "expense" | "transfer"; color: string };
 
-function CategoryForm({
-  defaultValues,
-  onSubmit,
-  onCancel,
-  isPending,
-  submitLabel,
-}: {
-  defaultValues: FormData;
-  onSubmit: (data: FormData) => void;
-  onCancel: () => void;
-  isPending: boolean;
-  submitLabel: string;
-}) {
-  const form = useForm<FormData>({
-    resolver: zodResolver(formSchema),
-    defaultValues,
-  });
-
-  return (
-    <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-2">
-        <FormField control={form.control} name="name" render={({ field }) => (
-          <FormItem>
-            <FormLabel>Name</FormLabel>
-            <FormControl>
-              <Input data-testid="input-cat-name" placeholder="z.B. Lebensmittel" {...field} />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )} />
-
-        <FormField control={form.control} name="type" render={({ field }) => (
-          <FormItem>
-            <FormLabel>Typ</FormLabel>
-            <Select value={field.value} onValueChange={field.onChange}>
-              <FormControl>
-                <SelectTrigger data-testid="select-cat-type">
-                  <SelectValue />
-                </SelectTrigger>
-              </FormControl>
-              <SelectContent>
-                <SelectItem value="income">Einnahme</SelectItem>
-                <SelectItem value="expense">Ausgabe</SelectItem>
-              </SelectContent>
-            </Select>
-            <FormMessage />
-          </FormItem>
-        )} />
-
-        <FormField control={form.control} name="color" render={({ field }) => (
-          <FormItem>
-            <FormLabel>Farbe</FormLabel>
-            <div className="flex flex-wrap gap-2 mt-1">
-              {PRESET_COLORS.map(color => (
-                <button
-                  key={color}
-                  type="button"
-                  data-testid={`color-${color}`}
-                  onClick={() => field.onChange(color)}
-                  className={`w-7 h-7 rounded-md transition-all ${field.value === color ? "ring-2 ring-offset-2 ring-offset-card ring-white scale-110" : "opacity-70 hover:opacity-100"}`}
-                  style={{ backgroundColor: color }}
-                  aria-label={color}
-                />
-              ))}
-            </div>
-            <FormMessage />
-          </FormItem>
-        )} />
-
-        <div className="flex gap-2 pt-1">
-          <Button data-testid="button-save-category" type="submit" className="flex-1" disabled={isPending}>
-            {submitLabel}
-          </Button>
-          <Button type="button" variant="outline" onClick={onCancel}>Abbrechen</Button>
-        </div>
-      </form>
-    </Form>
-  );
-}
+const defaultValues: FormData = { name: "", type: "expense", color: PRESET_COLORS[4] };
 
 export default function Categories() {
   const { toast } = useToast();
   const qc = useQueryClient();
-  const [createOpen, setCreateOpen] = useState(false);
-  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  const [open, setOpen] = useState(false);
+  const [editCat, setEditCat] = useState<Category | null>(null);
 
   const { data: categories = [], isLoading } = useQuery<Category[]>({ queryKey: ["/api/categories"] });
+
+  const form = useForm<FormData>({ resolver: zodResolver(insertCategorySchema as unknown as ZodType<FormData>), defaultValues });
 
   const createMut = useMutation({
     mutationFn: (data: FormData) => apiRequest("POST", "/api/categories", data).then(r => r.json()),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/categories"] });
-      setCreateOpen(false);
+      setOpen(false);
+      form.reset(defaultValues);
       toast({ title: "Kategorie erstellt" });
     },
   });
 
   const editMut = useMutation({
-    mutationFn: (data: FormData) =>
-      apiRequest("PUT", `/api/categories/${editingCategory!.id}`, data).then(r => r.json()),
+    mutationFn: ({ id, data }: { id: number; data: FormData }) =>
+      apiRequest("PUT", `/api/categories/${id}`, data).then(r => r.json()),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/categories"] });
       qc.invalidateQueries({ queryKey: ["/api/summary"] });
-      setEditingCategory(null);
+      setOpen(false);
       toast({ title: "Kategorie gespeichert" });
     },
     onError: (err: Error) => { toast({ title: err.message ?? "Fehler beim Speichern", variant: "destructive" }); },
@@ -142,47 +67,12 @@ export default function Categories() {
     },
   });
 
+  const openNew = () => { setEditCat(null); form.reset(defaultValues); setOpen(true); };
+  const openEdit = (cat: Category) => { setEditCat(cat); form.reset({ name: cat.name, type: cat.type as FormData["type"], color: cat.color }); setOpen(true); };
+  const onSubmit = (data: FormData) => editCat ? editMut.mutate({ id: editCat.id, data }) : createMut.mutate(data);
+
   const income = categories.filter(c => c.type === "income");
   const expenses = categories.filter(c => c.type === "expense");
-
-  function CategoryList({ items }: { items: Category[] }) {
-    return (
-      <div className="space-y-1.5">
-        {items.map(cat => (
-          <div
-            key={cat.id}
-            className="flex items-center justify-between gap-3 py-1.5 px-2 rounded-md hover:bg-muted/40 group"
-            data-testid={`cat-item-${cat.id}`}
-          >
-            <div className="flex items-center gap-2.5">
-              <div className="w-3 h-3 rounded-sm flex-shrink-0" style={{ backgroundColor: safeCssColor(cat.color) }} />
-              <span className="text-sm text-foreground">{cat.name}</span>
-            </div>
-            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100">
-              <Button
-                data-testid={`button-edit-cat-${cat.id}`}
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6 text-muted-foreground hover:text-foreground"
-                onClick={() => setEditingCategory(cat)}
-              >
-                <Pencil size={12} />
-              </Button>
-              <Button
-                data-testid={`button-delete-cat-${cat.id}`}
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                onClick={() => deleteMut.mutate(cat.id)}
-              >
-                <Trash2 size={12} />
-              </Button>
-            </div>
-          </div>
-        ))}
-      </div>
-    );
-  }
 
   return (
     <div className="flex flex-col flex-1">
@@ -192,45 +82,85 @@ export default function Categories() {
           <p className="text-sm text-muted-foreground mt-0.5">Einnahmen- und Ausgabenkategorien verwalten</p>
         </div>
 
-        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <Dialog open={open} onOpenChange={open => { setOpen(open); if (!open) setEditCat(null); }}>
           <DialogTrigger asChild>
-            <Button data-testid="button-add-category" size="sm" className="gap-1.5">
+            <Button data-testid="button-add-category" size="sm" className="gap-1.5" onClick={openNew}>
               <Plus size={14} />
               Neue Kategorie
             </Button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-sm bg-card border-border">
             <DialogHeader>
-              <DialogTitle className="text-foreground">Neue Kategorie</DialogTitle>
+              <DialogTitle className="text-foreground">
+                {editCat ? "Kategorie bearbeiten" : "Neue Kategorie"}
+              </DialogTitle>
             </DialogHeader>
-            <CategoryForm
-              defaultValues={{ name: "", type: "expense", color: PRESET_COLORS[4] }}
-              onSubmit={d => createMut.mutate(d)}
-              onCancel={() => setCreateOpen(false)}
-              isPending={createMut.isPending}
-              submitLabel="Erstellen"
-            />
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-2">
+                <FormField control={form.control} name="name" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Name</FormLabel>
+                    <FormControl>
+                      <Input data-testid="input-cat-name" placeholder="z.B. Lebensmittel" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+
+                <FormField control={form.control} name="type" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Typ</FormLabel>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <FormControl>
+                        <SelectTrigger data-testid="select-cat-type">
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="income">Einnahme</SelectItem>
+                        <SelectItem value="expense">Ausgabe</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+
+                <FormField control={form.control} name="color" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Farbe</FormLabel>
+                    <div className="flex flex-wrap gap-2 mt-1">
+                      {PRESET_COLORS.map(color => (
+                        <button
+                          key={color}
+                          type="button"
+                          data-testid={`color-${color}`}
+                          onClick={() => field.onChange(color)}
+                          className={`w-7 h-7 rounded-md transition-all ${field.value === color ? "ring-2 ring-offset-2 ring-offset-card ring-white scale-110" : "opacity-70 hover:opacity-100"}`}
+                          style={{ backgroundColor: color }}
+                          aria-label={color}
+                        />
+                      ))}
+                    </div>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+
+                <div className="flex gap-2 pt-1">
+                  <Button
+                    data-testid="button-save-category"
+                    type="submit"
+                    className="flex-1"
+                    disabled={createMut.isPending || editMut.isPending}
+                  >
+                    {editCat ? "Speichern" : "Erstellen"}
+                  </Button>
+                  <Button type="button" variant="outline" onClick={() => setOpen(false)}>Abbrechen</Button>
+                </div>
+              </form>
+            </Form>
           </DialogContent>
         </Dialog>
       </div>
-
-      {/* Edit dialog — opens when a category is selected for editing */}
-      <Dialog open={editingCategory !== null} onOpenChange={open => { if (!open) setEditingCategory(null); }}>
-        <DialogContent className="sm:max-w-sm bg-card border-border">
-          <DialogHeader>
-            <DialogTitle className="text-foreground">Kategorie bearbeiten</DialogTitle>
-          </DialogHeader>
-          {editingCategory && (
-            <CategoryForm
-              defaultValues={{ name: editingCategory.name, type: editingCategory.type, color: editingCategory.color }}
-              onSubmit={d => editMut.mutate(d)}
-              onCancel={() => setEditingCategory(null)}
-              isPending={editMut.isPending}
-              submitLabel="Speichern"
-            />
-          )}
-        </DialogContent>
-      </Dialog>
 
       <div className="flex-1 p-4 md:p-8">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -248,7 +178,7 @@ export default function Categories() {
               ) : income.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-2">Keine Kategorien</p>
               ) : (
-                <CategoryList items={income} />
+                <CategoryList items={income} onEdit={openEdit} onDelete={id => deleteMut.mutate(id)} />
               )}
             </CardContent>
           </Card>
@@ -267,12 +197,51 @@ export default function Categories() {
               ) : expenses.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-2">Keine Kategorien</p>
               ) : (
-                <CategoryList items={expenses} />
+                <CategoryList items={expenses} onEdit={openEdit} onDelete={id => deleteMut.mutate(id)} />
               )}
             </CardContent>
           </Card>
         </div>
       </div>
+    </div>
+  );
+}
+
+function CategoryList({ items, onEdit, onDelete }: { items: Category[]; onEdit: (cat: Category) => void; onDelete: (id: number) => void }) {
+  return (
+    <div className="space-y-1.5">
+      {items.map(cat => (
+        <div
+          key={cat.id}
+          className="flex items-center justify-between gap-3 py-1.5 px-2 rounded-md hover:bg-muted/40 group"
+          data-testid={`cat-item-${cat.id}`}
+        >
+          <div className="flex items-center gap-2.5">
+            <div className="w-3 h-3 rounded-sm flex-shrink-0" style={{ backgroundColor: safeCssColor(cat.color) }} />
+            <span className="text-sm text-foreground">{cat.name}</span>
+          </div>
+          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100">
+            <Button
+              data-testid={`button-edit-cat-${cat.id}`}
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 text-muted-foreground hover:text-foreground"
+              onClick={() => onEdit(cat)}
+            >
+              <Pencil size={12} />
+            </Button>
+            <Button
+              data-testid={`button-delete-cat-${cat.id}`}
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 text-muted-foreground hover:text-destructive"
+              onClick={() => onDelete(cat.id)}
+            >
+              <Trash2 size={12} />
+            </Button>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
