@@ -5,8 +5,8 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertAccountSchema } from "@shared/schema";
-import type { Account } from "@shared/schema";
-import { z } from "zod";
+import type { Account, InsertAccount } from "@shared/schema";
+import { type ZodType } from "zod";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,8 +32,7 @@ const TYPES = [
   { value: "other", label: "Sonstiges" },
 ];
 
-const formSchema = insertAccountSchema.extend({});
-type FormData = z.infer<typeof formSchema>;
+type FormData = InsertAccount;
 
 export default function Accounts() {
   const { toast } = useToast();
@@ -43,8 +42,8 @@ export default function Accounts() {
 
   const { data: accounts = [], isLoading } = useQuery<Account[]>({ queryKey: ["/api/accounts"] });
 
-  const defaultValues = { name: "", bank: "ING", color: PRESET_COLORS[0], type: "checking", iban: null as string | null };
-  const form = useForm<FormData>({ resolver: zodResolver(formSchema), defaultValues });
+  const defaultValues: FormData = { name: "", bank: "ING", color: PRESET_COLORS[0], type: "checking", iban: null };
+  const form = useForm<FormData>({ resolver: zodResolver(insertAccountSchema as unknown as ZodType<FormData>), defaultValues });
 
   const createMut = useMutation({
     mutationFn: (data: FormData) => apiRequest("POST", "/api/accounts", data).then(r => r.json()),
@@ -63,7 +62,7 @@ export default function Accounts() {
   });
 
   const openNew = () => { setEditAcc(null); form.reset(defaultValues); setOpen(true); };
-  const openEdit = (a: Account) => { setEditAcc(a); form.reset({ name: a.name, bank: a.bank, color: a.color, type: a.type, iban: a.iban }); setOpen(true); };
+  const openEdit = (a: Account) => { setEditAcc(a); form.reset({ name: a.name, bank: a.bank, color: a.color, type: a.type as FormData["type"], iban: a.iban }); setOpen(true); };
   const onSubmit = (data: FormData) => editAcc ? updateMut.mutate({ id: editAcc.id, data }) : createMut.mutate(data);
 
   const typeLabel = (t: string) => TYPES.find(x => x.value === t)?.label ?? t;

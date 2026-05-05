@@ -3,9 +3,9 @@ import { apiRequest } from "@/lib/queryClient";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { createUserSchema, updateUserSchema, changePasswordSchema } from "@shared/schema";
-import type { PublicUser } from "@shared/schema";
-import { z } from "zod";
+import { createUserSchema, changePasswordSchema } from "@shared/schema";
+import type { PublicUser, CreateUserInput, ChangePasswordInput } from "@shared/schema";
+import { type ZodType } from "zod";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,8 +21,8 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Trash2, KeyRound, ShieldOff, Users } from "lucide-react";
 
-type CreateForm    = z.infer<typeof createUserSchema>;
-type PasswordForm  = z.infer<typeof changePasswordSchema>;
+type CreateForm   = CreateUserInput;
+type PasswordForm = ChangePasswordInput;
 
 export default function UsersPage() {
   const { toast }  = useToast();
@@ -38,12 +38,12 @@ export default function UsersPage() {
 
   // ── Formulare ──────────────────────────────────────────────────────────────
   const addForm = useForm<CreateForm>({
-    resolver: zodResolver(createUserSchema),
+    resolver: zodResolver(createUserSchema as unknown as ZodType<CreateForm>),
     defaultValues: { username: "", password: "", isAdmin: false },
   });
 
   const pwForm = useForm<PasswordForm>({
-    resolver: zodResolver(changePasswordSchema),
+    resolver: zodResolver(changePasswordSchema as unknown as ZodType<PasswordForm>),
     defaultValues: { newPassword: "", oldPassword: "" },
   });
 

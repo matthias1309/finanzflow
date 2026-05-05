@@ -4,7 +4,8 @@ import { apiRequest } from "@/lib/queryClient";
 import { useState, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
+import { z } from "zod/v4";
+import { type ZodType } from "zod";
 import { insertTransactionSchema } from "@shared/schema";
 import type { Transaction, Category, Account } from "@shared/schema";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -52,7 +53,7 @@ export default function Transactions() {
   const filtered = useMemo(() => filterAccountId === "all" ? transactions : transactions.filter(t => t.accountId === parseInt(filterAccountId)), [transactions, filterAccountId]);
 
   const defaultVals = { description: "", amount: 0, month: selectedMonth, accountId: accounts[0]?.id ?? 0, categoryId: null as any, type: "expense" as const, transferToAccountId: null as any, importSource: "manual", originalText: null as any, date: null as any };
-  const form = useForm<FormData>({ resolver: zodResolver(formSchema), defaultValues: defaultVals });
+  const form = useForm<FormData>({ resolver: zodResolver(formSchema as unknown as ZodType<FormData>), defaultValues: defaultVals });
 
   const openNew = () => { setEditTx(null); form.reset({ ...defaultVals, month: selectedMonth, accountId: accounts[0]?.id ?? 0 }); setOpen(true); };
   const openEdit = (tx: Transaction) => { setEditTx(tx); form.reset({ description: tx.description, amount: tx.amount, month: tx.month, accountId: tx.accountId, categoryId: tx.categoryId as any, type: tx.type as any, transferToAccountId: tx.transferToAccountId as any, importSource: tx.importSource as any, originalText: tx.originalText as any, date: tx.date as any }); setOpen(true); };
