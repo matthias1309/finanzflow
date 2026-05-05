@@ -193,11 +193,147 @@ TOTP_ISSUER=FinanzFlow            ; optional, Name in der Authenticator-App
 
 ## Codestil
 
-- **Keine Kommentare** außer wenn das Warum nicht offensichtlich ist (versteckte Einschränkung, Sicherheits-Workaround, kontraintuitives Verhalten)
-- **Kein vorauseilendes Abstrahieren** — drei ähnliche Zeilen sind besser als eine verfrühte Abstraktion
-- **Keine Fehlerbehandlung** für Szenarien, die nicht auftreten können — Framework-Garantien vertrauen
-- Zod `.safeParse()` für alle externen Eingaben — nie `parse()` (würft unkontrolliert)
+Projektspezifische Regeln, die über die allgemeinen TypeScript-Standards hinausgehen:
+
+- Zod `.safeParse()` für alle externen Eingaben — nie `parse()` (wirft unkontrolliert)
 - `amount` in der DB immer positiv; `type` (`income` / `expense` / `transfer`) trägt die Vorzeichen-Semantik
+
+## TypeScript-Standards
+
+### Typsicherheit
+
+- **Kein `any` — niemals.** Stattdessen `unknown` mit Type Guard oder konkreten Typen.
+- **Explizite Return-Typen** bei allen nicht-trivialen Funktionen.
+- **`interface`** für Objektstrukturen, **`type`** für Unions und Aliases.
+- **Strict Mode bleibt aktiv** (`"strict": true` in tsconfig) — nicht aushebeln, nicht mit `@ts-ignore` umgehen.
+- **`readonly`** wo immer möglich bei Parametern und Properties.
+
+```typescript
+// ❌ Schlecht
+function process(data: any): any { ... }
+
+// ✅ Gut
+function processUser(data: User): ProcessedUser { ... }
+```
+
+### Naming
+
+- **Variablen und Funktionen**: `camelCase`
+- **Klassen, Interfaces, Types, React-Komponenten**: `PascalCase`
+- **Globale unveränderliche Konstanten**: `UPPER_SNAKE_CASE`
+- **Keine Abkürzungen** — erlaubte Ausnahmen: `id`, `db`, `req`, `res`, `err`, `ctx`
+- **Namen sind selbsterklärend** — kein `data`, `info`, `temp`, `value` ohne Kontext
+
+### Funktionen
+
+- **Single Responsibility** — eine Funktion, eine Aufgabe.
+- **Maximale Länge: ~20 Zeilen** — bei mehr aufteilen.
+- **Maximale Parameter: 3** — bei mehr ein Optionsobjekt übergeben.
+- **Keine Flag-Parameter** — `doSomething(true)` ist verboten (was ist `true`?).
+- **Pure Functions bevorzugen** — keine versteckten Seiteneffekte.
+- **Fehler über Exceptions**, nicht über `boolean`-Rückgabewerte.
+
+```typescript
+// ❌ Schlecht
+function handle(user: User, isAdmin: boolean, sendMail: boolean) { ... }
+
+// ✅ Gut
+interface HandleUserOptions {
+  readonly user: User;
+  readonly role: UserRole;
+  readonly notifications: NotificationConfig;
+}
+function handleUser(options: HandleUserOptions): void { ... }
+```
+
+### Code-Struktur
+
+- **DRY** — ab der dritten Wiederholung abstrahieren (Rule of Three).
+- **KISS** — einfachste funktionierende Lösung bevorzugen.
+- **YAGNI** — keine Features auf Vorrat; nur bauen, was jetzt gebraucht wird.
+- **Einheitliches Abstraktionslevel** — eine Funktion arbeitet auf genau einem Level.
+
+### Fehlerbehandlung
+
+- **Alle Fehler explizit typisieren** — kein `catch(e: any)`.
+- **Eigene Error-Klassen** für domänenspezifische Fehler.
+- **Keine stillen Fehler** — `catch` ohne Handling ist verboten.
+
+```typescript
+// ✅ Gut
+class UserNotFoundError extends Error {
+  constructor(userId: string) {
+    super(`User not found: ${userId}`);
+    this.name = 'UserNotFoundError';
+  }
+}
+```
+
+## Tests
+
+- **Jede neue Funktion braucht Testabdeckung** — mindestens Happy Path + ein Fehlerfall.
+- **Testnamen beschreiben das erwartete Verhalten**, nicht die Implementierung: `should return null when user not found`.
+- **Keine Logik in Tests** — nur Setup, Ausführung, Assertion. Kein `if`, kein `for`, keine Hilfsfunktionen mit Branches.
+
+## Was Claude hier NICHT tun soll
+
+Punkte, die nicht anderswo stehen und besondere Aufmerksamkeit brauchen:
+
+- **Keine Magic Numbers** ohne benannte Konstante.
+- **Keine auskommentierten Code-Blöcke** stehen lassen.
+- **Keine Funktion über 20 Zeilen** ohne Rückfrage beim Nutzer.
+
+## Pre-Commit Self-Review (Pflicht)
+
+Vor jedem `git commit` führt Claude automatisch einen Self-Review durch. **Kein Commit ohne abgeschlossenen Review.** Wenn Punkte offen sind: erst beheben, dann committen.
+
+Nach Abschluss des Reviews gibt Claude folgende strukturierte Ausgabe aus:
+
+```
+=== CLEAN CODE REVIEW ===
+
+[ ] TypeScript
+    - Kein `any` verwendet
+    - Alle Return-Typen explizit
+    - Strict Mode nicht ausgehebelt
+
+[ ] Naming
+    - Konventionen eingehalten (camelCase / PascalCase / UPPER_SNAKE)
+    - Keine Abkürzungen
+    - Namen sind selbsterklärend
+
+[ ] Funktionen
+    - Single Responsibility eingehalten
+    - Keine Funktion > 20 Zeilen
+    - Maximal 3 Parameter (oder Objekt)
+    - Keine Flag-Parameter
+
+[ ] Struktur
+    - DRY: keine Wiederholungen ab Mal 3
+    - YAGNI: kein Code auf Vorrat
+    - Einheitlicher Abstraktionslevel
+
+[ ] Kommentare
+    - Kein auskommentierter Code
+    - Kommentare erklären Warum, nicht Was
+
+[ ] Fehlerbehandlung
+    - Keine `catch(e: any)`
+    - Keine stillen Fehler
+
+[ ] Tests
+    - Happy Path abgedeckt
+    - Mindestens ein Fehlerfall
+
+[ ] Boy Scout Rule
+    - Code minimal besser als vorher
+
+=== ERGEBNIS ===
+✅ Bereit für Commit
+– ODER –
+❌ Offen: [Liste der Verstöße mit Datei + Zeile]
+========================
+```
 
 ## Häufige Fallstricke
 
