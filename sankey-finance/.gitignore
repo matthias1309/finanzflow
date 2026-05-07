@@ -7,3 +7,4 @@ finance.db
 .env.production
 *.log
 .DS_Store
+documentation/tickets/

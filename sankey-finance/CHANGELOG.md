@@ -8,6 +8,12 @@ Format angelehnt an [Keep a Changelog](https://keepachangelog.com/de/1.0.0/).
 ## [Unreleased]
 
 ### Behoben
+- **BUG-001/002/003 — SankeyChart refactored (Security + Clean Code)**
+  - CSS-Injection-Risiko geschlossen: Farben aus DB werden jetzt durch `safeCssColor()` geleitet bevor sie in SVG-`fill`-Attribute fließen
+  - 30+ `(d: any)`-Callbacks durch typisierte Interfaces (`D3LayoutNode`, `D3LayoutLink`) ersetzt — kein `any` mehr in D3-Code
+  - `useEffect` von ~208 Zeilen in 10 eigenständige Funktionen aufgeteilt (`collectChartData`, `buildNodeList`, `buildLinkList`, `computeChartDimensions`, `computeSankeyLayout`, `renderLinks`, `renderNodeRects`, `appendAccountNameLabel`, `appendAccountValueLabel`, `renderIncomeLabels`, `renderExpenseLabels`, `setupZoom`)
+  - Magic Numbers `80` durch benannte Konstanten `ROW_HEIGHT_PX` / `ROW_MARGIN_PX` ersetzt
+  - Tote Variable `centerLabel` entfernt
 - **Speichern-Button bei Bearbeitung nicht klickbar** — Konto-, Kategorie- und Buchungs-Dialoge konnten beim Bearbeiten nicht gespeichert werden
   - `ibanSchema` lehnte leeren String `""` ab; IBAN-Feld wird nun intern als `null` (statt `""`) verwaltet, leerer Input wird zu `null` konvertiert
   - `accountTypeSchema` fehlte Wert `"other"` (Typ „Sonstiges" war im Formular wählbar, aber nicht im Schema erlaubt)
