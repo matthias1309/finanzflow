@@ -1,3 +1,4 @@
+import "./env-defaults";
 import { createApp } from "./createApp";
 import { serveStatic } from "./static";
 

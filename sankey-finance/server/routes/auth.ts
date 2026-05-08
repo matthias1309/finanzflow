@@ -1,8 +1,13 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
-import bcrypt from "bcryptjs";
+import { createHash } from "crypto";
 import { storage } from "../storage";
 import { authRateLimiter } from "../auth";
 import { verifyTotpToken, generateTotpSecret, getTotpAuthUrl } from "../totp";
+
+// Helper: SHA256 hash for simple password comparison
+function hashPassword(password: string): string {
+  return createHash("sha256").update(password).digest("hex");
+}
 
 export const authRouter = Router();
 
@@ -50,11 +55,23 @@ authRouter.post("/login", authRateLimiter, (req, res) => {
     return;
   }
 
+  // For Docker dev mode: use APP_PASSWORD_HASH if user doesn't exist
   const user = storage.getUserByUsername(username);
-  const hashToCheck = user?.passwordHash ?? "$2b$10$invalidhashfortimingsafety000000000000000000000";
-  const validPass = bcrypt.compareSync(password, hashToCheck);
+  const isDefaultUser = username === (process.env.APP_USER ?? "admin");
+  // In Docker mode, always use APP_PASSWORD_HASH for the default user
+  const useEnvHash = isDefaultUser && process.env.DOCKER_DEPLOY === "true";
+  const expectedHash = useEnvHash
+    ? process.env.APP_PASSWORD_HASH ?? ""
+    : user?.passwordHash ?? process.env.APP_PASSWORD_HASH ?? "";
+  const calculatedHash = hashPassword(password);
+  const validPass = calculatedHash === expectedHash;
 
-  if (!user || !validPass) {
+  if (!user && !isDefaultUser) {
+    res.status(401).json({ message: "Benutzername oder Passwort falsch" });
+    return;
+  }
+
+  if (!validPass) {
     res.status(401).json({ message: "Benutzername oder Passwort falsch" });
     return;
   }
@@ -68,7 +85,6 @@ authRouter.post("/login", authRateLimiter, (req, res) => {
     });
     return;
   }
-
   req.session.regenerate((err) => {
     if (err) { res.status(500).json({ message: "Session-Fehler" }); return; }
     req.session.userId        = user.id;

@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(tail -30 /tmp/finanzflow.log)",
+      "Read(//private/tmp/**)",
+      "Bash(curl -v -X POST http://localhost:3000/api/auth/login -H 'Content-Type: application/json' -H 'Origin: http://localhost:3000' -d '{\"username\":\"admin\",\"password\":\"admin\"}')",
+      "Bash(docker run *)",
+      "Bash(docker exec *)",
+      "Bash(docker rm *)",
+      "Bash(curl -X POST http://localhost:3000/api/auth/login -H 'Content-Type: application/json' -H 'Origin: http://localhost:3000' -d '{\"username\":\"admin\",\"password\":\"admin\"}')",
+      "Bash(curl -s http://localhost:3000/)",
+      "Bash(docker system *)"
+    ]
+  }
+}

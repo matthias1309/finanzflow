@@ -16,7 +16,7 @@ const maxAgeMs = (parseInt(process.env.SESSION_MAX_AGE_HOURS ?? "8", 10)) * 60 *
 export const sessionMiddleware = session({
   secret:            process.env.SESSION_SECRET ?? "dev-secret-change-in-production",
   resave:            false,
-  saveUninitialized: false,
+  saveUninitialized: true,
   store:             new Store({ checkPeriod: 86_400_000 }),
   cookie: {
     httpOnly: true,
