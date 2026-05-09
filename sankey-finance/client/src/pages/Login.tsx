@@ -27,6 +27,7 @@ export default function Login() {
       const res  = await fetch(`${API_BASE}/api/auth/login`, {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body:    JSON.stringify({ username, password }),
       });
       const data = await res.json();
@@ -54,6 +55,7 @@ export default function Login() {
       const res  = await fetch(`${API_BASE}/api/auth/totp`, {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body:    JSON.stringify({ code: totpCode }),
       });
       const data = await res.json();

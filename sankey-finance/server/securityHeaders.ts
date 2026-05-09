@@ -12,9 +12,12 @@ import { type Request, type Response, type NextFunction } from "express";
  * - HTTPS-Downgrade: Strict-Transport-Security (HSTS)
  */
 const isDev = process.env.NODE_ENV !== "production";
+const isDockerDeploy = process.env.DOCKER_DEPLOY === "true";
+const isRealProduction = !isDockerDeploy && process.env.NODE_ENV === "production";
 
 // In development Vite needs 'unsafe-inline' + 'unsafe-eval' for React Fast Refresh
-// and external origins for Google Fonts. Production stays strict.
+// In Docker: allow Google Fonts (needed for app)
+// In real production: very strict
 const cspDirectives = isDev
   ? {
       defaultSrc:  ["'self'"],
@@ -23,6 +26,17 @@ const cspDirectives = isDev
       fontSrc:     ["'self'", "https://fonts.gstatic.com"],
       imgSrc:      ["'self'", "data:"],
       connectSrc:  ["'self'", "ws://localhost:*"],
+      frameSrc:    ["'none'"],
+      objectSrc:   ["'none'"],
+    }
+  : isDockerDeploy
+  ? {
+      defaultSrc:  ["'self'"],
+      scriptSrc:   ["'self'"],
+      styleSrc:    ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc:     ["'self'", "https://fonts.gstatic.com"],
+      imgSrc:      ["'self'", "data:"],
+      connectSrc:  ["'self'"],
       frameSrc:    ["'none'"],
       objectSrc:   ["'none'"],
     }
@@ -39,19 +53,28 @@ const cspDirectives = isDev
       formAction:  ["'self'"],
     };
 
+// HSTS nur in echter Production (HTTPS), nicht in Docker über HTTP
+const useHSTS = !isDockerDeploy && process.env.NODE_ENV === "production";
+
 export const securityHeadersMiddleware = helmet({
-  contentSecurityPolicy: { directives: cspDirectives },
+  contentSecurityPolicy: {
+    directives: cspDirectives,
+    // Kein upgrade-insecure-requests in Docker (HTTP Deployments)
+    reportOnly: false,
+  },
   // Clickjacking-Schutz
   frameguard:         { action: "deny" },
   // MIME-Sniffing verhindern
   noSniff:            true,
   // HSTS: 1 Jahr, kein Subdomains (Uberspace teilt Subdomains)
-  strictTransportSecurity: {
-    maxAge:             31_536_000,
-    includeSubDomains:  false,
-  },
-  // Referrer nicht an externe Domains leaken
-  referrerPolicy:     { policy: "strict-origin-when-cross-origin" },
+  // Aber nur für echte HTTPS-Deployments, nicht für Docker über HTTP
+  strictTransportSecurity: useHSTS
+    ? { maxAge: 31_536_000, includeSubDomains: false }
+    : false,
+  // Referrer-Policy anpassen für Docker (nicht so streng)
+  referrerPolicy: isDockerDeploy
+    ? { policy: "no-referrer-when-downgrade" }
+    : { policy: "strict-origin-when-cross-origin" },
   // X-Powered-By entfernen (gibt keine Tech-Stack-Infos preis)
   hidePoweredBy:      true,
 });

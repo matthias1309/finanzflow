@@ -36,12 +36,13 @@ RUN chmod +x /app/docker-entrypoint.sh
 # Create data directory for SQLite
 RUN mkdir -p /data
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:3000/api/health', (r) => r.statusCode === 200 ? process.exit(0) : process.exit(1))"
+# Health check - tolerant for slower systems like Raspberry Pi
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=5 \
+  CMD node -e "require('http').get('http://localhost:3000/api/auth/status', (r) => r.statusCode === 200 ? process.exit(0) : process.exit(1))" || exit 1
 
 EXPOSE 3000
 
 ENV DOCKER_DEPLOY=true
+ENV NODE_ENV=production
 
 ENTRYPOINT ["/app/docker-entrypoint.sh"]

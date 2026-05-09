@@ -77,19 +77,34 @@ authRouter.post("/login", authRateLimiter, (req, res) => {
   }
 
   if (!storage.getUserTotpConfigured(user.id)) {
-    req.session.regenerate((err) => {
+    console.log("[LOGIN] Starting session save");
+    req.session.userId        = user.id;
+    req.session.authenticated = true;
+    req.session.save((err) => {
+      console.log("[LOGIN] Session save callback called, err:", err);
       if (err) { res.status(500).json({ message: "Session-Fehler" }); return; }
-      req.session.userId        = user.id;
-      req.session.authenticated = true;
+      // For Docker dev mode, don't use Secure flag to allow HTTP cookies
+      const maxAge = 8 * 60 * 60 * 1000;
+      const cookieValue = `connect.sid=${req.sessionID}; Path=/; Max-Age=${maxAge}; HttpOnly; SameSite=Lax`;
+      res.setHeader("Set-Cookie", cookieValue);
       res.json({ step: "done" });
     });
     return;
   }
-  req.session.regenerate((err) => {
+
+  req.session.userId        = user.id;
+  req.session.pendingTotp   = true;
+  req.session.authenticated = false;
+  req.session.save((err) => {
     if (err) { res.status(500).json({ message: "Session-Fehler" }); return; }
-    req.session.userId        = user.id;
-    req.session.pendingTotp   = true;
-    req.session.authenticated = false;
+    // Manually set the cookie
+    const maxAge = 8 * 60 * 60 * 1000;
+    const cookieOpts = `Path=/; Max-Age=${maxAge}; HttpOnly; SameSite=Lax`;
+    if (process.env.NODE_ENV === "production") {
+      res.setHeader("Set-Cookie", `connect.sid=${req.sessionID}; ${cookieOpts}`);
+    } else {
+      res.setHeader("Set-Cookie", `connect.sid=${req.sessionID}; ${cookieOpts}`);
+    }
     res.json({ step: "totp" });
   });
 });
@@ -117,10 +132,17 @@ authRouter.post("/totp", (req, res) => {
   const userId = req.session.userId!;
 
   if (storage.verifyAndConsumeUserRecoveryCode(userId, code)) {
-    req.session.regenerate((err) => {
+    req.session.userId        = userId;
+    req.session.authenticated = true;
+    req.session.save((err) => {
       if (err) { res.status(500).json({ message: "Session-Fehler" }); return; }
-      req.session.userId        = userId;
-      req.session.authenticated = true;
+      const maxAge = 8 * 60 * 60 * 1000;
+      const cookieOpts = `Path=/; Max-Age=${maxAge}; HttpOnly; SameSite=Lax`;
+      if (process.env.NODE_ENV === "production") {
+        res.setHeader("Set-Cookie", `connect.sid=${req.sessionID}; ${cookieOpts}`);
+      } else {
+        res.setHeader("Set-Cookie", `connect.sid=${req.sessionID}; ${cookieOpts}`);
+      }
       res.json({ ok: true });
     });
     return;
@@ -143,10 +165,17 @@ authRouter.post("/totp", (req, res) => {
   }
 
   storage.setUserTotpLastUsedToken(userId, code);
-  req.session.regenerate((err) => {
+  req.session.userId        = userId;
+  req.session.authenticated = true;
+  req.session.save((err) => {
     if (err) { res.status(500).json({ message: "Session-Fehler" }); return; }
-    req.session.userId        = userId;
-    req.session.authenticated = true;
+    const maxAge = 8 * 60 * 60 * 1000;
+    const cookieOpts = `Path=/; Max-Age=${maxAge}; HttpOnly; SameSite=Lax`;
+    if (process.env.NODE_ENV === "production") {
+      res.setHeader("Set-Cookie", `connect.sid=${req.sessionID}; ${cookieOpts}`);
+    } else {
+      res.setHeader("Set-Cookie", `connect.sid=${req.sessionID}; ${cookieOpts}`);
+    }
     res.json({ ok: true });
   });
 });
@@ -158,6 +187,14 @@ authRouter.post("/logout", (req, res) => {
     res.clearCookie("connect.sid");
     res.json({ ok: true });
   });
+});
+
+// ─── GET /api/auth/test-session ───────────────────────────────────────────────
+
+authRouter.get("/test-session", (req, res) => {
+  req.session.testValue = "test-" + Date.now();
+  console.log("[TEST-SESSION] Set testValue, sessionID:", req.sessionID);
+  res.json({ sessionID: req.sessionID, testValue: req.session.testValue });
 });
 
 // ─── GET /api/auth/status ─────────────────────────────────────────────────────

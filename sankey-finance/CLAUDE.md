@@ -1,6 +1,6 @@
 # FinanzFlow — CLAUDE.md
 
-Persönliches Finanz-Dashboard für deutsche Bankkonten (N26, DKB, ING). React-SPA + Express-5-API + SQLite. Single-User, läuft auf Uberspace-Shared-Hosting.
+Persönliches Finanz-Dashboard für deutsche Bankkonten (N26, DKB, ING). React-SPA + Express-5-API + SQLite. Single-User, läuft auf Raspberry Pi mit Docker.
 
 ## Schnellstart
 
@@ -8,10 +8,20 @@ Persönliches Finanz-Dashboard für deutsche Bankkonten (N26, DKB, ING). React-S
 PORT=3000 npm run dev      # Nicht Port 5000 — macOS AirPlay belegt ihn
 npm test                   # Vitest: Unit- + API-Tests
 npm run test:e2e           # Playwright E2E (erfordert laufenden Dev-Server)
-npm run build              # Lokaler Build (ohne Uberspace-Pfade)
+npm run build              # Production Build
 ```
 
 > **Port 3000 ist Pflicht lokal.** Port 5000 ist auf macOS durch AirPlay Receiver (ControlCenter) belegt und führt zu EADDRINUSE.
+
+## Deployment
+
+Siehe **[`../DEPLOYMENT.md`](../DEPLOYMENT.md)** für:
+- Raspberry Pi Setup (Docker + HTTPS)
+- Updates nach Code-Änderungen
+- Backup-Strategie
+- Troubleshooting
+
+Ältere Uberspace-Deployment-Dateien sind in `uberspace-archive/` archiviert.
 
 ## Projektstruktur
 

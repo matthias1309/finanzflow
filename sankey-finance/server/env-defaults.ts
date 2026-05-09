@@ -7,9 +7,10 @@ const setDefault = (key: string, value: string) => {
   }
 };
 
-// Don't override NODE_ENV if it's already set (by docker-compose .env)
-// Just set defaults for other variables
-// setDefault("NODE_ENV", "production");
+// For local development: NODE_ENV defaults to development if not set
+if (!process.env.NODE_ENV) {
+  process.env.NODE_ENV = "development";
+}
 setDefault("PORT", "3000");
 setDefault("DB_PATH", "/data/finance.db");
 setDefault("APP_ORIGIN", "http://localhost:3000");

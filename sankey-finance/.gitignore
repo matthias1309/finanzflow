@@ -8,3 +8,13 @@ finance.db
 *.log
 .DS_Store
 documentation/tickets/
+
+# Build & Deployment artifacts
+*.tar.gz
+*.tar
+finanzflow-app.tar
+finanzflow-uberspace.tar.gz
+
+# Docker
+certs/
+data/

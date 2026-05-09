@@ -2,8 +2,10 @@
 set -e
 
 # Docker entrypoint for FinanzFlow
-# Default environment (can be overridden via docker run -e or env files)
-export NODE_ENV="${NODE_ENV:-production}"
+# NODE_ENV is handled by server/env-defaults.ts based on DOCKER_DEPLOY
+# Allow explicit override via NODE_ENV_EXPLICIT if needed
+if [ -n "$NODE_ENV_EXPLICIT" ]; then
+  export NODE_ENV="$NODE_ENV_EXPLICIT"
+fi
 
-# All other defaults are set in server/env-defaults.ts
 exec node dist/index.cjs
