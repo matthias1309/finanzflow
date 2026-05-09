@@ -1,0 +1,25 @@
+# Copy this to docker-compose.yml on your deployment server
+# Then adjust variables as needed
+
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file: .env
+    ports:
+      - "3000:3000"
+    volumes:
+      # Persistent database storage
+      - ./data:/data
+      # HTTPS certificates (only if USE_HTTPS=true in .env)
+      - ./certs:/app/certs:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/auth/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
