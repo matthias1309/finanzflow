@@ -22,6 +22,15 @@ let app: any;
 // Session mit abgeschlossenem Passwort-Login (ohne TOTP, da noch nicht konfiguriert)
 let passwordSession: request.SuperAgentTest;
 
+// Einmal aktiviertes TOTP-Secret + die dabei ausgegebenen Recovery-Codes für
+// passwordSession. requireStepUp verlangt nach der Erstaktivierung eine frische
+// TOTP-Verifikation für jede weitere 2FA-Management-Operation — deshalb wird
+// hier NICHT erneut /2fa/setup aufgerufen, sondern dasselbe Secret überall
+// wiederverwendet (Erstaktivierung selbst ist stepUp-frei, da 2FA zu dem
+// Zeitpunkt noch nicht konfiguriert ist).
+let activeTotpSecret: string;
+let initialRecoveryCodes: string[];
+
 // ─── Setup ───────────────────────────────────────────────────────────────────
 
 beforeAll(async () => {
@@ -44,14 +53,43 @@ beforeAll(async () => {
   expect(loginRes.body.step).toBe("done");
 });
 
+// ─── Hilfsfunktion: TOTP-Code für ein bestimmtes Zeitfenster ─────────────────
+// TOTP-Codes ändern sich nur alle 30s. Mehrere Codes für dasselbe Secret
+// innerhalb eines Testlaufs (Millisekunden auseinander) wären sonst identisch
+// und würden an der Replay-Protection (totp_last_used_token) scheitern.
+// windowOffset bleibt in [-1, 1] — der Server toleriert genau ±1 Schritt Drift
+// (otplib-Default, siehe server/totp.ts).
+
+const TOTP_STEP_MS = 30_000;
+
+function totpCodeAt(secret: string, windowOffset: -1 | 0 | 1 = 0): string {
+  authenticator.options = { epoch: Date.now() + windowOffset * TOTP_STEP_MS };
+  return authenticator.generate(secret);
+}
+
 // ─── Hilfsfunktion: vollständiger Login (Passwort + TOTP) ────────────────────
 
-async function loginWithTotp(totpSecret: string): Promise<request.SuperAgentTest> {
+async function loginWithTotp(totpSecret: string, windowOffset: -1 | 0 | 1 = 0): Promise<request.SuperAgentTest> {
   const sessionAgent = request.agent(app);
   await sessionAgent.post("/api/auth/login").send({ username: TEST_USER, password: TEST_PASSWORD });
-  const code = authenticator.generate(totpSecret);
+  const code = totpCodeAt(totpSecret, windowOffset);
   await sessionAgent.post("/api/auth/totp").send({ code });
   return sessionAgent;
+}
+
+// ─── Hilfsfunktion: 2FA zurücksetzen und mit neuem Secret neu aktivieren ─────
+// Liefert ein frisches, bisher nirgends verwendetes Secret — unabhängig von
+// activeTotpSecret und dessen bereits verbrauchtem Replay-Schutz-Zustand.
+
+async function resetAndReactivate2fa(): Promise<string> {
+  const usersRes = await passwordSession.get("/api/users");
+  const userId = usersRes.body.find((u: { username: string }) => u.username === TEST_USER)?.id;
+  await passwordSession.post(`/api/users/${userId}/2fa-reset`);
+
+  const setupRes = await passwordSession.post("/api/auth/2fa/setup");
+  const { secret } = setupRes.body as { secret: string };
+  await passwordSession.post("/api/auth/2fa/verify-setup").send({ code: totpCodeAt(secret) });
+  return secret;
 }
 
 // ─── Session Enforcement ─────────────────────────────────────────────────────
@@ -141,6 +179,7 @@ describe("POST /api/auth/2fa/setup", () => {
     const setupRes = await passwordSession.post("/api/auth/2fa/setup");
     expect(setupRes.status).toBe(200);
     const { secret } = setupRes.body as { secret: string };
+    activeTotpSecret = secret;
 
     const code = authenticator.generate(secret);
     const verifyRes = await passwordSession
@@ -154,6 +193,7 @@ describe("POST /api/auth/2fa/setup", () => {
       expect(typeof c).toBe("string");
       expect((c as string).length).toBeGreaterThan(0);
     });
+    initialRecoveryCodes = verifyRes.body.recoveryCodes;
   });
 });
 
@@ -203,16 +243,11 @@ describe("POST /api/auth/totp", () => {
 
 describe("Recovery codes", () => {
   let recoveryCode: string;
-  let totpSecretForRecovery: string;
 
-  beforeAll(async () => {
-    const setupRes = await passwordSession.post("/api/auth/2fa/setup");
-    totpSecretForRecovery = setupRes.body.secret;
-    const code = authenticator.generate(totpSecretForRecovery);
-    const verifyRes = await passwordSession
-      .post("/api/auth/2fa/verify-setup")
-      .send({ code });
-    recoveryCode = verifyRes.body.recoveryCodes?.[0];
+  beforeAll(() => {
+    // Nutzt die beim Erstaktivieren (siehe "activates 2FA...") ausgegebenen
+    // Codes — ein erneuter /2fa/setup-Aufruf würde an requireStepUp scheitern.
+    recoveryCode = initialRecoveryCodes[0];
   });
 
   it("accepts a valid recovery code in place of TOTP", async () => {
@@ -238,6 +273,14 @@ describe("Recovery codes", () => {
 // ─── Recovery Code Regeneration ───────────────────────────────────────────────
 
 describe("POST /api/auth/2fa/regenerate-recovery", () => {
+  // requireStepUp verlangt eine frische TOTP-Verifikation (<5 Min), sobald 2FA
+  // konfiguriert ist — passwordSession hat seit dem 2FA-Setup keine mehr gemacht.
+  beforeAll(async () => {
+    const code = authenticator.generate(activeTotpSecret);
+    const res = await passwordSession.post("/api/auth/step-up").send({ code });
+    expect(res.status).toBe(200);
+  });
+
   it("returns 8 new recovery codes", async () => {
     const res = await passwordSession.post("/api/auth/2fa/regenerate-recovery");
     expect(res.status).toBe(200);
@@ -262,23 +305,25 @@ describe("POST /api/auth/2fa/regenerate-recovery", () => {
 // ─── Full Login Flow Integration ──────────────────────────────────────────────
 
 describe("Full login flow (password → TOTP → authenticated session)", () => {
+  // Eigenes, frisches Secret statt activeTotpSecret weiterzuverwenden: dessen
+  // aktueller Zeitfenster-Code wurde bereits vom Step-up in "regenerate-recovery"
+  // verbraucht (Replay-Protection). Die drei Tests unten, die selbst einen
+  // gültigen Code brauchen, bekommen zusätzlich je ein eigenes Zeitfenster
+  // (-1/0/+1), damit sie sich nicht gegenseitig kollidieren.
   let totpSecret: string;
 
   beforeAll(async () => {
-    const setupRes = await passwordSession.post("/api/auth/2fa/setup");
-    totpSecret = setupRes.body.secret;
-    const code = authenticator.generate(totpSecret);
-    await passwordSession.post("/api/auth/2fa/verify-setup").send({ code });
+    totpSecret = await resetAndReactivate2fa();
   });
 
   it("grants access to protected routes after completing both steps", async () => {
-    const agent = await loginWithTotp(totpSecret);
+    const agent = await loginWithTotp(totpSecret, -1);
     const res = await agent.get("/api/accounts");
     expect(res.status).toBe(200);
   });
 
   it("after logout, the same session cookie no longer grants access", async () => {
-    const agent = await loginWithTotp(totpSecret);
+    const agent = await loginWithTotp(totpSecret, 0);
     await agent.post("/api/auth/logout");
     const res = await agent.get("/api/accounts");
     expect(res.status).toBe(401);
@@ -287,7 +332,7 @@ describe("Full login flow (password → TOTP → authenticated session)", () => 
   it("rejects a TOTP code that was already used in the same 30-second window (replay protection)", async () => {
     const agent1 = request.agent(app);
     await agent1.post("/api/auth/login").send({ username: TEST_USER, password: TEST_PASSWORD });
-    const code = authenticator.generate(totpSecret);
+    const code = totpCodeAt(totpSecret, 1);
     await agent1.post("/api/auth/totp").send({ code });
 
     // Same code used again in a fresh login
