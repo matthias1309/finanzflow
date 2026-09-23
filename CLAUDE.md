@@ -15,7 +15,7 @@ npm run build              # Production Build
 
 ## Deployment
 
-Siehe **[`../DEPLOYMENT.md`](../DEPLOYMENT.md)** für:
+Siehe **[`DEPLOYMENT.md`](DEPLOYMENT.md)** für:
 - Raspberry Pi Setup (Docker + HTTPS)
 - Updates nach Code-Änderungen
 - Backup-Strategie
@@ -35,7 +35,7 @@ client/src/
   lib/config.ts           ← API_BASE-Auflösung + safeCssColor()
   lib/queryClient.ts      ← QueryClient, apiRequest()
   pages/                  ← Eine Komponente pro Seite
-documentation/
+docs/
   REQ/                    ← Anforderungen REQ-001 bis REQ-012
   architecture/ARC42.md   ← Arc42-Architekturdokument
 tests/
@@ -50,7 +50,7 @@ Bei neuen Features oder Erweiterungen bestehender Features immer in dieser Reihe
 1. **REQ erstellen oder anpassen** — Acceptance Criteria (Gherkin-Szenarien) vollständig ausformulieren, bevor Code geschrieben wird
 2. **Tests schreiben** — direkt aus den AC abgeleitet (Vitest für Unit/API, Playwright für E2E)
 3. **Implementieren** — erst wenn REQ und Tests stehen
-4. **Arc42 aktualisieren** — betroffene Kapitel in `documentation/architecture/ARC42.md` anpassen: Kapitel 5 (Building Block View) bei neuen Komponenten/Routen, Kapitel 6 (Runtime View) bei neuen Abläufen, Kapitel 8 (Crosscutting Concepts) bei übergreifenden Änderungen (Auth, Sicherheit, Logging)
+4. **Arc42 aktualisieren** — betroffene Kapitel in `docs/architecture/ARC42.md` anpassen: Kapitel 5 (Building Block View) bei neuen Komponenten/Routen, Kapitel 6 (Runtime View) bei neuen Abläufen, Kapitel 8 (Crosscutting Concepts) bei übergreifenden Änderungen (Auth, Sicherheit, Logging)
 5. **CHANGELOG.md erweitern** — unter `[Unreleased]` die Änderungen eintragen (Added / Changed / Fixed / Removed)
 6. **Committen und pushen** — erst nach Changelog-Eintrag
 
@@ -104,7 +104,7 @@ Diese Middleware-Schicht darf **nie** deaktiviert oder umgangen werden:
 
 In `NODE_ENV !== 'production'` (dev + test) sind Auth und CSRF automatisch deaktiviert — das ist so gewollt und kein Bug.
 
-Spezifische Anforderungen (Rate-Limits, ReDoS-Schutz) stehen in [REQ-001](documentation/REQ/REQ-001-authentication.md) und [REQ-005](documentation/REQ/REQ-005-pdf-import.md).
+Spezifische Anforderungen (Rate-Limits, ReDoS-Schutz) stehen in [REQ-001](docs/REQ/REQ-001-authentication.md) und [REQ-005](docs/REQ/REQ-005-pdf-import.md).
 
 ## Features erweitern
 
@@ -118,7 +118,7 @@ Spezifische Anforderungen (Rate-Limits, ReDoS-Schutz) stehen in [REQ-001](docume
 
 ### Neuen Bank-Parser hinzufügen
 
-1. REQ-005 in `documentation/REQ/REQ-005-pdf-import.md` ergänzen
+1. REQ-005 in `docs/REQ/REQ-005-pdf-import.md` ergänzen
 2. Unit-Tests mit Fixture-Text in `tests/server/unit/pdfParser.test.ts` schreiben
 3. `detectBank()` in `server/pdfParser.ts` um die Bank erweitern
 4. `parseXYZ(text: string): ParsedTransaction[]` Funktion hinzufügen

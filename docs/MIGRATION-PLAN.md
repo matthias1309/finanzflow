@@ -67,11 +67,24 @@ old values until rotation + optional `git filter-repo`.
 
 ### Session 1 — Flatten repository layout
 Branch: `chore/flatten-repo-root`
-- [ ] `git mv sankey-finance/* .` (incl. dotfiles), merge the two `.gitignore` files, root `README.md` absorbs the old one
-- [ ] Rename `documentation/` → `docs/` (content migration happens in Session 4; here only the move)
-- [ ] Adapt `DEPLOYMENT.md`: `rsync` from repo root with `--exclude` for `.git`, `.claude`, `docs`, `node_modules`, `tests`; fix backup/troubleshooting paths
-- [ ] Verify `docker build .` works locally from the new root
+- [x] `git mv sankey-finance/* .` (incl. dotfiles), merge the two `.gitignore` files, root `README.md` absorbs the old one
+      → there was no pre-existing root `.gitignore`, so `sankey-finance/.gitignore` was moved to root as-is
+      (no merge needed); fixed its `documentation/tickets/` pattern to `docs/tickets/`.
+- [x] Rename `documentation/` → `docs/` (content migration happens in Session 4; here only the move)
+      → `documentation/CLAUDE.md` renamed to `docs/documentation-CLAUDE.md` to avoid clashing with the
+      new root `CLAUDE.md` (Session 3 folds its content into `v-model.md` and removes this file).
+      `documentation/tickets/` was untracked on disk (moved with plain `mv`, not `git mv`).
+- [x] Adapt `DEPLOYMENT.md`: `rsync` from repo root with `--exclude` for `.git`, `.claude`, `docs`, `node_modules`, `tests`; fix backup/troubleshooting paths
+      → also fixed two stray `.../finanzflow/sankey-finance/...` paths in the backup and 2FA-loop
+      troubleshooting sections (pre-existing bug, now consistent with the flat deploy target), and a
+      stale `sankey-finance_finanzflow_data` docker volume name in `DOCKER.md`.
+- [x] Verify `docker build .` works locally from the new root → built successfully (`docker build -t finanzflow-flatten-test .`), image removed after.
 - [ ] **Manual:** first deploy to the Pi with the new layout (data volume / `.env` paths unchanged on the Pi)
+
+**Extra verification (not in original checklist):** `npm install` at the new root succeeds; `npm test`
+→ 9/9 files, 125/125 tests pass (the previously-missing `better-sqlite3` native binding resolved
+itself with the fresh install); `tsc --noEmit` shows the same 6 pre-existing baseline errors noted
+in the Planning row below — no new errors from the flatten. Those 6 are fixed in Session 2.
 
 ### Session 2 — Quality baseline green
 Branch: `chore/quality-baseline`
@@ -160,4 +173,5 @@ _Filled during Sessions 5–9. Format: `TC-NNN-YY — short description — risk
 | Date | Session | PR | Notes |
 |---|---|---|---|
 | 2026-09-23 | Planning | — | Assessment done, decisions D1–D7 recorded. Baseline: 6 tsc errors, 7/9 Vitest files fail locally (missing `better-sqlite3` binding), no CI, no lint. |
-| 2026-09-23 | Session 0 | _(pending)_ | `secrets.env` removed from tracking + `.gitignore` updated. History purge deferred (would need force-push to public repo). Credential rotation on the Pi is still open — manual, Matthias. |
+| 2026-09-23 | Session 0 | [#5](https://github.com/matthias1309/finanzflow/pull/5) | `secrets.env` removed from tracking + `.gitignore` updated. History purge deferred (would need force-push to public repo). Credential rotation on the Pi is still open — manual, Matthias. |
+| 2026-09-23 | Session 1 | _(pending)_ | Repo flattened to root (`git mv` from `sankey-finance/`), `documentation/` → `docs/`, `DEPLOYMENT.md`/`DOCKER.md`/`.dockerignore` paths fixed. Verified: `npm install`, `docker build .`, `npm test` (125/125), `tsc --noEmit` (same 6 pre-existing baseline errors, none new). Pi redeploy with the new layout is still open — manual, Matthias. |
