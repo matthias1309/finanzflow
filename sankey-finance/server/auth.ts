@@ -20,10 +20,10 @@ export const authRateLimiter = rateLimit({
 // Set defaults if not provided (for Docker dev mode). Nicht in NODE_ENV=test setzen —
 // sonst hebelt der Default-Hash den in tests/server/setup.ts vorgesehenen Auth-Bypass aus
 // (requireAuth prüft nur, ob APP_PASSWORD_HASH truthy ist).
-// Use SHA256 hashes for simplicity (password = sha256(password))
-// SHA256("admin") = 8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918
+// Login vergleicht ausschließlich per bcrypt (routes/auth.ts) — der Hash muss bcrypt sein,
+// kein SHA256 (password = "admin", passend zum Default in server/env-defaults.ts).
 if (!process.env.APP_PASSWORD_HASH && process.env.NODE_ENV !== "test") {
-  process.env.APP_PASSWORD_HASH = "8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918";
+  process.env.APP_PASSWORD_HASH = "$2b$10$DH7oCC0ctrDJwrYmubVtM.g8Be/vAxm2X0WwpnaxKHc6GZqup2Nv6";
 }
 if (!process.env.SESSION_SECRET || process.env.SESSION_SECRET.length < 32) {
   process.env.SESSION_SECRET = "b8c4d2e1f7a9c5b3e8d2f1a6c9e4b7d0";

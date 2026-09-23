@@ -1,13 +1,8 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
-import { createHash } from "crypto";
+import bcrypt from "bcryptjs";
 import { storage } from "../storage";
 import { authRateLimiter } from "../auth";
 import { verifyTotpToken, generateTotpSecret, getTotpAuthUrl } from "../totp";
-
-// Helper: SHA256 hash for simple password comparison
-function hashPassword(password: string): string {
-  return createHash("sha256").update(password).digest("hex");
-}
 
 export const authRouter = Router();
 
@@ -63,15 +58,11 @@ authRouter.post("/login", authRateLimiter, (req, res) => {
   const expectedHash = useEnvHash
     ? process.env.APP_PASSWORD_HASH ?? ""
     : user?.passwordHash ?? process.env.APP_PASSWORD_HASH ?? "";
-  const calculatedHash = hashPassword(password);
-  const validPass = calculatedHash === expectedHash;
+  // Alle Passwort-Hashes im System sind bcrypt (siehe routes/users.ts) — der
+  // frühere SHA256-Vergleich hier konnte nie gegen einen bcrypt-Hash matchen.
+  const validPass = expectedHash !== "" && bcrypt.compareSync(password, expectedHash);
 
-  if (!user && !isDefaultUser) {
-    res.status(401).json({ message: "Benutzername oder Passwort falsch" });
-    return;
-  }
-
-  if (!validPass) {
+  if (!user || !validPass) {
     res.status(401).json({ message: "Benutzername oder Passwort falsch" });
     return;
   }

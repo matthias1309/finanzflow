@@ -20,6 +20,7 @@ Format angelehnt an [Keep a Changelog](https://keepachangelog.com/de/1.0.0/).
   - **REQ-016** `documentation/REQ/REQ-016-paperless-import.md` mit 10 Gherkin-Szenarien
 
 ### Behoben
+- **Login schlug immer fehl (SHA256- statt bcrypt-Vergleich)** — `POST /api/auth/login` hashte das eingegebene Passwort mit SHA256 und verglich es gegen `user.passwordHash` bzw. `APP_PASSWORD_HASH` — beide sind aber immer bcrypt-Hashes (siehe `routes/users.ts`, `.env.example`-Anleitung "Generate with: npx bcryptjs"). Der Vergleich konnte dadurch nie erfolgreich sein; jedes korrekte Passwort wurde als falsch abgelehnt. Login nutzt jetzt `bcrypt.compareSync()`. Zusätzlich abgesichert: ein undefinierter `user` bei gesetztem `useEnvHash` führte vorher zu einem ungefangenen 500er statt eines sauberen 401.
 - **Auth-Bypass in Tests ausgehebelt** — `server/auth.ts` setzte `APP_PASSWORD_HASH` auf einen Default-Hash sobald die Variable leer war, auch wenn `NODE_ENV=test` den in `tests/server/setup.ts` vorgesehenen Auth-Bypass erzwingen sollte; dadurch schlugen praktisch alle API-Tests mit 401 fehl. Fallback greift jetzt nicht mehr bei `NODE_ENV=test`.
 - **BUG-001/002/003 — SankeyChart refactored (Security + Clean Code)**
   - CSS-Injection-Risiko geschlossen: Farben aus DB werden jetzt durch `safeCssColor()` geleitet bevor sie in SVG-`fill`-Attribute fließen
