@@ -1,7 +1,7 @@
 Create a new User Story requirement document.
 
 Steps:
-1. Scan `docs/requirements/` (and the legacy `docs/REQ/` folder while it still exists) for existing REQ-XXX files and determine the next ID (e.g. if REQ-016 is the highest, next is REQ-017).
+1. Scan `docs/requirements/` for existing REQ-XXX files and determine the next ID (e.g. if REQ-016 is the highest, next is REQ-017).
    Read `docs/SYSTEM-MAP.md` (if present) and list the existing REQs that touch the same modules or tables as the new story — mention them to the user before continuing.
 2. Ask the user: "What is the title of this story?" (one short phrase, e.g. "User Login")
 3. Ask: "Who is the user role?" — then "What do they want to do?" — then "What is the benefit?"

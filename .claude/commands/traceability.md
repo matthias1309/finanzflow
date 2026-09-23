@@ -2,7 +2,7 @@ Generate a traceability matrix showing coverage across all V-Model artifacts,
 including which code files and commits belong to each requirement.
 
 Steps:
-1. Scan `docs/requirements/` for all REQ-XXX.md files (while the migration is running, also `docs/REQ/`)
+1. Scan `docs/requirements/` for all REQ-XXX.md files
 2. Scan `docs/architecture/` for all ARCH-XXX.md files
 3. Scan `docs/test-specs/` for all TEST-XXX.md files
 4. For each REQ, determine:
