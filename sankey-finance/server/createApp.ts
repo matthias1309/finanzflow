@@ -10,9 +10,10 @@ export function createApp() {
   const app        = express();
   const httpServer = createServer(app);
 
-  // Uberspace terminates HTTPS at nginx and proxies via HTTP to Node.
-  // Without this, req.secure is false and express-session won't set
-  // the session cookie (cookie.secure=true requires req.secure=true).
+  // If a reverse proxy ever terminates HTTPS in front of Node, req.secure
+  // would be false and express-session wouldn't set the session cookie
+  // (cookie.secure=true requires req.secure=true). Harmless when Node
+  // terminates HTTPS itself, as on the Raspberry Pi Docker deployment.
   app.set("trust proxy", 1);
 
   app.use(securityHeadersMiddleware);

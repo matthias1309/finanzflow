@@ -66,7 +66,7 @@ export const securityHeadersMiddleware = helmet({
   frameguard:         { action: "deny" },
   // MIME-Sniffing verhindern
   noSniff:            true,
-  // HSTS: 1 Jahr, kein Subdomains (Uberspace teilt Subdomains)
+  // HSTS: 1 Jahr, keine Subdomains
   // Aber nur für echte HTTPS-Deployments, nicht für Docker über HTTP
   strictTransportSecurity: useHSTS
     ? { maxAge: 31_536_000, includeSubDomains: false }

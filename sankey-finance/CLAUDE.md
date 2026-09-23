@@ -21,8 +21,6 @@ Siehe **[`../DEPLOYMENT.md`](../DEPLOYMENT.md)** für:
 - Backup-Strategie
 - Troubleshooting
 
-Ältere Uberspace-Deployment-Dateien sind in `uberspace-archive/` archiviert.
-
 ## Projektstruktur
 
 ```
@@ -133,73 +131,6 @@ Spezifische Anforderungen (Rate-Limits, ReDoS-Schutz) stehen in [REQ-001](docume
 3. `CREATE TABLE IF NOT EXISTS` in `server/db.ts` um die Spalte erweitern — **kein** Migration-Tool, inline SQL
 4. Storage-Interface (`IStorage`) und -Implementierung in `server/storage.ts` aktualisieren
 5. Route-Handler anpassen
-
-## Deployment auf Uberspace
-
-**Uberspace-Daten:** `mattmaxx@giclas.uberspace.de`, App läuft unter `/finanzflow/`
-
-### Update-Prozess (Schritt für Schritt)
-
-**1. Lokal bauen** — immer mit beiden Variablen:
-
-```bash
-cd sankey-finance
-DEPLOY_BASE="/finanzflow/" VITE_API_BASE="/finanzflow" npm run build
-```
-
-`VITE_API_BASE` wird zur Build-Zeit in den Client-Bundle gebacken (`client/src/lib/config.ts`). Fehlt er, landen alle API-Calls auf `/api/…` statt `/finanzflow/api/…`.  
-**Falle:** Neue Client-Seiten müssen `API_BASE` aus `@/lib/config` importieren und alle `fetch()`-Calls damit prefixen — nie URLs hardcoden.
-
-**2. Archiv erstellen** — `node_modules` nicht einpacken (macOS-Binaries laufen nicht auf Linux):
-
-```bash
-COPYFILE_DISABLE=1 tar -czf finanzflow-uberspace.tar.gz \
-  dist/ package.json package-lock.json deploy.sh
-```
-
-**3. Hochladen:**
-
-```bash
-scp finanzflow-uberspace.tar.gz mattmaxx@giclas.uberspace.de:~
-```
-
-**4. Auf Uberspace deployen:**
-
-```bash
-ssh mattmaxx@giclas.uberspace.de
-tar -xzf finanzflow-uberspace.tar.gz
-./deploy.sh
-```
-
-`deploy.sh` kopiert Dateien nach `/var/www/virtual/mattmaxx/finanzflow/`, installiert Abhängigkeiten in zwei Schritten (siehe Constraints unten) und startet den supervisord-Dienst neu.
-
-### Bekannte Constraints
-
-| Thema | Detail |
-|---|---|
-| Node.js auf Uberspace | Node 18.20.8 (CentOS 7) — `uberspace tools version use node 18` |
-| `better-sqlite3` | Pinned auf `^9.6.0` — nutzt C++17; kein prebuilt für CentOS 7, daher kompiliert `deploy.sh` via node-gyp@9 + `scl enable devtoolset-9` (GCC 9). Lokal (Node 25) kein prebuilt → `npm install --ignore-scripts` verwenden. |
-| node-gyp auf Uberspace | npm liefert node-gyp@10 (C++20), CentOS 7 hat max. GCC 9. `deploy.sh` installiert node-gyp@9 in `/tmp/finanzflow-ngv9` und ruft es direkt auf. |
-| `otplib` | Pinned auf `^12.0.1` — v13 zieht `@noble/hashes@2.x` und `@scure/base@2.x` rein, beide ESM-only, nicht mit CJS-Bundle auf Node 18 kompatibel. |
-| `@scure/base` / `@noble/hashes` overrides | Im `overrides`-Block auf `^1.2.0` resp. `^1.6.0` gehalten — v2 beider Pakete ist ESM-only und nicht per `require()` aus dem CJS-Bundle ladbar (Node 18). |
-| `node_modules` im Archiv | Niemals einpacken — macOS-Binaries sind nicht Linux-kompatibel |
-| Session-Cookie / `trust proxy` | Uberspace terminiert HTTPS bei nginx und leitet intern per HTTP weiter. Ohne `app.set("trust proxy", 1)` setzt express-session den Cookie nicht (da `req.secure = false`), Login schlägt mit 401 fehl. Ist in `server/createApp.ts` gesetzt — nicht entfernen. |
-| API-URLs im Client | Alle `fetch()`-Calls müssen `API_BASE` aus `@/lib/config` nutzen — nie `/api/...` hardcoden. `API_BASE` wird beim Build mit `VITE_API_BASE=/finanzflow` eingebettet. |
-
-**Pflicht-Umgebungsvariablen (supervisord .ini):**
-
-```ini
-NODE_ENV=production
-PORT=3001
-DB_PATH=/home/user/finanzflow/finance.db
-APP_USER=admin
-APP_PASSWORD_HASH=$2b$10$...      ; $$ escapen in supervisord
-APP_ORIGIN=https://user.uberspace.de
-SESSION_SECRET=...                ; mind. 32 Zeichen: openssl rand -hex 32
-TOTP_ENCRYPTION_KEY=...           ; 32 zufällige Bytes als Hex: openssl rand -hex 32
-SESSION_MAX_AGE_HOURS=8           ; optional, Standard: 8
-TOTP_ISSUER=FinanzFlow            ; optional, Name in der Authenticator-App
-```
 
 ## Codestil
 

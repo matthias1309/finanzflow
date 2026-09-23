@@ -12,8 +12,8 @@ export default defineConfig({
     },
   },
   root: path.resolve(import.meta.dirname, "client"),
-  // DEPLOY_BASE wird zur Build-Zeit gesetzt (z.B. "/finanzflow/" fuer Uberspace).
-  // Standard: "/" fuer lokale Entwicklung und Perplexity-Deployment.
+  // DEPLOY_BASE wird zur Build-Zeit gesetzt, falls die App unter einem Unterpfad läuft.
+  // Standard: "/" fuer lokale Entwicklung und das Raspberry-Pi-Docker-Deployment.
   base: process.env.DEPLOY_BASE ?? "/",
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
