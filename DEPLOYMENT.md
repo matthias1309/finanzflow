@@ -30,9 +30,9 @@ PORT=3000
 DB_PATH=/data/finance.db
 APP_ORIGIN=https://dockerhome:3000
 APP_USER=admin
-APP_PASSWORD_HASH=8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918
-SESSION_SECRET=b8c4d2e1f7a9c5b3e8d2f1a6c9e4b7d0
-TOTP_ENCRYPTION_KEY=a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1
+APP_PASSWORD_HASH=<bcrypt hash — see .env.example>
+SESSION_SECRET=<openssl rand -hex 16>
+TOTP_ENCRYPTION_KEY=<openssl rand -hex 32>
 TOTP_ISSUER=FinanzFlow
 EOF
 ```

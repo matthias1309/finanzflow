@@ -8,6 +8,7 @@ Format angelehnt an [Keep a Changelog](https://keepachangelog.com/de/1.0.0/).
 ## [Unreleased]
 
 ### Hinzugefügt
+- **Claude Code template infrastructure (migration Session 3)** — `.claude/rules/` (coding-style, architecture, testing-practices, git-workflow, v-model, security, learnings), `.claude/commands/` (`/new-requirement`, `/new-arch`, `/new-test-spec`, `/traceability`, `/test-coverage`, `/system-map`, `/capture-learning`, `/summarize-pr`, `/todo-check`), a post-edit ESLint hook, a cleaned-up `.claude/settings.json` permission allow/deny list, and `docs/code-reviews/CR-TEMPLATE.md` (incl. the former pre-commit Clean Code Review). The root `CLAUDE.md` is now a slim English overview; `tests/CLAUDE.md` and `docs/documentation-CLAUDE.md` were folded into the rules and removed. Function length limit unified to ~30 lines. Details in `docs/MIGRATION-PLAN.md`.
 - **Quality-Baseline für Claude-Code-Migration (Session 2)** — `tsc --noEmit` läuft fehlerfrei, ESLint (typescript-eslint, `no-explicit-any` als Error) + Prettier eingerichtet, GitHub-Actions-CI (`typecheck` → `lint` → `test`), Paket auf `finanzflow` umbenannt, `.nvmrc` dokumentiert die lokal funktionierende Node-Version. Details in `docs/MIGRATION-PLAN.md` (Session-2-Log).
 - **Paperless-Kontoauszug-Import (REQ-016)** — Kontoauszüge, die bereits in Paperless-ngx (gleicher Raspberry Pi) archiviert sind, können ohne erneuten manuellen Upload übernommen werden
   - Zuordnungstabelle Paperless-Tag → Konto (`paperless_account_mappings`), z.B. Tag "Essenskonto" → Konto "Gemeinschaftskonto"
@@ -21,6 +22,7 @@ Format angelehnt an [Keep a Changelog](https://keepachangelog.com/de/1.0.0/).
   - **REQ-016** `documentation/REQ/REQ-016-paperless-import.md` mit 10 Gherkin-Szenarien
 
 ### Behoben
+- **`DEPLOYMENT.md` contained real secret values** — the `.env` example used the leaked `SESSION_SECRET` / `TOTP_ENCRYPTION_KEY` values and a SHA-256 (not bcrypt) `APP_PASSWORD_HASH`; replaced with placeholders.
 - **`Users.tsx`: doppelter DELETE-Request bei Löschfehler** — `deleteMut.onError` feuerte einen zweiten, redundanten `DELETE /api/users/:id`-Request und ignorierte dessen Ergebnis, statt nur den Fehler-Toast zu zeigen. Beim Aufräumen ungenutzter ESLint-Variablen (`no-unused-vars`) aufgefallen und entfernt.
 - **`server/securityHeaders.ts`: CSP-Direktiven-Typfehler** — die drei Branches der Content-Security-Policy (dev / Docker / echte Produktion) hatten unterschiedliche Objekt-Shapes (`baseUri`/`formAction` nur im Produktions-Branch), was `tsc` als Typfehler meldete. Alle drei Branches setzen jetzt `baseUri: ["'self'"]` und `formAction: ["'self'"]`.
 - **`server/routes/auth.ts`: toter `/test-session`-Debug-Endpunkt entfernt** — schrieb auf ein nicht existierendes `SessionData.testValue`-Feld (tsc-Fehler), war ungenutzt und loggte Session-IDs via `console.log`.
