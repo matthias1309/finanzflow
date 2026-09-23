@@ -30,6 +30,7 @@ describe("POST /api/transactions", () => {
     categoryId = await incomeCategory();
   });
 
+  // TC-004-04
   it("creates a transaction and returns 201", async () => {
     const res = await agent.post("/api/transactions").send({
       month: "2026-04",
@@ -90,6 +91,7 @@ describe("GET /api/transactions", () => {
     });
   });
 
+  // TC-004-02
   it("filters by month", async () => {
     const res = await agent.get("/api/transactions?month=2026-04");
     expect(res.status).toBe(200);

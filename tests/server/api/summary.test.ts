@@ -21,6 +21,7 @@ describe("GET /api/summary/:month — Überträge", () => {
     gemeinschaftskontoId = await createAccount("Gemeinschaftskonto");
   });
 
+  // TC-004-11
   it("enthält transfersIn für das Zielkonto", async () => {
     await agent.post("/api/transactions").send({
       month: "2026-04",
@@ -39,6 +40,7 @@ describe("GET /api/summary/:month — Überträge", () => {
     expect(target.transfersIn).toBe(200);
   });
 
+  // TC-004-12
   it("addiert mehrere eingehende Überträge", async () => {
     for (const amount of [100, 150]) {
       await agent.post("/api/transactions").send({
@@ -56,6 +58,7 @@ describe("GET /api/summary/:month — Überträge", () => {
     expect(target.transfersIn).toBe(250);
   });
 
+  // TC-004-11 (source account unaffected)
   it("Quellkonto hat transfersIn = 0", async () => {
     await agent.post("/api/transactions").send({
       month: "2026-04",
