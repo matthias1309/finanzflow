@@ -13,7 +13,6 @@ documentation/tickets/
 *.tar.gz
 *.tar
 finanzflow-app.tar
-finanzflow-uberspace.tar.gz
 
 # Docker
 docker-compose.yml     # ← Use docker-compose.yml.example as template

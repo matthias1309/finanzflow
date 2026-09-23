@@ -47,8 +47,6 @@ openssl req -x509 -newkey rsa:4096 -nodes \
 **5. Datenbank vorbereiten**
 ```bash
 mkdir -p data
-# Optional: Datenbank vom Uberspace kopieren
-scp mattmaxx@giclas.uberspace.de:~/finanzflow/finance.db ./data/finance.db
 ```
 
 **6. Docker Image bauen und starten**
@@ -81,9 +79,6 @@ docker-compose logs -f app
 ```bash
 # Von Pi auf Mac
 scp pi@192.168.178.159:/opt/containers/apps/finanzflow/sankey-finance/data/finance.db ~/backup/finance-$(date +%Y%m%d).db
-
-# Von Uberspace auf Mac
-scp mattmaxx@giclas.uberspace.de:~/finanzflow/finance.db ~/backup/finance-uberspace-$(date +%Y%m%d).db
 ```
 
 ## Entwicklung lokal
@@ -107,13 +102,13 @@ npm run build
 
 ## Environment Variablen
 
-| Variable | Lokal | Pi Docker | Uberspace |
-|----------|-------|----------|-----------|
-| `NODE_ENV` | `development` | `production` | `production` |
-| `DOCKER_DEPLOY` | - | `true` | - |
-| `USE_HTTPS` | - | `true` | - |
-| `APP_ORIGIN` | `http://localhost:3000` | `https://192.168.178.159:3000` | `https://mattmaxx.uberspace.de` |
-| `DB_PATH` | `/data/finance.db` | `/data/finance.db` | `/home/user/finanzflow/finance.db` |
+| Variable | Lokal | Pi Docker |
+|----------|-------|----------|
+| `NODE_ENV` | `development` | `production` |
+| `DOCKER_DEPLOY` | - | `true` |
+| `USE_HTTPS` | - | `true` |
+| `APP_ORIGIN` | `http://localhost:3000` | `https://192.168.178.159:3000` |
+| `DB_PATH` | `/data/finance.db` | `/data/finance.db` |
 
 ## Troubleshooting
 

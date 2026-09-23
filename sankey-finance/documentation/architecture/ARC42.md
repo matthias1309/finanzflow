@@ -43,7 +43,7 @@ FinanzFlow is a **personal finance dashboard** for managing German bank accounts
 |---|---|---|
 | 1 | Security | Only the authorized user can access any data; no credentials or financial data leak |
 | 2 | Correctness | Imported transactions match the bank statement; amounts and dates are parsed accurately |
-| 3 | Operability | The application runs reliably on Uberspace shared hosting without a DBA or DevOps team |
+| 3 | Operability | The application runs reliably as a Docker container on a Raspberry Pi without a DBA or DevOps team |
 | 4 | Maintainability | A single developer can understand, extend, and test all components |
 | 5 | Performance | The dashboard renders within 1 second for up to 12 months of data |
 
@@ -54,7 +54,7 @@ FinanzFlow is a **personal finance dashboard** for managing German bank accounts
 | Admin User | Secure access, user management (create/delete users, reset 2FA, set passwords) |
 | Regular User | Secure access, correct financial data, convenient import |
 | Developer (sole developer) | Clean codebase, testability, easy deployment |
-| Uberspace Hosting | Stable process, bounded resource usage, supervisord compatibility |
+| Raspberry Pi Host | Stable process, bounded resource usage, Docker restart-policy compatibility |
 
 ---
 
@@ -65,8 +65,8 @@ FinanzFlow is a **personal finance dashboard** for managing German bank accounts
 | Constraint | Rationale |
 |---|---|
 | **Node.js / TypeScript** throughout | Single-language stack minimizes context switching |
-| **SQLite** as database | No dedicated DB server required; Uberspace provides no managed DB |
-| **Uberspace shared hosting** | No root access, no Docker, no custom ports below 1024 |
+| **SQLite** as database | No dedicated DB server required; single-user app on a Raspberry Pi has no managed DB |
+| **Raspberry Pi (Docker)** | Constrained ARM hardware; limited CPU/RAM budget; single-node deployment, no orchestration |
 | **CJS bundle for production** | esbuild compiles server to CJS (`dist/index.cjs`) for maximum Node.js compatibility |
 | **Multi-user with shared dataset** | All users see and edit the same accounts, transactions, and categories; no per-user data isolation |
 | **No client-side persistence of sensitive data** | Theme state lives in React state only; no localStorage, no cookies beyond the session cookie |
@@ -113,23 +113,21 @@ FinanzFlow is a **personal finance dashboard** for managing German bank accounts
 | **User / Browser** | HTTP(S) requests to REST API; renders React SPA | Bidirectional |
 | **Bank PDF (N26 / DKB / ING)** | Uploaded via `POST /api/import/pdf`; parsed server-side | Inbound |
 | **OS `prefers-color-scheme`** | Read once at startup to determine initial theme | Inbound |
-| **Uberspace Supervisor** | Starts/stops the Node.js process; routes traffic via `uberspace web backend` | Outbound |
+| **Docker / docker-compose** | Starts/stops and restarts the container on the Raspberry Pi | Outbound |
 
 ### 3.2 Technical Context
 
 ```
 Browser
-  │  HTTPS (port 443 via Uberspace reverse proxy)
+  │  HTTPS (self-signed cert, port 3000)
   │  Session cookie (httpOnly, Secure, SameSite=Strict)
   ▼
-Uberspace Apache reverse proxy
-  │  Forwards /finanzflow/* → Node.js process (port 3001)
-  ▼
-Express 5 server (Node.js)
+Docker container on Raspberry Pi
+  │  Express 5 server (Node.js) terminates HTTPS directly
   │  Serves React SPA (static files from dist/public/)
   │  Handles /api/* routes
   ▼
-SQLite (finance.db, local file)
+SQLite (finance.db, on bind-mounted /data volume)
 ```
 
 **Interfaces:**
@@ -447,36 +445,34 @@ Developer Machine
 | `DB_PATH` | `finance.db` | SQLite file path |
 | `APP_PASSWORD_HASH` | — (unset) | Auth bypassed when unset in non-production |
 
-### 7.2 Production (Uberspace)
+### 7.2 Production (Raspberry Pi, Docker)
 
 ```
-Internet
-  │  HTTPS
+Internet / LAN
+  │  HTTPS (self-signed cert)
   ▼
-Uberspace Apache (shared, port 443)
-  │  Reverse proxy: /finanzflow/* → localhost:3001
-  ▼
-supervisord
-  │  Manages process lifecycle
-  ▼
-Node.js process (node dist/index.cjs)
+Docker container (node:18-alpine)
+  │  Node.js process (node dist/index.cjs)
+  │  terminates HTTPS itself via USE_HTTPS=true
   │
   ├── Serves static files from dist/public/
   │   (React SPA, pre-built by Vite)
   │
-  ├── Handles /finanzflow/api/* routes
+  ├── Handles /api/* routes
   │
-  └── finance.db (SQLite, persistent file on Uberspace home)
+  └── finance.db (SQLite, on bind-mounted /data volume)
+
+Host: Raspberry Pi
+  │  docker-compose manages container lifecycle (restart: unless-stopped)
+  │  Volumes: ./data → /data (DB), ./certs → /app/certs (HTTPS cert/key)
 ```
 
 **Build pipeline:**
 
 ```
-npm run build
+docker-compose build
   │
   ├── Vite builds client
-  │   DEPLOY_BASE=/finanzflow/
-  │   VITE_API_BASE=/finanzflow
   │   → dist/public/ (HTML, JS bundles, CSS, assets)
   │
   └── esbuild bundles server
@@ -485,28 +481,20 @@ npm run build
       external: better-sqlite3, pdf2json (native modules)
 ```
 
-**Production environment variables (supervisord .ini):**
+**Production environment variables (`.env`, see `docker-compose.yml.example`):**
 
 | Variable | Example Value | Purpose |
 |---|---|---|
 | `NODE_ENV` | `production` | Enables static serving, strict CSP, auth enforcement |
-| `PORT` | `3001` | Internal port (Uberspace web backend) |
-| `DB_PATH` | `/home/user/finanzflow/finance.db` | Persistent SQLite file |
+| `DOCKER_DEPLOY` | `true` | Set by Dockerfile; relaxes HSTS/referrer-policy for the container setup |
+| `USE_HTTPS` | `true` | Node terminates HTTPS itself using the mounted `certs/` |
+| `PORT` | `3000` | Container listen port, published as `3000:3000` |
+| `DB_PATH` | `/data/finance.db` | Persistent SQLite file on the mounted volume |
 | `APP_USER` | `admin` | Basic Auth username |
 | `APP_PASSWORD_HASH` | `$2b$10$...` | bcrypt hash of the password |
-| `APP_ORIGIN` | `https://user.uberspace.de` | CSRF allowed origin |
+| `APP_ORIGIN` | `https://<pi-host>:3000` | CSRF allowed origin |
 
-**Deployment package structure:**
-
-```
-finanzflow-uberspace.tar.gz
-├── dist/
-│   ├── index.cjs          Server bundle
-│   └── public/            React SPA (static assets)
-├── node_modules/          Production dependencies only
-│                          (better-sqlite3, pdf2json with native binaries)
-└── package.json
-```
+See [`../../DEPLOYMENT.md`](../../DEPLOYMENT.md) and [`../../DOCKER.md`](../../DOCKER.md) for the full setup and update workflow.
 
 ---
 
@@ -652,7 +640,7 @@ Chart colors (Sankey diagram) are passed as props from the theme-aware parent co
 
 ### ADR-001 — SQLite instead of a client-server database
 
-**Context:** FinanzFlow has a single user and runs on Uberspace shared hosting, which provides no managed PostgreSQL or MySQL.
+**Context:** FinanzFlow has a single user and runs as a Docker container on a Raspberry Pi, which provides no managed PostgreSQL or MySQL.
 
 **Decision:** Use SQLite via `better-sqlite3` with Drizzle ORM.
 
@@ -672,10 +660,10 @@ Chart colors (Sankey diagram) are passed as props from the theme-aware parent co
 **Decision:** HTTP Basic Auth with bcrypt password hashing and timing-safe comparison.
 
 **Consequences:**
-- ✅ Stateless — no session store needed, compatible with Uberspace memory limits
+- ✅ Stateless — no session store needed, compatible with the Raspberry Pi's limited memory
 - ✅ Browser natively prompts for credentials on 401 — no custom login page required
 - ✅ `bcrypt.compareSync` is inherently slow (10 rounds), making brute force impractical
-- ⚠️ Credentials are sent on every request (mitigated by HTTPS on Uberspace)
+- ⚠️ Credentials are sent on every request (mitigated by HTTPS)
 - ⚠️ No "logout" mechanism — browser caches credentials until closed (acceptable for single-user)
 
 > **Superseded by ADR-007.** HTTP Basic Auth does not support a second authentication factor. Replaced by session-based auth + TOTP.
@@ -764,7 +752,7 @@ Chart colors (Sankey diagram) are passed as props from the theme-aware parent co
 
 ### ADR-006 — esbuild CJS bundle for production server
 
-**Context:** The server is written in ESM TypeScript. Uberspace runs Node.js ≥ 18. `better-sqlite3` and `pdf2json` are native CJS modules.
+**Context:** The server is written in ESM TypeScript. The Raspberry Pi Docker image runs Node.js 18 (alpine). `better-sqlite3` and `pdf2json` are native CJS modules.
 
 **Decision:** esbuild compiles `server/index.ts` → `dist/index.cjs` with `format: 'cjs'`, externalizing native modules.
 
@@ -788,7 +776,7 @@ Chart colors (Sankey diagram) are passed as props from the theme-aware parent co
 | XSS via stored category name or description | React escapes all string interpolations; `safeCssColor()` for SVG attributes |
 | Malicious PDF causes ReDoS | Bounded regex quantifiers; `ACCOUNT_HOLDER_PATTERN` length + try/catch |
 | Information leak via error message | 5xx responses return only `"Ein interner Fehler ist aufgetreten."` |
-| Password hash exposure via environment | `APP_PASSWORD_HASH` is in supervisord config, not in source code or DB |
+| Password hash exposure via environment | `APP_PASSWORD_HASH` is in the Docker `.env` file, not in source code or DB |
 
 ### 10.2 Correctness
 
@@ -804,8 +792,8 @@ Chart colors (Sankey diagram) are passed as props from the theme-aware parent co
 
 | Scenario | Measure |
 |---|---|
-| Server crashes on Uberspace | supervisord auto-restarts the process |
-| DB file permissions | SQLite file owned by the Uberspace user; no world-readable permissions |
+| Server crashes | Docker restart policy (`restart: unless-stopped`) auto-restarts the container |
+| DB file permissions | SQLite file lives on a bind-mounted volume owned by the container user; no world-readable permissions |
 | Node.js version mismatch | `better-sqlite3@latest` includes prebuilt binaries for Node ≥ 18 |
 | Deployment with wrong API base | `VITE_API_BASE` baked into client bundle at build time; checked post-deploy via `curl` |
 
@@ -904,9 +892,8 @@ Previously: browsers cached Basic Auth credentials with no explicit logout mecha
 | **esbuild** | A fast JavaScript/TypeScript bundler. Used to compile the Express server to a single CJS file for production. |
 | **Vite** | A frontend build tool and dev server. Used in middleware mode during development so the Express server handles both API and SPA requests. |
 | **tsx** | A TypeScript executor that runs `.ts` files directly via Node.js (used in development). |
-| **supervisord** | A process control system used on Uberspace to keep the Node.js process running and restart it on crash. |
+| **docker-compose** | Defines and runs the FinanzFlow container on the Raspberry Pi, including restart policy and volume mounts. |
 | **YYYY-MM** | The month string format used throughout FinanzFlow for grouping transactions (e.g. `"2026-04"`). |
 | **PDF2JSON** | A Node.js library that extracts raw text from PDF files. Used for bank statement parsing. |
 | **category rule** | A learned keyword→category mapping. Stored in `category_rules` table. Applied automatically on the next PDF import to pre-suggest categories. |
 | **transfer** | A transaction of `type = "transfer"` that moves money between two own accounts. Shown as a horizontal band in the Sankey diagram; excluded from income/expense totals. |
-| **Uberspace** | A German shared hosting provider running on Linux, with supervisord and Apache reverse proxy. |

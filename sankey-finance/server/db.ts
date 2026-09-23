@@ -3,7 +3,7 @@ import Database from "better-sqlite3";
 import bcrypt from "bcryptjs";
 import { categories } from "@shared/schema";
 
-// DB_PATH kann per Umgebungsvariable überschrieben werden (z.B. Uberspace-Deployment).
+// DB_PATH kann per Umgebungsvariable überschrieben werden (z.B. Docker-Deployment auf dem Raspberry Pi).
 const DB_PATH = process.env.DB_PATH ?? "finance.db";
 
 const sqlite = new Database(DB_PATH);

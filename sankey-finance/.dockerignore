@@ -7,7 +7,6 @@ README.md
 .env
 .env.local
 finance.db
-finanzflow-uberspace.tar.gz
 .DS_Store
 .vscode
 .idea
