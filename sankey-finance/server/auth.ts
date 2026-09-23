@@ -17,10 +17,12 @@ export const authRateLimiter = rateLimit({
 
 // ─── Fail-Secure: Server verweigert Start bei fehlenden Pflicht-Variablen ────
 
-// Set defaults if not provided (for Docker dev mode)
+// Set defaults if not provided (for Docker dev mode). Nicht in NODE_ENV=test setzen —
+// sonst hebelt der Default-Hash den in tests/server/setup.ts vorgesehenen Auth-Bypass aus
+// (requireAuth prüft nur, ob APP_PASSWORD_HASH truthy ist).
 // Use SHA256 hashes for simplicity (password = sha256(password))
 // SHA256("admin") = 8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918
-if (!process.env.APP_PASSWORD_HASH) {
+if (!process.env.APP_PASSWORD_HASH && process.env.NODE_ENV !== "test") {
   process.env.APP_PASSWORD_HASH = "8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918";
 }
 if (!process.env.SESSION_SECRET || process.env.SESSION_SECRET.length < 32) {
