@@ -21,6 +21,7 @@ This folder contains the software requirements for all features of the FinanzFlo
 | [REQ-013](REQ-013-2fa-totp.md)         | Two-Factor Authentication (TOTP)   | Security    |
 | [REQ-014](REQ-014-mobile-responsive.md) | Mobile-Responsive UI               | UI/UX       |
 | [REQ-015](REQ-015-user-management.md)  | Multi-User Management              | Security    |
+| [REQ-016](REQ-016-paperless-import.md) | Paperless-Kontoauszug-Import        | Import      |
 
 ## Document Structure
 
