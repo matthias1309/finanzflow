@@ -76,7 +76,7 @@ export function detectBank(text: string): string {
 //
 // The key transaction line matches: ends with  DD.MM.YYYY  followed by  ±N.NNN,NN€
 
-function parseN26(text: string): ParsedTransaction[] {
+export function parseN26(text: string): ParsedTransaction[] {
   const results: ParsedTransaction[] = [];
 
   // Build holderPattern once — validate length and catch invalid syntax to prevent ReDoS
@@ -182,7 +182,7 @@ const TX_LINE = /^(.{1,100}?)\s{2,}(\d{2}\.\d{2}\.\d{4})\s{2,}([+-]?\d{1,3}(?:\.
 //
 // Key: date is 2-digit year (16.03.26), amount has NO currency symbol, uses dot as decimal
 
-function parseDKB(text: string): ParsedTransaction[] {
+export function parseDKB(text: string): ParsedTransaction[] {
   const results: ParsedTransaction[] = [];
   const pages = text.split(/----------------Page \(\d+\) Break----------------/);
 
@@ -253,7 +253,7 @@ const TX_LINE = /^(\d{2}\.\d{2}\.\d{2})\s{2,}(.{1,100}?)\s{2,}(-?\d+\.\d{2})\s*$
 // ─── Generic parser (ING, DKB, fallback) ─────────────────────────────────────
 // Matches lines like: "01.04.2026  Buchungstext  +3.200,00" or "01.04.2026  03.04.2026  Text  -45,50"
 
-function parseGeneric(text: string): ParsedTransaction[] {
+export function parseGeneric(text: string): ParsedTransaction[] {
   const results: ParsedTransaction[] = [];
   const lines = text.split(/\n|\f/).map(l => l.trim()).filter(l => l.length > 3);
 

@@ -90,12 +90,10 @@ to verify-setup`. Status only, not the exact message body, and does not separate
 
 **Maps to:** AC-013-05
 **Type:** integration
-**File:** ❌ missing
+**File:** `tests/server/api/auth.test.ts`
 
-**Notes:** No test calls `GET /api/auth/2fa/status` immediately after setup and asserts the
-response body has no `recoveryCodes` field (only `recoveryCodesRemaining`). By design the server
-never returns plaintext codes outside the single setup/regenerate response (ARCH-013), but this
-absence-of-field guarantee is not explicitly asserted. See Test Gap Backlog.
+**Notes:** Closed in Session 10 — `GET /api/auth/2fa/status after setup` →
+`never re-exposes plaintext recovery codes` asserts the response has no `recoveryCodes` field.
 
 ---
 
@@ -128,4 +126,7 @@ and `invalidates old recovery codes after regeneration`.
 is not exercised by the API test suite. The equivalent server-side effect (`storage.resetUserTotp`)
 *is* covered indirectly via `POST /api/users/:id/2fa-reset` in `tests/server/api/users.test.ts`,
 but the CLI entry point itself — argument parsing, the `--user`-missing usage message — has no
-test. See Test Gap Backlog.
+test.
+
+**Status: accepted (Session 10).** Low risk — the underlying storage effect is covered; only the
+CLI wrapper's own argument parsing is untested. Left as a follow-up.

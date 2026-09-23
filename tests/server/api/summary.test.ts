@@ -80,3 +80,44 @@ describe("GET /api/summary/:month — Überträge", () => {
     expect(target.transfersIn).toBe(0);
   });
 });
+
+describe("GET /api/summary/:month — Bilanz-Berechnung", () => {
+  // TC-007-03 (high risk per Test Gap Backlog — Bilanz/Sparquote formula had no direct assertion)
+  it("berechnet totalIncome und totalExpenses korrekt für bekannte Eingabedaten", async () => {
+    const accountId  = await createAccount("Girokonto");
+    const categoryId = (await agent.get("/api/categories")).body.find(
+      (c: { type: string }) => c.type === "income"
+    ).id;
+
+    await agent.post("/api/transactions").send({
+      month: "2026-05", description: "Gehalt", amount: 3000, accountId, categoryId, type: "income",
+    });
+    await agent.post("/api/transactions").send({
+      month: "2026-05", description: "Bonus", amount: 500, accountId, categoryId, type: "income",
+    });
+    await agent.post("/api/transactions").send({
+      month: "2026-05", description: "Miete", amount: 900, accountId, type: "expense",
+    });
+    await agent.post("/api/transactions").send({
+      month: "2026-05", description: "Lebensmittel", amount: 250, accountId, type: "expense",
+    });
+
+    const res = await agent.get("/api/summary/2026-05");
+    expect(res.status).toBe(200);
+    expect(res.body.totalIncome).toBe(3500);
+    expect(res.body.totalExpenses).toBe(1150);
+  });
+});
+
+// Regression test — Test Gap Backlog (Session 9): AC-010-06 requires GET /api/summary/:month
+// to reject an invalid month format with 400, but no such validation exists on this route (the
+// sibling GET /api/transactions?month= path does validate). Documents the CURRENT behavior;
+// flip to 400 once the route gets the same guard (see docs/architecture/ARCH-010.md Open Questions).
+describe("GET /api/summary/:month — Monatsformat-Validierung", () => {
+  it("known issue: currently returns 200 with an empty summary for an invalid month (AC-010-06)", async () => {
+    const res = await request(app).get("/api/summary/2026-4");
+    expect(res.status).toBe(200);
+    expect(res.body.totalIncome).toBe(0);
+    expect(res.body.totalExpenses).toBe(0);
+  });
+});

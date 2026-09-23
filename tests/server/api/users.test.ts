@@ -265,6 +265,53 @@ describe("POST /api/users/:id/2fa-reset", () => {
   });
 });
 
+// ─── Zugriffskontrolle für Nicht-Admins ──────────────────────────────────────
+
+describe("Access control for non-admin users", () => {
+  let lisaSession: request.SuperAgentTest;
+
+  beforeAll(async () => {
+    await adminSession.post("/api/users").send({ username: "lisa2", password: "Password123!" });
+    lisaSession = request.agent(app);
+    const loginRes = await lisaSession
+      .post("/api/auth/login")
+      .send({ username: "lisa2", password: "Password123!" });
+    expect(loginRes.body.step).toBe("done");
+  });
+
+  // TC-015-12
+  it("returns 403 for a non-admin user on GET /api/users", async () => {
+    const res = await lisaSession.get("/api/users");
+    expect(res.status).toBe(403);
+  });
+
+  it("returns 403 for a non-admin user on POST /api/users", async () => {
+    const res = await lisaSession.post("/api/users").send({ username: "x", password: "Password123!" });
+    expect(res.status).toBe(403);
+  });
+
+  it("returns 403 for a non-admin user on DELETE /api/users/:id", async () => {
+    const res = await lisaSession.delete(`/api/users/${adminId}`);
+    expect(res.status).toBe(403);
+  });
+
+  // Regression test — Test Gap Backlog (Session 5): PATCH /api/users/:id/password has no
+  // `requireAdmin` (by design, so users can change their own password) but also never checks
+  // that the caller owns `:id`. Documents the CURRENT (incorrect) behavior: a non-admin user can
+  // change any other user's password. Flip to 403 once the ownership check is added — see
+  // docs/architecture/ARCH-015.md Open Questions.
+  it("known issue: a non-admin user can currently change another user's password (no ownership check)", async () => {
+    const victim = await adminSession
+      .post("/api/users")
+      .send({ username: "victim", password: "OriginalPass1!" });
+
+    const res = await lisaSession
+      .patch(`/api/users/${victim.body.id}/password`)
+      .send({ newPassword: "TakenOverPass1!" });
+    expect(res.status).toBe(200);
+  });
+});
+
 // ─── ENV-Sync beim Start ──────────────────────────────────────────────────────
 
 describe("Seeding: ENV-Sync beim Serverstart", () => {

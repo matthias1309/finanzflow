@@ -7,6 +7,25 @@ Format angelehnt an [Keep a Changelog](https://keepachangelog.com/de/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+- **Closed the migration's Test Gap Backlog (migration Session 10)** — 181/181 Vitest tests
+  passing (up from 160), across 10 new/extended test files covering accounts, categories,
+  transactions, summary, users, PDF import, category learning, and rate limiting. Exported
+  `parseN26`/`parseDKB`/`parseGeneric` from `server/pdfParser.ts` for direct unit testing (no
+  behavior change). Added `@vitest/coverage-v8` (`npm run test:coverage`), a CI coverage-report
+  upload, and an 80%/70%-branch coverage threshold on `server/**` business logic. Every confirmed
+  implementation bug from Sessions 5–9 got a `known issue: ...` regression test pinning current
+  (incorrect) behavior rather than a silent fix — see `docs/MIGRATION-PLAN.md` for the full list
+  and each REQ's ARCH document for the still-open implementation fix. Remaining low-value/E2E-only
+  gaps marked `accepted` with reason in their TEST-SPEC files.
+
+### Fixed
+- None — Session 10 was test-only by explicit decision; confirmed implementation bugs (negative
+  amounts accepted, transfer without target account, learn-batch all-or-nothing, unvalidated
+  summary month format, non-ownership-checked password change, and the production fail-fast check
+  never actually firing) remain open, tracked in `docs/MIGRATION-PLAN.md` "Out of Scope /
+  Follow-ups" and each REQ's ARCH document.
+
 ### Hinzugefügt
 - **ARCH/TEST-SPEC retrofit for month navigation, theme, mobile UI (migration Session 9, final
   retrofit session)** — `docs/architecture/ARCH-010.md`, `ARCH-012.md`, `ARCH-014.md` and

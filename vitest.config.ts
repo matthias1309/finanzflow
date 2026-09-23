@@ -14,5 +14,26 @@ export default defineConfig({
     pool: "forks",
     setupFiles: ["tests/server/setup.ts"],
     include: ["tests/server/**/*.test.ts"],
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "html", "lcov"],
+      include: ["server/**/*.ts"],
+      exclude: [
+        "server/routes.ts",
+        "server/createApp.ts",
+        "server/db.ts",
+        "server/index.ts",
+        "server/env-defaults.ts",
+        "server/env-init.ts",
+        "server/static.ts",
+        "server/vite.ts",
+      ],
+      thresholds: {
+        lines: 80,
+        statements: 80,
+        functions: 80,
+        branches: 70,
+      },
+    },
   },
 });

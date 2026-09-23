@@ -1,5 +1,6 @@
 node_modules/
 dist/
+coverage/
 finance.db
 *.db
 .env

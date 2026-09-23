@@ -239,14 +239,19 @@ but wrong`. Status only, not the exact message body.
 
 **Maps to:** AC-015-12
 **Type:** integration
-**File:** ❌ missing
+**File:** `tests/server/api/users.test.ts`
 
-**Notes:** No test authenticates as a non-admin user and calls `GET /api/users` (or any
-`requireAdmin` route) to assert `403`. All `users.test.ts` requests go through `adminSession`.
-This is also the AC most directly related to the access-control gap on
-`PATCH /api/users/:id/password` noted in ARCH-015 (that one route is intentionally *not*
-`requireAdmin`, but nothing currently stops a non-admin from targeting another user's `id`). See
-Test Gap Backlog — high risk.
+**Notes:** Closed in Session 10 — `Access control for non-admin users` logs in as a genuine
+non-admin user and asserts `403` on `GET /api/users`, `POST /api/users`, and
+`DELETE /api/users/:id`.
+
+🔴 The same describe block also adds a **regression test** for the related gap on
+`PATCH /api/users/:id/password`: `known issue: a non-admin user can currently change another
+user's password (no ownership check)` confirms a non-admin session can `PATCH` another user's
+password and get `200` — that route is intentionally *not* `requireAdmin` (so users can change
+their own password), but nothing checks the caller owns `:id`. See `docs/architecture/ARCH-015.md`
+Open Questions. **High risk, implementation gap still open** — the test pins current behavior, it
+does not close the gap; update it to assert `403` once the ownership check is added.
 
 ---
 
@@ -302,12 +307,13 @@ implicit in the `:memory:` per-file DB (`tests/server/setup.ts`), not separately
 
 **Maps to:** AC-015-15
 **Type:** integration
-**File:** ❌ missing
+**File:** `tests/server/unit/db-seeding.test.ts`
 
-**Notes:** No test seeds an "admin" user with one password hash, restarts `createApp()` with a
-*different* `APP_PASSWORD_HASH`, and asserts the hash was updated (`isAdmin` remaining `true`).
-The existing seeding tests only cover the create-on-first-start case (TC-015-14). See Test Gap
-Backlog.
+**Notes:** Closed in Session 10. The seeding logic in `server/db.ts` runs at module top-level, not
+inside `createApp()`, so testing "restart with a different hash" needs a real temp-file DB (not
+`:memory:`) plus `vi.resetModules()` to force two separate imports of `db.ts` against the same
+file — `updates an existing seed user's password hash on the next start` does exactly that and
+asserts the row's `passwordHash` matches the second hash while `isAdmin` stays `1`.
 
 ---
 

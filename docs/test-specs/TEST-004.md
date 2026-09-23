@@ -16,7 +16,11 @@
 **Notes:** "Each row shows description, amount, category, and date" is a UI-rendering assertion;
 no Playwright spec for the Transactions page exists (`tests/e2e/` has `accounts.spec.ts`,
 `categories.spec.ts`, `dashboard.spec.ts`, `login.spec.ts`, `users.spec.ts` — no
-`transactions.spec.ts`). See Test Gap Backlog.
+`transactions.spec.ts`).
+
+**Status: accepted (Session 10).** The underlying data (what a row would render) is well-covered
+server-side by TEST-004's other TCs; only the rendering itself is untested. Left as an E2E
+follow-up.
 
 ---
 
@@ -40,11 +44,9 @@ Then only March transactions are shown
 
 **Maps to:** AC-004-03
 **Type:** integration
-**File:** ❌ missing
+**File:** `tests/server/api/transactions.test.ts`
 
-**Notes:** `GET /api/transactions` supports an `accountId` query parameter
-(`server/routes/transactions.ts`), but no test creates transactions on two different accounts and
-asserts the `accountId` filter narrows the result. See Test Gap Backlog.
+**Notes:** Closed in Session 10 — `GET /api/transactions` → `filters by accountId`.
 
 ---
 
@@ -73,12 +75,10 @@ And the amount is shown as "+500,00 €"
 
 **Maps to:** AC-004-05
 **Type:** integration
-**File:** ❌ missing
+**File:** `tests/server/api/transactions.test.ts`
 
-**Notes:** No test creates a `type: "transfer"` transaction via `POST /api/transactions` and
-asserts the response includes `transferToAccountId`. The *effect* of a transfer (balance
-accounting) is separately covered by TC-004-11/12 via the summary endpoint, but the create-path
-itself for a transfer row has no direct test. See Test Gap Backlog.
+**Notes:** Closed in Session 10 — `POST /api/transactions` → `creates a transfer transaction and
+returns 201` (asserts `type` and `transferToAccountId` in the response).
 
 ---
 
@@ -86,13 +86,15 @@ itself for a transfer row has no direct test. See Test Gap Backlog.
 
 **Maps to:** AC-004-06
 **Type:** integration
-**File:** ❌ missing
+**File:** `tests/server/api/transactions.test.ts`
 
 **Notes:** This AC is enforced client-side only (see ARCH-004 Open Questions) — the server accepts
-a `transfer` transaction with no `transferToAccountId`. No test exists for either the intended
-client-side validation (no E2E spec for the Transactions page, see TC-004-01) or the server's
-actual accepting behavior. **High risk**: flagged in the Test Gap Backlog together with the
-underlying implementation gap in ARCH-004.
+a `transfer` transaction with no `transferToAccountId`. Session 10 added a **regression test**
+(`known issue: currently accepts a transfer with no transferToAccountId (AC-004-06)`) that
+documents the current, incorrect `201` response — it is written to fail once the implementation
+gap is fixed, at which point it should be updated to assert `400`. The intended client-side
+validation itself still has no E2E coverage (see TC-004-01). **High risk, implementation gap still
+open** — see ARCH-004 Open Questions; not closed by this test, only pinned.
 
 ---
 
@@ -100,11 +102,10 @@ underlying implementation gap in ARCH-004.
 
 **Maps to:** AC-004-07
 **Type:** integration
-**File:** ❌ missing
+**File:** `tests/server/api/transactions.test.ts`
 
-**Notes:** `PATCH /api/transactions/:id` exists specifically for this use case (ARCH-004), but no
-test in `tests/server/api/transactions.test.ts` calls it — the file only exercises `POST`,
-`GET`, `POST /batch`, and `GET /api/months`. See Test Gap Backlog.
+**Notes:** Closed in Session 10 — `PATCH /api/transactions/:id` → `updates the category of a
+transaction`, plus 404/400 edge cases.
 
 ---
 
@@ -112,10 +113,9 @@ test in `tests/server/api/transactions.test.ts` calls it — the file only exerc
 
 **Maps to:** AC-004-08
 **Type:** integration
-**File:** ❌ missing
+**File:** `tests/server/api/transactions.test.ts`
 
-**Notes:** `DELETE /api/transactions/:id` exists but is never called by any test. See Test Gap
-Backlog.
+**Notes:** Closed in Session 10 — `DELETE /api/transactions/:id` → `deletes a transaction`.
 
 ---
 
@@ -123,17 +123,18 @@ Backlog.
 
 **Maps to:** AC-004-09
 **Type:** integration
-**File:** ❌ missing
+**File:** `tests/server/api/transactions.test.ts`
 
-**Notes:** No test submits a transaction with a negative `amount` and asserts `400`.
-`insertTransactionSchema` extends the base Drizzle column (`amount: real("amount").notNull()`,
+**Notes:** `insertTransactionSchema` extends the base Drizzle column (`amount: real("amount").notNull()`,
 `shared/schema.ts:66`) only with `type`; there is no `.positive()`/`.min(0)` refinement on
-`amount` anywhere in the schema. **Confirmed empirically (not just inferred from the schema) that this AC is currently violated**:
-`POST /api/transactions` with `amount: -50` returns `201`, not `400` — contradicting both this AC
-and the `amount` domain invariant in `architecture.md`. Also note `shared/schema.ts:66`'s
-own column comment ("positive = income, negative = expense") describes the *old*, pre-invariant
-convention and is itself stale against `architecture.md`'s "amount always positive, type carries
-sign" rule. See Test Gap Backlog (**high**).
+`amount` anywhere in the schema. Session 10 added a **regression test**
+(`known issue: currently accepts a negative amount instead of rejecting it (AC-004-09)`) that
+pins the current, incorrect `201` response for `amount: -50` — update it to assert `400` once the
+schema gets a `.positive()` refinement. Also note `shared/schema.ts:66`'s own column comment
+("positive = income, negative = expense") describes the *old*, pre-invariant convention and is
+itself stale against `architecture.md`'s "amount always positive, type carries sign" rule.
+**High risk, implementation gap still open** — see ARCH-004 Open Questions; not closed by this
+test, only pinned.
 
 ---
 
@@ -141,13 +142,15 @@ sign" rule. See Test Gap Backlog (**high**).
 
 **Maps to:** AC-004-10
 **Type:** integration
-**File:** ❌ missing
+**File:** `tests/server/api/transactions.test.ts`
 
-**Notes:** `GET /api/transactions?month=` is covered (`rejects invalid month format on GET`), but
-no test posts a transaction with an invalid `month` in the request **body** and asserts `400`.
-Given `month` is a plain string column with no dedicated pattern refinement visible on
-`insertTransactionSchema` (unlike the query-param path, which has its own `monthSchema`), this is
-worth writing to actually confirm the AC holds on create. See Test Gap Backlog (**medium**).
+**Notes:** `GET /api/transactions?month=` is covered (`rejects invalid month format on GET`).
+Session 10 investigated the create path and confirmed `insertTransactionSchema` has no month
+pattern refinement at all (unlike the query-param path's dedicated `monthSchema`) — a **regression
+test** (`known issue: currently accepts an invalid month format on create (AC-004-10)`) pins the
+current, incorrect `201` response; update it to assert `400` once the schema gets the same guard.
+**Medium risk, implementation gap still open** — see ARCH-004 Open Questions; not closed by this
+test, only pinned.
 
 ---
 

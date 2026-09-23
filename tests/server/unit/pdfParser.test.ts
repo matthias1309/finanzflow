@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { parseGermanAmount, parseGermanDate, detectBank } from "../../../server/pdfParser";
+import {
+  parseGermanAmount,
+  parseGermanDate,
+  detectBank,
+  parseN26,
+  parseDKB,
+  parseGeneric,
+} from "../../../server/pdfParser";
 
 describe("parseGermanAmount", () => {
   it("parses a positive amount with thousands separator", () => {
@@ -83,5 +90,92 @@ describe("detectBank", () => {
 
   it("is case-insensitive", () => {
     expect(detectBank("DEUTSCHE KREDITBANK")).toBe("DKB");
+  });
+});
+
+// TC-005-01 / TC-005-02 (N26 parser)
+describe("parseN26", () => {
+  it("parses an expense transaction with a context description line", () => {
+    const text = ["Kartenzahlung", "Rewe Markt GmbH  15.04.2026  -45,50€"].join("\n");
+    const [tx] = parseN26(text);
+    expect(tx).toMatchObject({
+      date: "2026-04-15",
+      month: "2026-04",
+      description: "Rewe Markt GmbH – Kartenzahlung",
+      amount: 45.5,
+      type: "expense",
+    });
+  });
+
+  it("parses an income transaction (positive amount)", () => {
+    const text = "Arbeitgeber GmbH  01.04.2026  +3.200,00€";
+    const [tx] = parseN26(text);
+    expect(tx.amount).toBe(3200);
+    expect(tx.type).toBe("income");
+  });
+
+  it("ignores header/footer lookalike lines", () => {
+    const text = ["Gutschriften", "IBAN: DE12345678901234567890"].join("\n");
+    expect(parseN26(text)).toHaveLength(0);
+  });
+
+  it("deduplicates nothing on its own (single pass, no dedup logic in the bank parser itself)", () => {
+    const text = "Rewe Markt GmbH  15.04.2026  -45,50€";
+    expect(parseN26(text)).toHaveLength(1);
+  });
+});
+
+// TC-005-01 / TC-005-02 (DKB parser)
+describe("parseDKB", () => {
+  it("parses an expense transaction, skipping the IBAN line for its description lookback", () => {
+    const text = ["Kartenzahlung", "IBAN DE12345678901234567890", "15.04.26  Rewe Markt  -45.50"].join(
+      "\n"
+    );
+    const [tx] = parseDKB(text);
+    expect(tx).toMatchObject({
+      date: "2026-04-15",
+      month: "2026-04",
+      description: "Rewe Markt – Kartenzahlung",
+      amount: 45.5,
+      type: "expense",
+    });
+  });
+
+  it("parses an income transaction (positive amount, no currency symbol)", () => {
+    const text = "01.04.26  Arbeitgeber GmbH  3200.00";
+    const [tx] = parseDKB(text);
+    expect(tx.amount).toBe(3200);
+    expect(tx.type).toBe("income");
+  });
+
+  it("ignores footer lines (bank address/imprint)", () => {
+    const text = "Taubenstraße 7-9, 10117 Berlin";
+    expect(parseDKB(text)).toHaveLength(0);
+  });
+});
+
+// TC-005-03 (generic fallback — the function itself, complementing the existing route-level coverage)
+describe("parseGeneric", () => {
+  it("parses a single-date line", () => {
+    const [tx] = parseGeneric("01.04.2026 Miete Wohnung -900,00");
+    expect(tx).toMatchObject({ date: "2026-04-01", description: "Miete Wohnung", amount: -900 });
+  });
+
+  it("parses a two-date line (Buchungs-/Wertstellungsdatum)", () => {
+    const [tx] = parseGeneric("01.04.2026 03.04.2026 Überweisung Miete -900,00 EUR");
+    expect(tx).toMatchObject({ date: "2026-04-01", description: "Überweisung Miete", amount: -900 });
+  });
+
+  it("parses an amount-first line", () => {
+    const [tx] = parseGeneric("+3.200,00 01.04.2026 Gehalt April");
+    expect(tx).toMatchObject({ date: "2026-04-01", description: "Gehalt April", amount: 3200 });
+  });
+
+  it("skips lines with a too-short description", () => {
+    expect(parseGeneric("01.04.2026 xy -10,00")).toHaveLength(0);
+  });
+
+  it("returns an empty array for text with no matching lines", () => {
+    expect(parseGeneric("Kontoauszug\nSeite 1 von 3")).toHaveLength(0);
   });
 });

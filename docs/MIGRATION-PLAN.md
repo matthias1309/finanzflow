@@ -178,11 +178,16 @@ Per REQ in the session:
 
 After Session 9: run `/traceability` → every REQ must show ARCH + TEST-SPEC ✅.
 
-### Session 10 — Close test gaps
+### Session 10 — Close test gaps ✅ done
 Branch: `test/close-retrofit-gaps`
-- [ ] Prioritize the Test Gap Backlog (security + import first); write missing tests with TC comments
-- [ ] Add `@vitest/coverage-v8`, coverage report in CI, threshold 80 % on `server/` business logic (confirm dependency)
-- [ ] Remaining low-value gaps: mark as `accepted` with reason in the TEST-SPEC
+- [x] Prioritize the Test Gap Backlog (security + import first); write missing tests with TC comments
+      → 21 real test files touched/added, 181/181 Vitest tests passing (up from 160)
+- [x] Add `@vitest/coverage-v8`, coverage report in CI, threshold 80 % on `server/` business logic (confirmed dependency with Matthias)
+      → thresholds: 80% lines/statements/functions, 70% branches on `server/**`, excluding pure
+      bootstrap/wiring files (`createApp.ts`, `db.ts`, `routes.ts`, `index.ts`, `env-init.ts`,
+      `env-defaults.ts`, `static.ts`, `vite.ts`); `npm run test:coverage`; CI uploads the report
+      as a build artifact
+- [x] Remaining low-value gaps: marked `accepted` with reason directly in the TEST-SPEC files
 
 ### Session 11 — Acceptance & handover
 Branch: `docs/migration-acceptance`
@@ -354,6 +359,42 @@ the migration plan's checkpoint (`for REQ-001..016: grep "Traced by"`), satisfyi
 show ARCH + TEST-SPEC ✅." A full `/traceability` run (cross-checking commit history, not just the
 header fields) is deferred to Session 11's acceptance step, per the existing plan.
 
+**Session 10 resolution.** Per an explicit decision with Matthias, Session 10 wrote tests only —
+it did **not** fix any of the 🔴 implementation bugs confirmed in Sessions 5–9. Where a gap turned
+out to be a real bug (not just a missing test), Session 10 added a **regression test that pins the
+current, incorrect behavior** (named `known issue: ...`, with a comment explaining what to change
+once the underlying implementation is fixed) rather than silently leaving it untested. This closes
+the *test-gap* (the behavior is now asserted and will fail loudly if it silently changes again) but
+explicitly does **not** close the *implementation gap* — every one of these still needs the fix
+described in its REQ/ARCH's Open Questions before merge-worthy. Security + import gaps were
+prioritized per Matthias's instruction.
+
+Closed with a real (non-regression) test: TC-002-02, TC-002-04, TC-003-02, TC-004-03, TC-004-05,
+TC-004-07, TC-004-08, TC-005-01, TC-005-02, TC-005-03 (unit level), TC-005-06, TC-005-07,
+TC-005-10, TC-006-01, TC-006-02, TC-006-04, TC-006-05, TC-006-06, TC-006-07, TC-007-03 (server-side
+formula), TC-011-04, TC-013-05, TC-015-12, TC-015-15.
+
+Closed as a regression test pinning a **confirmed implementation bug** (fix still open): AC-004-06
+(transfer with no target), AC-004-09 (negative amount accepted), AC-004-10 (invalid month accepted
+on create — newly discovered in Session 10), AC-005-04 (non-PDF upload returns 500, not 400 —
+newly discovered), AC-006-08/AC-011-06 (learn-batch is all-or-nothing), AC-010-06 (summary month
+format unvalidated), AC-015-09/12-adjacent (password-change endpoint has no ownership check — a
+non-admin can change any other user's password), and 🔴 **AC-001-08, newly and more severely
+confirmed**: the production fail-fast check is dead code in practice — `server/auth.ts` sets a
+hardcoded fallback secret for *any* `NODE_ENV !== "test"` before the production-only fatal check
+even runs, so a production start with no `APP_PASSWORD_HASH` does not exit, it silently starts
+with a publicly-known hash. This sharpens the existing "Hardcoded fallback secrets" follow-up
+below from a code-inspection finding to a directly-confirmed one.
+
+Marked `accepted` with a reason (client-only/E2E-only, low risk, or mechanically expensive) rather
+than closed: TC-001-05, TC-001-06, TC-003-04, TC-003-07, TC-004-01, TC-005-05, TC-005-08, TC-005-09,
+TC-006-03, TC-008-*, TC-009-*, TC-010-01/03/04/05/07, TC-011-05, TC-012-*, TC-013-07. TC-014-* was
+already an explicit, pre-existing accepted exception from REQ-014 itself (unchanged).
+
+Coverage after Session 10: **181/181 Vitest tests passing** (up from 160), `server/**` coverage
+80.78% statements / 69.01→70.34% branches / 90.17% functions / 84.26% lines (excluding bootstrap
+files, see checklist above) — meets the configured CI threshold.
+
 ## Out of Scope / Follow-ups
 
 - Dockerfile uses `node:18-alpine` — Node 18 is EOL; upgrade (incl. `better-sqlite3` major) as a separate REQ-less chore after the migration.
@@ -364,6 +405,15 @@ header fields) is deferred to Session 11's acceptance step, per the existing pla
   (the leaked `SESSION_SECRET` / `TOTP_ENCRYPTION_KEY` values and default password hashes). If production
   env vars are missing, the app silently runs with publicly known secrets (fail-open). Should fail fast in
   production instead — needs a REQ-001 AC + tests; do right after the migration or as a hotfix.
+  **Confirmed by a direct test in Session 10** (`tests/server/unit/auth-failsecure.test.ts`, TC-001-08):
+  the production fatal-check in `server/auth.ts` never actually fires, because the fallback-setting
+  block above it runs for any `NODE_ENV !== "test"` (not gated to genuine Docker dev mode) and fills
+  in `APP_PASSWORD_HASH`/`SESSION_SECRET`/`TOTP_ENCRYPTION_KEY` before the check can see them missing.
+  Raise priority — this is a live fail-open path, not a theoretical one.
+- 🔴 **`PATCH /api/users/:id/password` has no ownership check** (confirmed by a Session 5 finding,
+  regression-tested in Session 10, `tests/server/api/users.test.ts`) — any authenticated non-admin
+  user can change any other user's password by ID. Needs a REQ-015 AC fix (verify
+  `req.session.userId === id` unless the caller is admin) — see `docs/architecture/ARCH-015.md`.
 - `CHANGELOG.md` history is German — translate or leave as historical record (new entries are English).
 - Existing codebase (122 files) is not yet Prettier-formatted — `prettier --write .` deferred to avoid a large noise diff; do as its own PR.
 
@@ -384,3 +434,4 @@ header fields) is deferred to Session 11's acceptance step, per the existing pla
 | 2026-09-23 | Session 7 | _(pending)_ | ARCH-005/006/011 + TEST-005/006/011 retrofitted for REQ-005 (PDF import), REQ-006 (Category learning), REQ-011 (Batch import); `// TC-NNN-YY` comments added to the two already-covered cases in `transactions.test.ts` (no behavior changes — 125/125 still pass). `Traced by` updated on all three REQs. This session found the **largest test-coverage gap so far**: `POST /api/import/pdf` and the entire category-learning system (`storage.suggestCategory`/`learnCategoryRules`, `categoryRulesRouter`) have **zero test coverage** — 23 gaps added to the Test Gap Backlog. One 🔴 high-risk finding **confirmed by direct test, not inferred**: `POST /api/category-rules/learn` fails its *entire* batch with `400` when any single entry is invalid (e.g. negative `categoryId`) instead of skipping just that entry — contradicting AC-006-08/AC-011-06; `POST /api/transactions/batch` already has the correct per-item pattern one file over, so this is a missing implementation, not just a missing test. One medium-risk finding: `/api/category-rules/learn` has no dedicated rate limiter despite REQ-011 Notes claiming it shares `batchRateLimiter` with the transaction-batch endpoint. Both need a decision from Matthias. Docs + test-comment-only change; `typecheck`/`lint`/`npm test` verified clean. |
 | 2026-09-23 | Session 8 | _(pending)_ | ARCH-007/009/016 + TEST-007/009/016 retrofitted for REQ-016 (Paperless import), REQ-007 (Dashboard), REQ-009 (Sankey chart); `// TC-NNN-YY` comments added to all 12 already-covered cases in `paperless.test.ts` (no behavior changes — 125/125 still pass). `Traced by` updated on all three REQs. REQ-016 turned out **fully covered** by existing tests — no gaps. REQ-007/REQ-009 (Dashboard, Sankey) are entirely client-rendered features with **zero E2E coverage beyond "the container renders"** — 15 gaps added to the Test Gap Backlog, two flagged **high** risk though not confirmed bugs: (1) the Bilanz/Sparquote KPI formula has no test verifying its actual output for known input; (2) the Sankey diagram — FinanzFlow's signature visualization — has no test asserting its rendered nodes/links match the underlying data. Unlike Sessions 5–7, no new implementation bug was confirmed this session; this is purely a coverage gap on two features whose underlying server data (the summary endpoint) is already well-tested via TEST-004. Docs + test-comment-only change; `typecheck`/`lint`/`npm test` verified clean. |
 | 2026-09-23 | Session 9 | _(pending)_ | ARCH-010/012/014 + TEST-010/012/014 retrofitted for REQ-010 (Month navigation), REQ-012 (Theme), REQ-014 (Mobile-responsive UI) — **the final retrofit session; all 16 REQs now trace to ARCH + TEST-SPEC**, verified manually per the Session-9 checkpoint. `// TC-NNN-YY` comment added to the one already-covered case in `transactions.test.ts` (no behavior changes — 125/125 still pass). REQ-014's 9 ACs have no test coverage by an **explicit, pre-existing TDD exception** in the REQ itself, not an oversight — logged as one accepted low-risk backlog entry. One 🔴 medium-risk finding **confirmed by direct test, not inferred**: `GET /api/summary/:month` has no month-format validation at all (`GET /api/summary/2026-4` returns `200` with an empty summary, not the `400` AC-010-06 requires) — the sibling `GET /api/transactions?month=` path validates correctly, this endpoint simply never got the same guard. REQ-012 (theme) has zero test coverage, directly testable via Playwright's `colorScheme` emulation. 7 gaps added to the Test Gap Backlog. Docs + test-comment-only change; `typecheck`/`lint`/`npm test` verified clean. |
+| 2026-09-23 | Session 10 | _(pending)_ | Closed the Test Gap Backlog per Matthias's decision: write regression tests for confirmed bugs (don't fix them), security + import first. Added/extended 10 test files (`pdf.test.ts`, `pdf-rate-limit.test.ts`, `categoryRules.test.ts`, `transactions-rate-limit.test.ts`, `db-seeding.test.ts`, `auth-failsecure.test.ts` new; `accounts/categories/transactions/summary/users/auth/pdfParser.test.ts` extended) — **181/181 Vitest tests passing** (up from 160). Exported `parseN26`/`parseDKB`/`parseGeneric` from `pdfParser.ts` for direct unit testing (no behavior change). Added `@vitest/coverage-v8`, `npm run test:coverage`, and a CI coverage-report upload; threshold 80% lines/statements/functions, 70% branches on `server/**` (excluding bootstrap/wiring files) — met after closing gaps. Investigated every 🔴 finding from Sessions 5–9 and confirmed two more, previously only suspected: (1) `AC-001-08`'s production fail-fast check is **dead code in practice** — the fallback-secret block runs for any non-test `NODE_ENV`, so a production start with no `APP_PASSWORD_HASH` silently succeeds with a known hash instead of exiting, sharpening the existing "Hardcoded fallback secrets" follow-up from a code-inspection finding to a directly-confirmed one; (2) `POST /api/import/pdf` returns `500`, not `400`, for a non-PDF upload (multer's `fileFilter` error has no `.status`). Also discovered a new gap while writing tests: `POST /api/transactions` has no month-format validation on create at all (AC-004-10), unlike the equivalent `GET` query-param path. All confirmed bugs got a `known issue: ...` regression test pinning current behavior — implementation fixes remain open, tracked in each REQ's ARCH Open Questions and in "Out of Scope / Follow-ups" below. Remaining low-value/E2E-only gaps (TC-008/009/012, month-nav E2E, etc.) marked `accepted` with reason directly in their TEST-SPEC files. Full suite (`typecheck`/`lint`/`npm test`/`npm run test:coverage`) verified clean. |
