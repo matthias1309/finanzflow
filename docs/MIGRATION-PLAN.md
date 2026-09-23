@@ -34,12 +34,21 @@ does not fit this project. Consider back-porting fixes to the template repo.
 
 - `settings.json`: no pinned `model` (template pins the outdated `claude-sonnet-4-5`).
 - `mcp.json`: not copied (template only contains placeholder servers).
-- Hooks: post-edit hook actually runs `eslint`/`prettier` on the edited file instead of only
-  printing a hint; the pre-tool-use logging hook is dropped (no value).
+- Hooks: post-edit hook actually runs `eslint` on the edited `.ts/.tsx` file (exit 2 feeds findings
+  back to Claude) instead of only printing a hint; Prettier is not run by the hook until the tree is
+  formatted (would reformat whole files); the pre-tool-use logging hook is dropped (no value).
+- `settings.json`: no `env` block (template sets `NODE_ENV=development`, which would leak into
+  `npm run build`/tests run by Claude); narrow allowlist instead of `Bash(git *)`/`Edit(**)`; deny
+  list extended (force-push variants, `git reset --hard`, `git filter-repo`, reading `.env`/`*.db`).
+- Commands: ARCH/TEST IDs mirror the REQ number (D4) instead of "next free ID"; paths adapted to
+  `tests/` and `server/ client/ shared/`.
+- Additional rule file `architecture.md` (shared schema, storage façade, recipes) — project-specific.
 - `testing-practices.md`: tests stay in the `tests/` tree (not co-located next to sources).
-- Function length: unify on one limit (template says ~30, old CLAUDE.md says 20) — decide in Session 3.
-- `system-map.md`: remove the "Project_Buddy" leftovers and the reference to an undefined
-  "V-Model step 0 Impact Analysis" (or add that step to `v-model.md`).
+- Function length: unified on **~30 lines** (template value) — decided by Matthias in Session 3.
+  Max 3 parameters and "no flag parameters" kept from the old CLAUDE.md.
+- `system-map.md`: removed the "Project_Buddy" / FEAT-lineage leftovers and the reference to an
+  undefined "V-Model step 0 Impact Analysis"; instead `/new-requirement` and `v-model.md` tell
+  Claude to consult `docs/SYSTEM-MAP.md` before writing a new REQ. (Back-port to template.)
 
 ---
 
@@ -57,7 +66,7 @@ Branch: `fix/remove-committed-secrets`
 - [ ] **Manual (Matthias, on the Pi):** rotate `SESSION_SECRET`, `TOTP_ENCRYPTION_KEY`, admin password
       (→ new `APP_PASSWORD_HASH`). Rotating the TOTP key invalidates stored 2FA secrets →
       re-enroll 2FA (`npm run 2fa:reset`).
-- [ ] Note the incident in `.claude/rules/learnings.md` (created in Session 3 — note it here until then)
+- [x] Note the incident in `.claude/rules/learnings.md` → done in Session 3
 
 **Incident note (for Session 3 learnings.md):** `sankey-finance/secrets.env` (containing
 `SESSION_SECRET`, `TOTP_ENCRYPTION_KEY`, `APP_PASSWORD_HASH`, etc.) was committed to the public
@@ -102,21 +111,30 @@ Branch: `chore/quality-baseline`
 
 **Known pre-existing gap (not fixed, out of scope for this session):** `npm run build` fails locally on macOS with `No loader is configured for ".node" files: node_modules/fsevents/fsevents.node` (esbuild tries to bundle the optional, macOS-only `fsevents` transitive dependency because it isn't in the server bundle's `external` allowlist in `script/build.ts`). Confirmed this already fails on `main` before this session's changes — the Docker build path (Linux, no `fsevents` installed) is unaffected and was verified working in Session 1. Worth a follow-up chore.
 
-### Session 3 — Claude Code infrastructure
+### Session 3 — Claude Code infrastructure ✅ done
 Branch: `chore/claude-template-setup`
-- [ ] Copy + adapt `.claude/rules/` (coding-style, testing-practices, git-workflow, v-model, security, learnings)
-- [ ] Move project-specific content out of the old CLAUDE.md files into rules:
-      shared-schema / storage-façade / `safeCssColor` → `coding-style.md` (or new `architecture.md`);
-      security middleware table → `security.md`; "Common pitfalls" table → `learnings.md`;
-      `tests/CLAUDE.md` (isolation, `data-testid` scheme) → `testing-practices.md`;
+- [x] Copy + adapt `.claude/rules/` (coding-style, testing-practices, git-workflow, v-model, security, learnings)
+      → plus a new project-specific `architecture.md`
+- [x] Move project-specific content out of the old CLAUDE.md files into rules:
+      shared-schema / storage façade / recipes → `architecture.md`; TS standards → `coding-style.md`;
+      security middleware table → `security.md` (the old table listed a non-existent `basicAuthMiddleware` —
+      replaced by the real `requireAuth` / `requireAdmin` / `requireStepUp`); "Common pitfalls" → `learnings.md`
+      (stale Node-25 note updated); `tests/CLAUDE.md` → `testing-practices.md`;
       `documentation/CLAUDE.md` (Gherkin rules, ARC42 update table, ADR format) → `v-model.md`
-- [ ] Copy + adapt `.claude/commands/` (new-requirement, new-arch, new-test-spec, traceability, test-coverage, system-map, capture-learning, summarize-pr, todo-check); paths → `docs/…`
-- [ ] New root `CLAUDE.md` (English, slim, template structure) — delete `tests/CLAUDE.md` and `docs/CLAUDE.md`
-- [ ] `settings.json`: clean permission allowlist (replace the ad-hoc curl/docker entries), deny list, hooks
-- [ ] Hooks: post-edit lint on `.ts/.tsx`; make scripts executable
-- [ ] `CLAUDE.local.md` (gitignored) with local notes (port 3000, AirPlay, Pi host)
-- [ ] Keep the pre-commit Clean Code Review from the old CLAUDE.md → fold into `docs/code-reviews/CR-TEMPLATE.md` + git-workflow rule
-- [ ] Keep `CHANGELOG.md` workflow (template has none) → add to `git-workflow.md`
+- [x] Copy + adapt `.claude/commands/` (all 9); paths → `docs/…`, `tests/…`, `server/ client/ shared/`
+- [x] New root `CLAUDE.md` (English, slim, template structure) — deleted `tests/CLAUDE.md` and `docs/documentation-CLAUDE.md`
+- [x] `settings.json`: clean permission allowlist (replaced the ad-hoc curl/docker entries), deny list, hooks
+- [x] Hooks: post-edit ESLint on `.ts/.tsx`, script executable — verified manually (clean file → exit 0, `any` → exit 2 with findings)
+- [x] `CLAUDE.local.md` (gitignored) with local notes (port 3000, AirPlay, Pi host); `.claude/settings.local.json` now gitignored too
+- [x] Pre-commit Clean Code Review from the old CLAUDE.md → `git-workflow.md` (printed checklist) + `CR-TEMPLATE.md`
+- [x] `CHANGELOG.md` workflow → `git-workflow.md` (new entries in English; old German entries stay as-is)
+
+**Extra (security, found in passing):** `DEPLOYMENT.md` still contained the leaked `SESSION_SECRET` /
+`TOTP_ENCRYPTION_KEY` values (and a SHA-256 admin hash) in its `.env` example → replaced with
+placeholders. The same values are still **hardcoded as fallbacks** in `server/auth.ts`,
+`server/env-init.ts`, `server/env-defaults.ts` → follow-up below (behavior change, not in scope here).
+Matthias's untracked `.claude/settings.local.json` also contains these values in old `export …`
+permission entries — clean up locally.
 
 ### Session 4 — Requirements migration
 Branch: `docs/migrate-requirements`
@@ -173,6 +191,11 @@ _Filled during Sessions 5–9. Format: `TC-NNN-YY — short description — risk
 - Unused shadcn/ui components and dependencies (`refactor-clean`) — separate cleanup PR.
 - Automatic Paperless sync (see REQ-016 notes) — would be the first feature through the full V-Model.
 - `npm run build` fails locally on macOS (`fsevents` .node binary, see Session 2 log) — pre-existing, Docker build unaffected.
+- 🔴 **Hardcoded fallback secrets** in `server/auth.ts`, `server/env-init.ts`, `server/env-defaults.ts`
+  (the leaked `SESSION_SECRET` / `TOTP_ENCRYPTION_KEY` values and default password hashes). If production
+  env vars are missing, the app silently runs with publicly known secrets (fail-open). Should fail fast in
+  production instead — needs a REQ-001 AC + tests; do right after the migration or as a hotfix.
+- `CHANGELOG.md` history is German — translate or leave as historical record (new entries are English).
 - Existing codebase (122 files) is not yet Prettier-formatted — `prettier --write .` deferred to avoid a large noise diff; do as its own PR.
 
 ---
@@ -185,3 +208,4 @@ _Filled during Sessions 5–9. Format: `TC-NNN-YY — short description — risk
 | 2026-09-23 | Session 0 | [#5](https://github.com/matthias1309/finanzflow/pull/5) | `secrets.env` removed from tracking + `.gitignore` updated. History purge deferred (would need force-push to public repo). Credential rotation on the Pi is still open — manual, Matthias. |
 | 2026-09-23 | Session 1 | [#6](https://github.com/matthias1309/finanzflow/pull/6) | Repo flattened to root (`git mv` from `sankey-finance/`), `documentation/` → `docs/`, `DEPLOYMENT.md`/`DOCKER.md`/`.dockerignore` paths fixed. Verified: `npm install`, `docker build .`, `npm test` (125/125), `tsc --noEmit` (same 6 pre-existing baseline errors, none new). Pi redeploy with the new layout is still open — manual, Matthias. |
 | 2026-09-23 | Session 2 | [#7](https://github.com/matthias1309/finanzflow/pull/7) | tsc 0 errors (added `target: "ES2020"`, fixed CSP directive typing, removed a dead `/test-session` debug endpoint). ESLint (flat config, `no-explicit-any`=error) + Prettier added; fixed all 43 lint errors / 12 warnings (typed all `any`, fixed a real double-DELETE bug in `Users.tsx` found via unused-var lint). GitHub Actions CI added (`typecheck` → `lint` → `test`). Package renamed `rest-express` → `finanzflow`. `.nvmrc` = 22. Prettier left unapplied to the existing tree (Matthias's call — avoid noise diff). Found pre-existing `npm run build` failure on macOS (`fsevents`, unrelated to this session, Docker build unaffected) — logged as a follow-up, not fixed. |
+| 2026-09-23 | Session 3 | _(PR pending)_ | `.claude/` rules (7 incl. new `architecture.md`), 9 commands, post-edit ESLint hook, clean `settings.json`, `CR-TEMPLATE.md`, slim English root `CLAUDE.md`, gitignored `CLAUDE.local.md`. Old `tests/CLAUDE.md` + `docs/documentation-CLAUDE.md` folded in and deleted. Function limit unified to ~30 lines (Matthias). Found + fixed leaked secret values in `DEPLOYMENT.md`; hardcoded fallback secrets in server code logged as 🔴 follow-up. |

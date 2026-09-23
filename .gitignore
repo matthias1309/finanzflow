@@ -20,3 +20,7 @@ finanzflow-app.tar
 docker-compose.yml     # ← Use docker-compose.yml.example as template
 certs/
 data/
+# Claude Code — personal overrides and local settings, not for the team
+CLAUDE.local.md
+.claude/settings.local.json
+.claude/logs/

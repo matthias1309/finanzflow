@@ -1,289 +1,135 @@
-# FinanzFlow — CLAUDE.md
+# CLAUDE.md — Project Instructions for Claude Code
 
-Persönliches Finanz-Dashboard für deutsche Bankkonten (N26, DKB, ING). React-SPA + Express-5-API + SQLite. Single-User, läuft auf Raspberry Pi mit Docker.
+Primary system prompt for Claude Code in this repository. Committed and shared; personal and
+machine-specific notes go into `CLAUDE.local.md` (gitignored).
 
-## Schnellstart
+---
+
+## Project Overview
+
+**Project Name:** FinanzFlow
+**Purpose:** Personal finance dashboard for German bank accounts (N26, DKB, ING). Imports bank
+statement PDFs (upload or from Paperless-ngx), categorizes transactions, and visualizes money
+flows (Sankey chart, monthly dashboard).
+**Primary Audience:** One household — few users, self-hosted
+**Status:** Active development — currently being migrated onto the V-Model template
+(`docs/MIGRATION-PLAN.md`; read it first in every migration session)
+
+---
+
+## Tech Stack
+
+| Layer        | Technology                                                  |
+|--------------|-------------------------------------------------------------|
+| Language     | TypeScript 5.x (strict)                                     |
+| Runtime      | Node.js 22 locally (`.nvmrc`), Node 18 in the Docker image  |
+| Frontend     | React 18 SPA, Vite, Tailwind, shadcn/ui, React Query, D3    |
+| Backend      | Express 5                                                   |
+| Database     | SQLite (`better-sqlite3`) via Drizzle ORM                   |
+| Validation   | Zod (schemas in `shared/schema.ts`)                         |
+| Testing      | Vitest + Supertest (unit/API), Playwright (E2E)             |
+| Linting      | ESLint (typescript-eslint, flat config) + Prettier          |
+| CI/CD        | GitHub Actions (typecheck → lint → test)                    |
+| Deployment   | Docker on a Raspberry Pi, HTTPS (see `DEPLOYMENT.md`)       |
+
+---
+
+## Key Conventions
+
+All coding and workflow conventions live in `.claude/rules/`. Read them before writing or
+modifying code.
+
+- **Coding style:** `.claude/rules/coding-style.md`
+- **Architecture rules (shared schema, storage façade, recipes):** `.claude/rules/architecture.md`
+- **Testing practices:** `.claude/rules/testing-practices.md`
+- **Git workflow, CHANGELOG, pre-commit review:** `.claude/rules/git-workflow.md`
+- **V-Model & traceability, REQ/Gherkin/ARC42 conventions:** `.claude/rules/v-model.md`
+- **Security:** `.claude/rules/security.md`
+- **Project learnings & known pitfalls:** `.claude/rules/learnings.md`
+
+When in doubt, follow the existing patterns in the codebase rather than inventing new ones.
+If a convention is unclear, ask before proceeding.
+
+---
+
+## Common Commands
 
 ```bash
-PORT=3000 npm run dev      # Nicht Port 5000 — macOS AirPlay belegt ihn
-npm test                   # Vitest: Unit- + API-Tests
-npm run test:e2e           # Playwright E2E (erfordert laufenden Dev-Server)
-npm run build              # Production Build
+npm install              # install dependencies (Node version from .nvmrc)
+PORT=3000 npm run dev    # dev server — port 3000, NOT 5000 (macOS AirPlay occupies it)
+npm run build            # production build
+npm test                 # Vitest: unit + API tests
+npm run test:watch       # Vitest watch mode
+npm run test:e2e         # Playwright E2E (starts its own server on port 3001)
+npm run typecheck        # tsc --noEmit
+npm run lint             # ESLint
+npm run lint:fix         # ESLint with auto-fix
+npm run 2fa:reset        # reset 2FA for a user
 ```
 
-> **Port 3000 ist Pflicht lokal.** Port 5000 ist auf macOS durch AirPlay Receiver (ControlCenter) belegt und führt zu EADDRINUSE.
+Always run `typecheck`, `lint`, and `test` before considering a task complete.
 
-## Deployment
+---
 
-Siehe **[`DEPLOYMENT.md`](DEPLOYMENT.md)** für:
-- Raspberry Pi Setup (Docker + HTTPS)
-- Updates nach Code-Änderungen
-- Backup-Strategie
-- Troubleshooting
-
-## Projektstruktur
+## Project Structure
 
 ```
-shared/schema.ts          ← Einzige Quelle der Wahrheit für Typen + Validierung
-server/
-  db.ts                   ← SQLite-Verbindung + Schema-Migration + Seeding
-  storage.ts              ← Alle DB-Zugriffe (Façade, nie direktes Drizzle außerhalb)
-  createApp.ts            ← App-Factory ohne listen() — von Tests und index.ts genutzt
-  pdfParser.ts            ← PDF-Extraktion + bankspezifische Parser
-  routes/                 ← Ein Router pro Ressource
-client/src/
-  lib/config.ts           ← API_BASE-Auflösung + safeCssColor()
-  lib/queryClient.ts      ← QueryClient, apiRequest()
-  pages/                  ← Eine Komponente pro Seite
-docs/
-  REQ/                    ← Anforderungen REQ-001 bis REQ-012
-  architecture/ARC42.md   ← Arc42-Architekturdokument
+shared/schema.ts        # single source of truth: Drizzle tables, Zod schemas, TS types
+server/                 # Express API: createApp, db, storage façade, parsers, routes/
+client/src/             # React SPA: pages/, components/, lib/
 tests/
-  server/                 ← Vitest (Unit + API via Supertest)
-  e2e/                    ← Playwright-Specs
+  server/unit/          # Vitest unit tests
+  server/api/           # Vitest + Supertest API tests
+  e2e/                  # Playwright specs
+docs/
+  REQ/                  # requirements (legacy layout → docs/requirements/ in migration Session 4)
+  architecture/ARC42.md # system-level architecture (arc42) incl. ADRs
+  code-reviews/         # CR-XXX review documents + CR-TEMPLATE.md
+  MIGRATION-PLAN.md     # template migration: checklist, decisions, session log
+.claude/                # rules/, commands/ (slash commands), hooks/, settings.json
 ```
 
-## Entwicklungsprozess
+---
 
-Bei neuen Features oder Erweiterungen bestehender Features immer in dieser Reihenfolge:
+## Language
 
-1. **REQ erstellen oder anpassen** — Acceptance Criteria (Gherkin-Szenarien) vollständig ausformulieren, bevor Code geschrieben wird
-2. **Tests schreiben** — direkt aus den AC abgeleitet (Vitest für Unit/API, Playwright für E2E)
-3. **Implementieren** — erst wenn REQ und Tests stehen
-4. **Arc42 aktualisieren** — betroffene Kapitel in `docs/architecture/ARC42.md` anpassen: Kapitel 5 (Building Block View) bei neuen Komponenten/Routen, Kapitel 6 (Runtime View) bei neuen Abläufen, Kapitel 8 (Crosscutting Concepts) bei übergreifenden Änderungen (Auth, Sicherheit, Logging)
-5. **CHANGELOG.md erweitern** — unter `[Unreleased]` die Änderungen eintragen (Added / Changed / Fixed / Removed)
-6. **Committen und pushen** — erst nach Changelog-Eintrag
+- **All repository content is written in English** — code, comments, rules, commands, docs,
+  commit messages, new CHANGELOG entries.
+- Exception: real German UI labels and error messages (quoted verbatim in Gherkin).
+- Conversation with the developer may happen in any language; the repository stays English.
 
-Wenn TDD nicht möglich ist (z.B. rein visuelle Änderungen ohne messbare Assertions), explizit darauf hinweisen bevor weitergemacht wird.
+---
 
-## Architektur-Kernregeln
+## Important Notes
 
-### Shared Schema — Single Source of Truth
+- **Never commit secrets.** The repo is public. Use environment variables; `.env.example`
+  documents names with placeholders only. See `.claude/rules/security.md`.
+- **Never disable or bypass the security middleware** (`securityHeadersMiddleware`,
+  `authRateLimiter`, `csrfProtectionMiddleware`, `requireAuth`, `requireAdmin`).
+- **Never force-push to `main`.** One branch + one PR per change; CI must be green before merge.
+- **V-Model first:** REQ → ARCH → TEST-SPEC → tests → implementation → CR. See `.claude/rules/v-model.md`.
+- **Before adding a dependency**, check whether the functionality already exists and confirm
+  with the developer.
+- **Database schema changes** are inline SQL in `server/db.ts` (no migration tool) and must be
+  backwards-compatible with the existing production database on the Pi.
+- **Keep this file up to date** when the stack or conventions change.
 
-`shared/schema.ts` definiert Drizzle-Tabellen, Zod-Insert-Schemas und TypeScript-Typen. **Alle** Validierungen und Typen kommen von hier — nie duplizieren.
+---
 
-```
-shared/schema.ts  →  server/routes/*.ts  (Zod .safeParse zur Laufzeit)
-                  →  client/src/pages/*.tsx  (z.infer<> für Form-Typen)
-```
+## Architecture Notes
 
-Neues Feld immer zuerst in `shared/schema.ts` (Tabelle + Zod-Erweiterung), dann `CREATE TABLE IF NOT EXISTS` in `db.ts` erweitern, dann Storage-Methode.
+- All DB access goes through `server/storage.ts`; all types and validation come from
+  `shared/schema.ts` (details: `.claude/rules/architecture.md`).
+- `server/createApp.ts` builds the app without `listen()` so tests can use Supertest directly.
+- Auth and CSRF are bypassed when `APP_PASSWORD_HASH` is unset or `NODE_ENV=test` — intentional.
+- `amount` is always positive; `type` (`income` / `expense` / `transfer`) carries the sign.
+- System-level architecture and ADRs: `docs/architecture/ARC42.md`.
 
-### Storage-Façade — kein direktes Drizzle außerhalb
+---
 
-Alle Datenbankzugriffe gehen über das `storage`-Objekt in `server/storage.ts`. Keine Drizzle-Queries in Route-Handlern, Parsern oder anderen Dateien.
+## Out of Scope (ask first)
 
-```typescript
-// ✅ Korrekt
-storage.getAccounts()
-storage.createTransaction(data)
-
-// ❌ Verboten
-db.select().from(accounts).all()  // nicht in routes/*.ts
-```
-
-### CSS-Injection verhindern
-
-Farben aus der DB **immer** durch `safeCssColor()` aus `client/src/lib/config.ts` leiten, bevor sie in SVG-`fill`/`stroke`-Attribute fließen.
-
-```typescript
-style={{ backgroundColor: safeCssColor(acc.color) }}  // ✅
-style={{ backgroundColor: acc.color }}                 // ❌
-```
-
-## Sicherheitsregeln — nicht umgehen
-
-Diese Middleware-Schicht darf **nie** deaktiviert oder umgangen werden:
-
-| Middleware | Datei |
-|---|---|
-| `authRateLimiter` | `server/auth.ts` |
-| `basicAuthMiddleware` | `server/auth.ts` |
-| `csrfProtectionMiddleware` | `server/securityHeaders.ts` |
-| `securityHeadersMiddleware` | `server/securityHeaders.ts` |
-
-In `NODE_ENV !== 'production'` (dev + test) sind Auth und CSRF automatisch deaktiviert — das ist so gewollt und kein Bug.
-
-Spezifische Anforderungen (Rate-Limits, ReDoS-Schutz) stehen in [REQ-001](docs/REQ/REQ-001-authentication.md) und [REQ-005](docs/REQ/REQ-005-pdf-import.md).
-
-## Features erweitern
-
-### Neuen API-Endpunkt hinzufügen
-
-1. REQ-Datei erstellen oder anpassen, AC formulieren
-2. API-Tests in `tests/server/api/meinfeature.test.ts` schreiben
-3. Neue Datei `server/routes/meinfeature.ts` — Router + Zod-Validierung
-4. In `server/routes.ts` registrieren: `app.use("/api/meinfeature", meinfeatureRouter)`
-5. Arc42 Kapitel 5 (Building Block View) aktualisieren
-
-### Neuen Bank-Parser hinzufügen
-
-1. REQ-005 in `docs/REQ/REQ-005-pdf-import.md` ergänzen
-2. Unit-Tests mit Fixture-Text in `tests/server/unit/pdfParser.test.ts` schreiben
-3. `detectBank()` in `server/pdfParser.ts` um die Bank erweitern
-4. `parseXYZ(text: string): ParsedTransaction[]` Funktion hinzufügen
-5. In `parsePDF()` aufrufen (vor dem Generic-Fallback)
-
-### Neues Datenbankfeld hinzufügen
-
-1. Tabellendefinition in `shared/schema.ts` ergänzen
-2. Zod-Schema ggf. erweitern (`.extend({})`)
-3. `CREATE TABLE IF NOT EXISTS` in `server/db.ts` um die Spalte erweitern — **kein** Migration-Tool, inline SQL
-4. Storage-Interface (`IStorage`) und -Implementierung in `server/storage.ts` aktualisieren
-5. Route-Handler anpassen
-
-## Codestil
-
-Projektspezifische Regeln, die über die allgemeinen TypeScript-Standards hinausgehen:
-
-- Zod `.safeParse()` für alle externen Eingaben — nie `parse()` (wirft unkontrolliert)
-- `amount` in der DB immer positiv; `type` (`income` / `expense` / `transfer`) trägt die Vorzeichen-Semantik
-
-## TypeScript-Standards
-
-### Typsicherheit
-
-- **Kein `any` — niemals.** Stattdessen `unknown` mit Type Guard oder konkreten Typen.
-- **Explizite Return-Typen** bei allen nicht-trivialen Funktionen.
-- **`interface`** für Objektstrukturen, **`type`** für Unions und Aliases.
-- **Strict Mode bleibt aktiv** (`"strict": true` in tsconfig) — nicht aushebeln, nicht mit `@ts-ignore` umgehen.
-- **`readonly`** wo immer möglich bei Parametern und Properties.
-
-```typescript
-// ❌ Schlecht
-function process(data: any): any { ... }
-
-// ✅ Gut
-function processUser(data: User): ProcessedUser { ... }
-```
-
-### Naming
-
-- **Variablen und Funktionen**: `camelCase`
-- **Klassen, Interfaces, Types, React-Komponenten**: `PascalCase`
-- **Globale unveränderliche Konstanten**: `UPPER_SNAKE_CASE`
-- **Keine Abkürzungen** — erlaubte Ausnahmen: `id`, `db`, `req`, `res`, `err`, `ctx`
-- **Namen sind selbsterklärend** — kein `data`, `info`, `temp`, `value` ohne Kontext
-
-### Funktionen
-
-- **Single Responsibility** — eine Funktion, eine Aufgabe.
-- **Maximale Länge: ~20 Zeilen** — bei mehr aufteilen.
-- **Maximale Parameter: 3** — bei mehr ein Optionsobjekt übergeben.
-- **Keine Flag-Parameter** — `doSomething(true)` ist verboten (was ist `true`?).
-- **Pure Functions bevorzugen** — keine versteckten Seiteneffekte.
-- **Fehler über Exceptions**, nicht über `boolean`-Rückgabewerte.
-
-```typescript
-// ❌ Schlecht
-function handle(user: User, isAdmin: boolean, sendMail: boolean) { ... }
-
-// ✅ Gut
-interface HandleUserOptions {
-  readonly user: User;
-  readonly role: UserRole;
-  readonly notifications: NotificationConfig;
-}
-function handleUser(options: HandleUserOptions): void { ... }
-```
-
-### Code-Struktur
-
-- **DRY** — ab der dritten Wiederholung abstrahieren (Rule of Three).
-- **KISS** — einfachste funktionierende Lösung bevorzugen.
-- **YAGNI** — keine Features auf Vorrat; nur bauen, was jetzt gebraucht wird.
-- **Einheitliches Abstraktionslevel** — eine Funktion arbeitet auf genau einem Level.
-
-### Fehlerbehandlung
-
-- **Alle Fehler explizit typisieren** — kein `catch(e: any)`.
-- **Eigene Error-Klassen** für domänenspezifische Fehler.
-- **Keine stillen Fehler** — `catch` ohne Handling ist verboten.
-
-```typescript
-// ✅ Gut
-class UserNotFoundError extends Error {
-  constructor(userId: string) {
-    super(`User not found: ${userId}`);
-    this.name = 'UserNotFoundError';
-  }
-}
-```
-
-## Tests
-
-- **Jede neue Funktion braucht Testabdeckung** — mindestens Happy Path + ein Fehlerfall.
-- **Testnamen beschreiben das erwartete Verhalten**, nicht die Implementierung: `should return null when user not found`.
-- **Keine Logik in Tests** — nur Setup, Ausführung, Assertion. Kein `if`, kein `for`, keine Hilfsfunktionen mit Branches.
-
-## Was Claude hier NICHT tun soll
-
-Punkte, die nicht anderswo stehen und besondere Aufmerksamkeit brauchen:
-
-- **Keine Magic Numbers** ohne benannte Konstante.
-- **Keine auskommentierten Code-Blöcke** stehen lassen.
-- **Keine Funktion über 20 Zeilen** ohne Rückfrage beim Nutzer.
-
-## Pre-Commit Self-Review (Pflicht)
-
-Vor jedem `git commit` führt Claude automatisch einen Self-Review durch. **Kein Commit ohne abgeschlossenen Review.** Wenn Punkte offen sind: erst beheben, dann committen.
-
-Nach Abschluss des Reviews gibt Claude folgende strukturierte Ausgabe aus:
-
-```
-=== CLEAN CODE REVIEW ===
-
-[ ] TypeScript
-    - Kein `any` verwendet
-    - Alle Return-Typen explizit
-    - Strict Mode nicht ausgehebelt
-
-[ ] Naming
-    - Konventionen eingehalten (camelCase / PascalCase / UPPER_SNAKE)
-    - Keine Abkürzungen
-    - Namen sind selbsterklärend
-
-[ ] Funktionen
-    - Single Responsibility eingehalten
-    - Keine Funktion > 20 Zeilen
-    - Maximal 3 Parameter (oder Objekt)
-    - Keine Flag-Parameter
-
-[ ] Struktur
-    - DRY: keine Wiederholungen ab Mal 3
-    - YAGNI: kein Code auf Vorrat
-    - Einheitlicher Abstraktionslevel
-
-[ ] Kommentare
-    - Kein auskommentierter Code
-    - Kommentare erklären Warum, nicht Was
-
-[ ] Fehlerbehandlung
-    - Keine `catch(e: any)`
-    - Keine stillen Fehler
-
-[ ] Tests
-    - Happy Path abgedeckt
-    - Mindestens ein Fehlerfall
-
-[ ] Boy Scout Rule
-    - Code minimal besser als vorher
-
-=== ERGEBNIS ===
-✅ Bereit für Commit
-– ODER –
-❌ Offen: [Liste der Verstöße mit Datei + Zeile]
-========================
-```
-
-## Häufige Fallstricke
-
-| Problem | Ursache | Lösung |
-|---|---|---|
-| Graue Seite im Browser | CSP blockiert Vite Fast Refresh | Nur in dev: `unsafe-inline` + `unsafe-eval` in CSP — bereits konfiguriert |
-| Leeres Dashboard nach Deploy | `VITE_API_BASE` fehlte beim Build | Mit beiden Env-Vars neu bauen |
-| `EADDRINUSE` auf Port 5000 | macOS AirPlay Receiver | `PORT=3000 npm run dev` |
-| `import.meta`-Warning im Build | esbuild CJS-Bundle + `import.meta.url` in pdfParser | Harmlos — Dead Code im CJS-Pfad |
-| `._`-Dateien im tar.gz | macOS `tar` schreibt Metadaten | `COPYFILE_DISABLE=1 tar …` |
-| `ERR_REQUIRE_ESM` beim Start | `@noble/hashes` oder `@scure/base` v2 im Lock | `overrides` in `package.json` prüfen; `otplib` nicht auf v13 upgraden |
-| Tests laufen nicht lokal | `better-sqlite3 v9` hat kein prebuilt für Node 25 | `npm install --ignore-scripts` verwenden; Tests nur auf Node 18/20 lauffähig |
+- Major dependency upgrades (e.g. Node in the Dockerfile, `better-sqlite3`, `otplib` v13)
+- Changing the deployment setup on the Pi (`DEPLOYMENT.md`, `docker-compose.yml.example`)
+- Reformatting the whole tree with Prettier (planned as its own PR)
+- Rewriting git history (e.g. purging leaked secrets) — needs an explicit decision

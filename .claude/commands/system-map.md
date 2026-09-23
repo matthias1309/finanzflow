@@ -1,0 +1,99 @@
+Generate a horizontal system map showing how all requirements and architectures interrelate.
+
+This complements `/traceability` (which is *vertical*: REQ → ARCH → TEST → code coverage).
+`/system-map` is *horizontal*: which REQs share a scope, what builds on what, which
+architecture components are touched by many features, and where the change-risk hotspots are.
+
+The primary consumer is `/new-requirement`: before a new story is written, this map is the
+pre-computed "touchpoint index" used to find related REQs without re-reading the whole catalog
+(see "Claude Behaviour" in `.claude/rules/v-model.md`).
+
+## How to build it
+
+Do NOT rely on regex alone — explicit `REQ-XXX` cross-references in the files are sparse.
+The real relationships live in shared modules, shared database tables, and the Background/Notes
+sections. You must read and interpret, not just grep.
+
+1. Scan `docs/requirements/REQ-*.md` (while the migration is running, also `docs/REQ/`) and
+   `docs/architecture/ARCH-*.md`. Read `docs/requirements/REQ-INDEX.md` for the canonical
+   numbering and any **intentional numbering gaps**. Use `docs/architecture/ARC42.md` chapter 5
+   (Building Block View) to map features to modules and tables.
+2. For each REQ, extract:
+   - Title and status
+   - **Touchpoints** — the modules (`server/routes/*.ts`, `server/pdfParser.ts`, …), database
+     tables (`shared/schema.ts`), calculations, routes, and UI pages it affects. Read the REQ
+     Background/ACs/Notes and its ARCH.
+   - **Explicit references** — any `REQ-XXX` mentioned in the body.
+   - **Supersedes** — any REQ explicitly marked as replacing another.
+3. Derive REQ↔REQ relationships from BOTH explicit refs AND shared touchpoints
+   (two REQs writing the same table, or extending the same module, are related even with no link):
+   - **builds-on** — REQ depends on capability introduced by another (e.g. batch import builds on PDF import)
+   - **overlaps** — both touch the same module/table/calculation, compatible
+   - **supersedes / superseded-by** — explicit replacement
+4. Stamp the output with today's date (run `date +%F`).
+
+## Output — write to `docs/SYSTEM-MAP.md`
+
+Use this structure:
+
+```markdown
+# System Map — FinanzFlow
+
+**Generated:** <YYYY-MM-DD> · **Source:** N REQs, N ARCHs · **Regenerate:** `/system-map`
+
+> ⚠️ Generated artifact. Do not hand-edit — it will be overwritten. If a relationship here
+> looks wrong, fix the underlying REQ/ARCH and regenerate. Treat this map as stale once any
+> REQ/ARCH changes; regenerate before relying on it.
+
+## Domain Clusters
+
+Group every REQ under a functional domain (e.g. Auth & Access, Master Data, Import,
+Dashboard & Visualization, UI & Platform). For each cluster:
+
+### <Domain name>
+- **REQs:** REQ-XXX (Title), REQ-YYY (Title), …
+- **Shared architecture:** the tables / modules / routes this cluster owns
+- **One-line purpose**
+
+## Dependency Matrix
+
+| REQ | Title | Builds on | Overlaps with | Supersedes |
+|-----|-------|-----------|---------------|------------|
+| REQ-011 | Batch import | REQ-005 | REQ-006, REQ-016 | — |
+
+(Show only non-empty relationships. "Builds on" = hard dependency; "Overlaps with" = shared touchpoint.)
+
+## Architecture Interplay (Touchpoint Index)
+
+For each shared module / database table / calculation, list which REQs touch it.
+This is the lookup for new stories — "new story touches X → these REQs also touch X".
+
+| Touchpoint | Type | Touched by |
+|-----------|------|------------|
+| `transactions` | table | REQ-004, REQ-005, REQ-011, REQ-016 |
+| `server/pdfParser.ts` | module | REQ-005, REQ-011, REQ-016 |
+
+## Hotspots (change-risk)
+
+Rank the REQs and touchpoints with the most dependents. These are where a new or changed
+requirement is most likely to cause a spec conflict or a code regression — review them first.
+
+- **REQ-XXX** — N dependents: …
+- **<touchpoint>** — touched by N REQs: …
+
+## Coverage Notes
+
+Flag anything notable: a domain with no tests, an orphan REQ with no relationships,
+a touchpoint owned by a single REQ that many others read.
+
+Also restate any **intentional numbering gaps** from `REQ-INDEX.md` so a skipped number is
+never mistaken for a missing or lost requirement.
+```
+
+## After writing
+
+Tell the user:
+- The file path written and the generated date
+- A 2–3 line summary: number of domains, the top 1–2 hotspots
+- Reminder: regenerate with `/system-map` whenever REQs/ARCHs change; `/new-requirement`
+  consumes this map.
