@@ -5,6 +5,8 @@ finance.db
 .env
 .env.local
 .env.production
+secrets.env
+*.env
 *.log
 .DS_Store
 documentation/tickets/
