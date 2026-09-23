@@ -8,12 +8,12 @@
  * Tests die vollständigen Login (Passwort + TOTP) benötigen, prüfen auf
  * E2E_PASSWORD und E2E_TOTP_SECRET und überspringen sich andernfalls.
  */
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import { totp } from "otplib";
 
 // ─── Hilfsfunktion: vollständiger Login ──────────────────────────────────────
 
-async function loginAsAdmin(page: any) {
+async function loginAsAdmin(page: Page) {
   const password   = process.env.E2E_PASSWORD    ?? "";
   const totpSecret = process.env.E2E_TOTP_SECRET ?? "";
 
@@ -195,7 +195,7 @@ test.describe("Passwort setzen", () => {
 // ─── 2FA zurücksetzen ─────────────────────────────────────────────────────────
 
 test.describe("2FA zurücksetzen", () => {
-  test.skip("Admin setzt TOTP eines Benutzers zurück", async ({ page, request: apiRequest }) => {
+  test.skip("Admin setzt TOTP eines Benutzers zurück", async ({ page, request: _apiRequest }) => {
     // Benötigt Benutzer mit eingerichtetem TOTP.
     // Wird nach vollständiger TOTP-Implementierung für Multi-User aktiviert.
     await page.goto("/users");

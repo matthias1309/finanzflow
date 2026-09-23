@@ -53,7 +53,7 @@ pdfRouter.post("/", pdfRateLimiter, upload.single("pdf"), async (req, res) => {
       suggestedCategoryId: storage.suggestCategory(tx.description),
     }));
     res.json({ ...result, transactions });
-  } catch (err: any) {
+  } catch (err) {
     console.error("PDF-Verarbeitung fehlgeschlagen:", err);
     res.status(500).json({ error: "PDF konnte nicht verarbeitet werden. Bitte Datei prüfen." });
   }

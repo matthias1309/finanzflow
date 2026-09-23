@@ -54,10 +54,12 @@ transactionsRouter.post("/batch", batchRateLimiter, (req, res) => {
   }));
 
   const valid   = results.filter(r => r.result.success).map(r => r.result.data!);
-  const invalid = results.filter(r => !r.result.success).map(r => ({
-    idx:    r.idx,
-    errors: (r.result as any).error.flatten(),
-  }));
+  const invalid = results
+    .filter((r): r is typeof r & { result: { success: false } } => !r.result.success)
+    .map(r => ({
+      idx:    r.idx,
+      errors: r.result.error.flatten(),
+    }));
 
   const created = storage.createTransactions(valid);
   res.status(201).json({ created, skipped: invalid.length, errors: invalid });

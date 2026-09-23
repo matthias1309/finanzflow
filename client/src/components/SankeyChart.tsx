@@ -1,4 +1,4 @@
-import { useEffect, useRef, type MutableRefObject } from "react";
+import { useEffect, useMemo, useRef, type MutableRefObject } from "react";
 import * as d3 from "d3";
 import { sankey as d3Sankey, sankeyLinkHorizontal, sankeyLeft } from "d3-sankey";
 import { useTheme } from "@/context/ThemeContext";
@@ -347,13 +347,16 @@ export default function SankeyChart({ accountSummaries, accounts }: Props) {
   const { theme } = useTheme();
   const isDark = theme === "dark";
 
-  const colors: ChartColors = {
-    label:        isDark ? "#c9c8c6" : "#374151",
-    incomeVal:    isDark ? "#6daa45" : "#15803d",
-    expenseVal:   isDark ? "#f87171" : "#dc2626",
-    accountLabel: isDark ? "#e2e1df" : "#111827",
-    accountVal:   isDark ? "#797876" : "#6b7280",
-  };
+  const colors: ChartColors = useMemo(
+    () => ({
+      label:        isDark ? "#c9c8c6" : "#374151",
+      incomeVal:    isDark ? "#6daa45" : "#15803d",
+      expenseVal:   isDark ? "#f87171" : "#dc2626",
+      accountLabel: isDark ? "#e2e1df" : "#111827",
+      accountVal:   isDark ? "#797876" : "#6b7280",
+    }),
+    [isDark],
+  );
 
   useEffect(() => {
     if (!svgRef.current || !containerRef.current) return;
@@ -384,7 +387,7 @@ export default function SankeyChart({ accountSummaries, accounts }: Props) {
     renderIncomeLabels(nodeGs, incomeCats, colors);
     renderExpenseLabels(nodeGs, expenseCats, colors);
     setupZoom(svg, g, zoomRef);
-  }, [accountSummaries, accounts, theme]);
+  }, [accountSummaries, accounts, colors, isDark]);
 
   function zoomBy(factor: number): void {
     if (!svgRef.current || !zoomRef.current) return;

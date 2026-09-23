@@ -77,7 +77,7 @@ export default function ImportPDF() {
         autoCategory: tx.suggestedCategoryId != null,
       })));
     },
-    onError: (e: any) => toast({ title: "Fehler", description: e.message, variant: "destructive" }),
+    onError: (e: Error) => toast({ title: "Fehler", description: e.message, variant: "destructive" }),
   });
 
   const handleFile = useCallback((file: File) => {
@@ -87,7 +87,7 @@ export default function ImportPDF() {
     }
     setDone(false);
     uploadMut.mutate(file);
-  }, [defaultAccountId]);
+  }, [toast, uploadMut]);
 
   const onDrop = (e: React.DragEvent) => {
     e.preventDefault();
@@ -151,8 +151,9 @@ export default function ImportPDF() {
           ? `${autoCount} Kategorien wurden automatisch erkannt`
           : undefined,
       });
-    } catch (e: any) {
-      toast({ title: "Import fehlgeschlagen", description: e.message, variant: "destructive" });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Unbekannter Fehler";
+      toast({ title: "Import fehlgeschlagen", description: message, variant: "destructive" });
     } finally {
       setImporting(false);
     }

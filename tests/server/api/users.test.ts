@@ -13,11 +13,13 @@
  */
 import { describe, it, expect, beforeAll } from "vitest";
 import request from "supertest";
+import type { Express } from "express";
+import type { PublicUser } from "../../../shared/schema";
 
 const SEED_USER = "admin";
 const SEED_PASS = "AdminPass123!";
 
-let app: any;
+let app: Express;
 let adminSession: request.SuperAgentTest;
 let adminId: number;
 
@@ -43,7 +45,7 @@ beforeAll(async () => {
   expect(loginRes.body.step).toBe("done");
 
   const res = await adminSession.get("/api/users");
-  adminId = res.body.find((u: any) => u.username === SEED_USER)?.id;
+  adminId = (res.body as PublicUser[]).find(u => u.username === SEED_USER)?.id ?? 0;
 });
 
 // ─── GET /api/users ───────────────────────────────────────────────────────────
@@ -53,19 +55,19 @@ describe("GET /api/users", () => {
     const res = await adminSession.get("/api/users");
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
-    expect(res.body.some((u: any) => u.username === SEED_USER)).toBe(true);
+    expect((res.body as PublicUser[]).some(u => u.username === SEED_USER)).toBe(true);
   });
 
   it("seeded admin has isAdmin=1", async () => {
     const res = await adminSession.get("/api/users");
-    const admin = res.body.find((u: any) => u.username === SEED_USER);
+    const admin = (res.body as PublicUser[]).find(u => u.username === SEED_USER);
     // users.is_admin ist 0/1 (SQLite-Integer), kein Boolean — siehe shared/schema.ts
-    expect(admin.isAdmin).toBe(1);
+    expect(admin?.isAdmin).toBe(1);
   });
 
   it("does not include passwordHash or totpSecret in response", async () => {
     const res = await adminSession.get("/api/users");
-    res.body.forEach((u: any) => {
+    (res.body as PublicUser[]).forEach(u => {
       expect(u).not.toHaveProperty("passwordHash");
       expect(u).not.toHaveProperty("totpSecret");
     });
@@ -173,7 +175,7 @@ describe("DELETE /api/users/:id", () => {
     expect(res.status).toBe(204);
 
     const list = await adminSession.get("/api/users");
-    expect(list.body.some((u: any) => u.username === "todelete")).toBe(false);
+    expect((list.body as PublicUser[]).some(u => u.username === "todelete")).toBe(false);
   });
 
   it("returns 409 when trying to delete the last admin", async () => {
@@ -257,8 +259,8 @@ describe("POST /api/users/:id/2fa-reset", () => {
     expect(res.status).toBe(200);
 
     const list = await adminSession.get("/api/users");
-    const user = list.body.find((u: any) => u.id === created.body.id);
-    expect(user.totpEnabled).toBe(0);
+    const user = (list.body as PublicUser[]).find(u => u.id === created.body.id);
+    expect(user?.totpEnabled).toBe(0);
   });
 
   it("returns 404 for an unknown user id", async () => {
@@ -272,9 +274,9 @@ describe("POST /api/users/:id/2fa-reset", () => {
 describe("Seeding: ENV-Sync beim Serverstart", () => {
   it("seed-Admin existiert in der users-Tabelle", async () => {
     const res = await adminSession.get("/api/users");
-    const admin = res.body.find((u: any) => u.username === SEED_USER);
+    const admin = (res.body as PublicUser[]).find(u => u.username === SEED_USER);
     expect(admin).toBeDefined();
-    expect(admin.isAdmin).toBe(1);
+    expect(admin?.isAdmin).toBe(1);
   });
 
   it("seed-Admin hat den korrekten Passwort-Hash aus APP_PASSWORD_HASH", async () => {

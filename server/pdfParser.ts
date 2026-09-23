@@ -44,7 +44,10 @@ export function parseGermanDate(s: string): { iso: string; month: string } | nul
 async function extractPDFText(buffer: Buffer): Promise<string> {
   return new Promise((resolve, reject) => {
     const parser = new PDFParser(null, true);
-    parser.on("pdfParser_dataError", (err: any) => reject(new Error(err.parserError)));
+    parser.on("pdfParser_dataError", (err: { parserError: Error } | Error) => {
+      const parserError = err instanceof Error ? err : err.parserError;
+      reject(parserError);
+    });
     parser.on("pdfParser_dataReady", () => {
       const raw: string = parser.getRawTextContent();
       resolve(raw);
@@ -307,8 +310,9 @@ export async function parsePDF(buffer: Buffer): Promise<ParseResult> {
 
   try {
     rawText = await extractPDFText(buffer);
-  } catch (e: any) {
-    return { bank: "Unbekannt", transactions: [], rawText: "", errors: [`PDF konnte nicht gelesen werden: ${e.message}`] };
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "Unbekannter Fehler";
+    return { bank: "Unbekannt", transactions: [], rawText: "", errors: [`PDF konnte nicht gelesen werden: ${message}`] };
   }
 
   const bank = detectBank(rawText);

@@ -13,7 +13,6 @@ import { type Request, type Response, type NextFunction } from "express";
  */
 const isDev = process.env.NODE_ENV !== "production";
 const isDockerDeploy = process.env.DOCKER_DEPLOY === "true";
-const isRealProduction = !isDockerDeploy && process.env.NODE_ENV === "production";
 
 // In development Vite needs 'unsafe-inline' + 'unsafe-eval' for React Fast Refresh
 // In Docker: allow Google Fonts (needed for app)
@@ -28,6 +27,8 @@ const cspDirectives = isDev
       connectSrc:  ["'self'", "ws://localhost:*"],
       frameSrc:    ["'none'"],
       objectSrc:   ["'none'"],
+      baseUri:     ["'self'"],
+      formAction:  ["'self'"],
     }
   : isDockerDeploy
   ? {
@@ -39,6 +40,8 @@ const cspDirectives = isDev
       connectSrc:  ["'self'"],
       frameSrc:    ["'none'"],
       objectSrc:   ["'none'"],
+      baseUri:     ["'self'"],
+      formAction:  ["'self'"],
     }
   : {
       defaultSrc:  ["'self'"],

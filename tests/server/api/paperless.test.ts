@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import request from "supertest";
+import type { PaperlessAccountMapping } from "../../../shared/schema";
+import type { OpenDocument } from "../../../server/routes/paperless";
 
 const fetchKontoauszugDocuments = vi.fn();
 const downloadDocument = vi.fn();
@@ -51,7 +53,7 @@ describe("Paperless-Mappings", () => {
 
     const list = await agent.get("/api/paperless/mappings");
     expect(list.status).toBe(200);
-    expect(list.body.some((m: any) => m.paperlessTag === "Essenskonto")).toBe(true);
+    expect((list.body as PaperlessAccountMapping[]).some(m => m.paperlessTag === "Essenskonto")).toBe(true);
   });
 
   it("lehnt ein Mapping ohne Tag ab", async () => {
@@ -78,7 +80,7 @@ describe("Paperless-Mappings", () => {
     expect(del.status).toBe(200);
 
     const list = await agent.get("/api/paperless/mappings");
-    expect(list.body.some((m: any) => m.id === create.body.id)).toBe(false);
+    expect((list.body as PaperlessAccountMapping[]).some(m => m.id === create.body.id)).toBe(false);
   });
 });
 
@@ -115,7 +117,7 @@ describe("GET /api/paperless/documents", () => {
     const res = await agent.get("/api/paperless/documents");
     expect(res.status).toBe(200);
 
-    const byId = (id: number) => res.body.find((d: any) => d.id === id);
+    const byId = (id: number) => (res.body as OpenDocument[]).find(d => d.id === id);
     expect(byId(1)).toMatchObject({ status: "resolved", accountId, matchedTag: "Essenskonto-Klassifizierung" });
     expect(byId(2)).toMatchObject({ status: "unmapped", accountId: null, matchedTag: null });
     expect(byId(3)).toMatchObject({ status: "unmapped", accountId: null, matchedTag: "Autokonto-Klassifizierung" });
@@ -130,7 +132,7 @@ describe("GET /api/paperless/documents", () => {
     await agent.post("/api/paperless/documents/5/confirm").send({ accountId });
 
     const res = await agent.get("/api/paperless/documents");
-    expect(res.body.some((d: any) => d.id === 5)).toBe(false);
+    expect((res.body as OpenDocument[]).some(d => d.id === 5)).toBe(false);
   });
 });
 

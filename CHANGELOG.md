@@ -8,6 +8,7 @@ Format angelehnt an [Keep a Changelog](https://keepachangelog.com/de/1.0.0/).
 ## [Unreleased]
 
 ### Hinzugefügt
+- **Quality-Baseline für Claude-Code-Migration (Session 2)** — `tsc --noEmit` läuft fehlerfrei, ESLint (typescript-eslint, `no-explicit-any` als Error) + Prettier eingerichtet, GitHub-Actions-CI (`typecheck` → `lint` → `test`), Paket auf `finanzflow` umbenannt, `.nvmrc` dokumentiert die lokal funktionierende Node-Version. Details in `docs/MIGRATION-PLAN.md` (Session-2-Log).
 - **Paperless-Kontoauszug-Import (REQ-016)** — Kontoauszüge, die bereits in Paperless-ngx (gleicher Raspberry Pi) archiviert sind, können ohne erneuten manuellen Upload übernommen werden
   - Zuordnungstabelle Paperless-Tag → Konto (`paperless_account_mappings`), z.B. Tag "Essenskonto" → Konto "Gemeinschaftskonto"
   - Neuer HTTP-Client `server/paperlessClient.ts` gegen die Paperless-REST-API (Tag-Auflösung + PDF-Download), eigene Fehlerklassen für Config-/Erreichbarkeits-/Auth-/API-Fehler
@@ -20,6 +21,9 @@ Format angelehnt an [Keep a Changelog](https://keepachangelog.com/de/1.0.0/).
   - **REQ-016** `documentation/REQ/REQ-016-paperless-import.md` mit 10 Gherkin-Szenarien
 
 ### Behoben
+- **`Users.tsx`: doppelter DELETE-Request bei Löschfehler** — `deleteMut.onError` feuerte einen zweiten, redundanten `DELETE /api/users/:id`-Request und ignorierte dessen Ergebnis, statt nur den Fehler-Toast zu zeigen. Beim Aufräumen ungenutzter ESLint-Variablen (`no-unused-vars`) aufgefallen und entfernt.
+- **`server/securityHeaders.ts`: CSP-Direktiven-Typfehler** — die drei Branches der Content-Security-Policy (dev / Docker / echte Produktion) hatten unterschiedliche Objekt-Shapes (`baseUri`/`formAction` nur im Produktions-Branch), was `tsc` als Typfehler meldete. Alle drei Branches setzen jetzt `baseUri: ["'self'"]` und `formAction: ["'self'"]`.
+- **`server/routes/auth.ts`: toter `/test-session`-Debug-Endpunkt entfernt** — schrieb auf ein nicht existierendes `SessionData.testValue`-Feld (tsc-Fehler), war ungenutzt und loggte Session-IDs via `console.log`.
 - **Login schlug immer fehl (SHA256- statt bcrypt-Vergleich)** — `POST /api/auth/login` hashte das eingegebene Passwort mit SHA256 und verglich es gegen `user.passwordHash` bzw. `APP_PASSWORD_HASH` — beide sind aber immer bcrypt-Hashes (siehe `routes/users.ts`, `.env.example`-Anleitung "Generate with: npx bcryptjs"). Der Vergleich konnte dadurch nie erfolgreich sein; jedes korrekte Passwort wurde als falsch abgelehnt. Login nutzt jetzt `bcrypt.compareSync()`. Zusätzlich abgesichert: ein undefinierter `user` bei gesetztem `useEnvHash` führte vorher zu einem ungefangenen 500er statt eines sauberen 401.
 - **Auth-Bypass in Tests ausgehebelt** — `server/auth.ts` setzte `APP_PASSWORD_HASH` auf einen Default-Hash sobald die Variable leer war, auch wenn `NODE_ENV=test` den in `tests/server/setup.ts` vorgesehenen Auth-Bypass erzwingen sollte; dadurch schlugen praktisch alle API-Tests mit 401 fehl. Fallback greift jetzt nicht mehr bei `NODE_ENV=test`.
 - **`tests/server/api/auth.test.ts` und `users.test.ts` liefen nie vollständig durch** — beide setzen bewusst einen echten `APP_PASSWORD_HASH`, um den echten Login-Flow zu testen; das war vom SHA256-Bug oben überdeckt und blieb daher unentdeckt. Nach dessen Behebung zeigten sich drei weitere, unabhängige Probleme:

@@ -86,14 +86,21 @@ Branch: `chore/flatten-repo-root`
 itself with the fresh install); `tsc --noEmit` shows the same 6 pre-existing baseline errors noted
 in the Planning row below — no new errors from the flatten. Those 6 are fixed in Session 2.
 
-### Session 2 — Quality baseline green
+### Session 2 — Quality baseline green ✅ done
 Branch: `chore/quality-baseline`
-- [ ] Make tests runnable locally (`better-sqlite3` native binding missing → `npm rebuild better-sqlite3`; document Node version in `.nvmrc`)
-- [ ] Fix the 6 `tsc` errors (`server/securityHeaders.ts`, `server/storage.ts`, …); add `typecheck` script
-- [ ] Add ESLint (typescript-eslint, `no-explicit-any` = error) + Prettier; `lint`, `lint:fix`, `format` scripts — **confirm new devDependencies with Matthias first**
-- [ ] GitHub Actions CI: install → typecheck → lint → `npm test` (E2E optional/nightly)
-- [ ] Rename package `rest-express` → `finanzflow`
-- [ ] Baseline numbers recorded in the session log (tests passing, lint findings fixed/suppressed)
+- [x] Make tests runnable locally → binding already resolved after Session 1's fresh install; documented working Node version in `.nvmrc` (22, matches this dev machine; Docker stays on Node 18 for now — separate out-of-scope upgrade)
+- [x] Fix the 6 `tsc` errors; add `typecheck` script
+      → `tsconfig.json`: added `target: "ES2020"` (fixes 3× `Set` iteration errors on Dashboard.tsx, Transactions.tsx, storage.ts); `securityHeaders.ts`: unified the 3 CSP-directive branches to the same shape (all now include `baseUri`/`formAction`) instead of a union type mismatch; `routes/auth.ts`: removed the unused `/test-session` debug endpoint (wrote to a non-existent `SessionData.testValue` field, dead code, leaked session IDs via `console.log`)
+- [x] Add ESLint (typescript-eslint flat config, `no-explicit-any` = error, react/react-hooks plugins) + Prettier; `lint`, `lint:fix`, `format` scripts — confirmed devDependencies with Matthias first
+      → pinned `eslint@^9` (not v10 — `eslint-plugin-react` doesn't support it yet) and `eslint-plugin-react-hooks@^5` (not the new v7 "compiler" line — its config schema needs a `zod-validation-error` subpath the project's zod-validation-error@3 doesn't export, crashes ESLint on startup)
+      → fixed all findings that surfaced (43 errors, 12 warnings): typed every `any` (mostly Supertest `res.body` in tests, React Query error handlers, the pdf2json error callback, the `AppError`-shaped Express error handler), removed dead imports/vars, memoized `SankeyChart`'s `colors`/`isDark` to satisfy `exhaustive-deps` without changing render frequency, converted `tailwind.config.ts` plugins from `require()` to ESM imports
+      → in passing, fixed a real bug in `Users.tsx`'s `deleteMut.onError` (it fired a second, redundant `DELETE` request and ignored the result — unused-var lint on `res`/`id` led to spotting it)
+      → Prettier is configured but the existing tree (122 files) was **not** reformatted — left for incremental/future cleanup per Matthias's call, to avoid a noise diff on top of the lint fixes
+- [x] GitHub Actions CI: `.github/workflows/ci.yml` — install (`npm ci`) → typecheck → lint → `npm test` (E2E not included, as planned)
+- [x] Rename package `rest-express` → `finanzflow` (`package.json` + regenerated `package-lock.json`)
+- [x] Baseline: 125/125 Vitest tests passing, 0 tsc errors, 0 lint errors/warnings, `npm ci` verified clean
+
+**Known pre-existing gap (not fixed, out of scope for this session):** `npm run build` fails locally on macOS with `No loader is configured for ".node" files: node_modules/fsevents/fsevents.node` (esbuild tries to bundle the optional, macOS-only `fsevents` transitive dependency because it isn't in the server bundle's `external` allowlist in `script/build.ts`). Confirmed this already fails on `main` before this session's changes — the Docker build path (Linux, no `fsevents` installed) is unaffected and was verified working in Session 1. Worth a follow-up chore.
 
 ### Session 3 — Claude Code infrastructure
 Branch: `chore/claude-template-setup`
@@ -165,6 +172,8 @@ _Filled during Sessions 5–9. Format: `TC-NNN-YY — short description — risk
 - Dockerfile uses `node:18-alpine` — Node 18 is EOL; upgrade (incl. `better-sqlite3` major) as a separate REQ-less chore after the migration.
 - Unused shadcn/ui components and dependencies (`refactor-clean`) — separate cleanup PR.
 - Automatic Paperless sync (see REQ-016 notes) — would be the first feature through the full V-Model.
+- `npm run build` fails locally on macOS (`fsevents` .node binary, see Session 2 log) — pre-existing, Docker build unaffected.
+- Existing codebase (122 files) is not yet Prettier-formatted — `prettier --write .` deferred to avoid a large noise diff; do as its own PR.
 
 ---
 
@@ -174,4 +183,5 @@ _Filled during Sessions 5–9. Format: `TC-NNN-YY — short description — risk
 |---|---|---|---|
 | 2026-09-23 | Planning | — | Assessment done, decisions D1–D7 recorded. Baseline: 6 tsc errors, 7/9 Vitest files fail locally (missing `better-sqlite3` binding), no CI, no lint. |
 | 2026-09-23 | Session 0 | [#5](https://github.com/matthias1309/finanzflow/pull/5) | `secrets.env` removed from tracking + `.gitignore` updated. History purge deferred (would need force-push to public repo). Credential rotation on the Pi is still open — manual, Matthias. |
-| 2026-09-23 | Session 1 | _(pending)_ | Repo flattened to root (`git mv` from `sankey-finance/`), `documentation/` → `docs/`, `DEPLOYMENT.md`/`DOCKER.md`/`.dockerignore` paths fixed. Verified: `npm install`, `docker build .`, `npm test` (125/125), `tsc --noEmit` (same 6 pre-existing baseline errors, none new). Pi redeploy with the new layout is still open — manual, Matthias. |
+| 2026-09-23 | Session 1 | [#6](https://github.com/matthias1309/finanzflow/pull/6) | Repo flattened to root (`git mv` from `sankey-finance/`), `documentation/` → `docs/`, `DEPLOYMENT.md`/`DOCKER.md`/`.dockerignore` paths fixed. Verified: `npm install`, `docker build .`, `npm test` (125/125), `tsc --noEmit` (same 6 pre-existing baseline errors, none new). Pi redeploy with the new layout is still open — manual, Matthias. |
+| 2026-09-23 | Session 2 | [#7](https://github.com/matthias1309/finanzflow/pull/7) | tsc 0 errors (added `target: "ES2020"`, fixed CSP directive typing, removed a dead `/test-session` debug endpoint). ESLint (flat config, `no-explicit-any`=error) + Prettier added; fixed all 43 lint errors / 12 warnings (typed all `any`, fixed a real double-DELETE bug in `Users.tsx` found via unused-var lint). GitHub Actions CI added (`typecheck` → `lint` → `test`). Package renamed `rest-express` → `finanzflow`. `.nvmrc` = 22. Prettier left unapplied to the existing tree (Matthias's call — avoid noise diff). Found pre-existing `npm run build` failure on macOS (`fsevents`, unrelated to this session, Docker build unaffected) — logged as a follow-up, not fixed. |

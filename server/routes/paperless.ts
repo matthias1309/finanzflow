@@ -56,7 +56,7 @@ paperlessRouter.delete("/mappings/:id", (req, res) => {
 
 type DocumentStatus = "resolved" | "unmapped" | "ambiguous";
 
-interface OpenDocument {
+export interface OpenDocument {
   id: number;
   title: string;
   created: string;

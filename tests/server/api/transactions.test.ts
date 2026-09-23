@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import request from "supertest";
 import { createApp } from "../../../server/createApp";
+import type { Category, Transaction } from "../../../shared/schema";
 
 const { app } = createApp();
 const agent = request(app);
@@ -14,7 +15,8 @@ async function createAccount(): Promise<number> {
 
 async function incomeCategory(): Promise<number> {
   const res = await agent.get("/api/categories");
-  return res.body.find((c: any) => c.type === "income").id as number;
+  const category = (res.body as Category[]).find(c => c.type === "income");
+  return category!.id;
 }
 
 // ─── Single transaction CRUD ──────────────────────────────────────────────────
@@ -91,7 +93,7 @@ describe("GET /api/transactions", () => {
   it("filters by month", async () => {
     const res = await agent.get("/api/transactions?month=2026-04");
     expect(res.status).toBe(200);
-    const descriptions = res.body.map((t: any) => t.description);
+    const descriptions = (res.body as Transaction[]).map(t => t.description);
     expect(descriptions).toContain("April-Buchung");
     expect(descriptions).not.toContain("März-Buchung");
   });

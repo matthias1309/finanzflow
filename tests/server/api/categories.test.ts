@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import request from "supertest";
 import { createApp } from "../../../server/createApp";
+import type { Category } from "../../../shared/schema";
 
 const { app } = createApp();
 const agent = request(app);
@@ -19,7 +20,7 @@ describe("GET /api/categories", () => {
 
   it("includes the seeded default categories", async () => {
     const res = await agent.get("/api/categories");
-    const names = res.body.map((c: any) => c.name);
+    const names = (res.body as Category[]).map(c => c.name);
     expect(names).toContain("Gehalt");
     expect(names).toContain("Lebensmittel");
   });
@@ -91,7 +92,7 @@ describe("DELETE /api/categories/:id", () => {
 
     // Verify it no longer appears in the list
     const list = await agent.get("/api/categories");
-    const ids = list.body.map((c: any) => c.id);
+    const ids = (list.body as Category[]).map(c => c.id);
     expect(ids).not.toContain(id);
   });
 });

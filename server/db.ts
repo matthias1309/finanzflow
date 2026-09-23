@@ -1,6 +1,5 @@
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import Database from "better-sqlite3";
-import bcrypt from "bcryptjs";
 import { categories } from "@shared/schema";
 
 // DB_PATH kann per Umgebungsvariable überschrieben werden (z.B. Docker-Deployment auf dem Raspberry Pi).
