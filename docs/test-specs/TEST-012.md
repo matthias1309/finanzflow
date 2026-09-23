@@ -15,6 +15,8 @@ No test file exists for the theme system at all — every TC below is `❌ missi
 **Type:** e2e
 **File:** ❌ missing
 
+**Status: accepted (Session 10).** Directly testable via Playwright's `colorScheme` emulation once an E2E spec exists for it — no server-side component to this feature at all. Left as an E2E follow-up.
+
 **Notes:** Playwright supports `colorScheme: "dark"` emulation (`page.emulateMedia` /
 project config) — directly testable, just not written. See Test Gap Backlog.
 
@@ -26,6 +28,8 @@ project config) — directly testable, just not written. See Test Gap Backlog.
 **Type:** e2e
 **File:** ❌ missing
 
+**Status: accepted (Session 10).** Directly testable via Playwright's `colorScheme` emulation once an E2E spec exists for it — no server-side component to this feature at all. Left as an E2E follow-up.
+
 **Notes:** Same mechanism as TC-012-01, `colorScheme: "light"`. See Test Gap Backlog.
 
 ---
@@ -35,6 +39,8 @@ project config) — directly testable, just not written. See Test Gap Backlog.
 **Maps to:** AC-012-03
 **Type:** e2e
 **File:** ❌ missing
+
+**Status: accepted (Session 10).** Directly testable via Playwright's `colorScheme` emulation once an E2E spec exists for it — no server-side component to this feature at all. Left as an E2E follow-up.
 
 **Notes:** No test clicks the theme toggle and asserts the `dark` class is removed from
 `document.documentElement` plus the label/icon swap. See Test Gap Backlog.
@@ -47,6 +53,8 @@ project config) — directly testable, just not written. See Test Gap Backlog.
 **Type:** e2e
 **File:** ❌ missing
 
+**Status: accepted (Session 10).** Directly testable via Playwright's `colorScheme` emulation once an E2E spec exists for it — no server-side component to this feature at all. Left as an E2E follow-up.
+
 **Notes:** Same gap, opposite direction. See Test Gap Backlog.
 
 ---
@@ -56,6 +64,8 @@ project config) — directly testable, just not written. See Test Gap Backlog.
 **Maps to:** AC-012-05
 **Type:** e2e
 **File:** ❌ missing
+
+**Status: accepted (Session 10).** Directly testable via Playwright's `colorScheme` emulation once an E2E spec exists for it — no server-side component to this feature at all. Left as an E2E follow-up.
 
 **Notes:** Overlaps TEST-009's TC-009-05 (Sankey dark/light color assertions) — same underlying
 gap, counted once in the backlog (attributed to REQ-009 there since it's about the chart's own

@@ -49,6 +49,12 @@ describe("POST /api/accounts", () => {
     const res = await agent.post("/api/accounts").send({ ...NEW_ACC, type: "magic" });
     expect(res.status).toBe(400);
   });
+
+  // TC-002-02
+  it("rejects an invalid IBAN", async () => {
+    const res = await agent.post("/api/accounts").send({ ...NEW_ACC, iban: "not-an-iban" });
+    expect(res.status).toBe(400);
+  });
 });
 
 describe("PUT /api/accounts/:id", () => {
@@ -76,6 +82,14 @@ describe("PUT /api/accounts/:id", () => {
   it("returns 400 for non-numeric id", async () => {
     const res = await agent.put("/api/accounts/abc").send(NEW_ACC);
     expect(res.status).toBe(400);
+  });
+
+  // TC-002-04
+  it("clears an existing IBAN when updated with iban: null", async () => {
+    await agent.put(`/api/accounts/${id}`).send({ ...NEW_ACC, iban: "DE89370400440532013000" });
+    const res = await agent.put(`/api/accounts/${id}`).send({ ...NEW_ACC, iban: null });
+    expect(res.status).toBe(200);
+    expect(res.body.iban).toBeNull();
   });
 });
 

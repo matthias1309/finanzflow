@@ -69,10 +69,10 @@ And the error indicates the batch exceeds the maximum size
 
 **Maps to:** AC-011-04
 **Type:** integration
-**File:** ❌ missing
+**File:** `tests/server/api/transactions-rate-limit.test.ts`
 
-**Notes:** `batchRateLimiter` has no `NODE_ENV=test` skip, so this is testable (20 sequential batch
-requests, then assert `429` on the 21st) but not written. See Test Gap Backlog (**medium**).
+**Notes:** Closed in Session 10 — kept in its own test file (fresh in-memory rate-limit counter)
+so it isn't affected by the other batch requests in `transactions.test.ts`.
 
 ---
 
@@ -83,9 +83,13 @@ requests, then assert `429` on the 21st) but not written. See Test Gap Backlog (
 **File:** ❌ missing
 
 **Notes:** Cross-endpoint orchestration (client calls `/batch` then `/learn`); the individual
-`/learn` behavior is TEST-006's concern, this AC is specifically about the two-request workflow
-happening together after a successful save. No E2E coverage of the Import page exists at all
-(same gap noted in TEST-005 TC-005-08). See Test Gap Backlog (**medium**).
+`/learn` behavior is TEST-006's concern (now well-covered, see TEST-006), this AC is specifically
+about the two-request workflow happening together after a successful save. No E2E coverage of the
+Import page exists at all (same gap noted in TEST-005 TC-005-08).
+
+**Status: accepted (Session 10).** Both underlying endpoints are now solidly covered
+independently; only the client-side two-request orchestration itself is untested. Left as an E2E
+follow-up.
 
 ---
 
@@ -93,9 +97,11 @@ happening together after a successful save. No E2E coverage of the Import page e
 
 **Maps to:** AC-011-06
 **Type:** integration
-**File:** ❌ missing
+**File:** `tests/server/api/categoryRules.test.ts`
 
-**Notes:** Same finding as TC-006-08 — 🔴 confirmed by direct test that this AC does not hold: an
-over-length or otherwise invalid entry currently fails the *entire* `/learn` batch with `400`
-rather than being skipped while valid entries are processed. See
-`docs/architecture/ARCH-011.md` Open Questions. **High risk**, implementation gap.
+**Notes:** Same finding as TC-006-08 — 🔴 **confirmed by a Session 10 regression test** that this
+AC does not hold: an invalid entry currently fails the *entire* `/learn` batch with `400` rather
+than being skipped while valid entries are processed. See `docs/architecture/ARCH-011.md` Open
+Questions. **High risk, implementation gap still open** — the test pins current behavior, it does
+not close the gap; update it to assert per-item skipping once `/learn` adopts
+`transactionsRouter.post("/batch")`'s pattern.

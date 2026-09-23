@@ -39,6 +39,8 @@ fixture via `seedData`). See Test Gap Backlog.
 **Type:** e2e
 **File:** ❌ missing
 
+**Status: accepted (Session 10).** Client-only feature (account-visibility toggle is deliberately not persisted, see ARCH-008) — no server-side data-integrity risk. The underlying summary data these views render is well-covered server-side by TEST-004. Left as an E2E follow-up.
+
 **Notes:** `Sankey card is rendered on the Dashboard` only checks the card exists, not that hiding
 an account changes its content. See Test Gap Backlog.
 
@@ -70,6 +72,8 @@ re-inclusion not separately asserted.
 **Type:** e2e
 **File:** ❌ missing
 
+**Status: accepted (Session 10).** Client-only feature (account-visibility toggle is deliberately not persisted, see ARCH-008) — no server-side data-integrity risk. The underlying summary data these views render is well-covered server-side by TEST-004. Left as an E2E follow-up.
+
 **Notes:** `seedData()` in `dashboard.spec.ts` only creates one account — no test scenario has
 three accounts to hide two of. See Test Gap Backlog.
 
@@ -80,6 +84,8 @@ three accounts to hide two of. See Test Gap Backlog.
 **Maps to:** AC-008-05
 **Type:** e2e
 **File:** ❌ missing
+
+**Status: accepted (Session 10).** Client-only feature (account-visibility toggle is deliberately not persisted, see ARCH-008) — no server-side data-integrity risk. The underlying summary data these views render is well-covered server-side by TEST-004. Left as an E2E follow-up.
 
 **Notes:** No test asserts the "N Konten ausgeblendet" header text. See Test Gap Backlog.
 
@@ -108,6 +114,8 @@ without any hide interaction), though it does not explicitly assert the *absence
 **Maps to:** AC-008-07
 **Type:** e2e
 **File:** ❌ missing
+
+**Status: accepted (Session 10).** Client-only feature (account-visibility toggle is deliberately not persisted, see ARCH-008) — no server-side data-integrity risk. The underlying summary data these views render is well-covered server-side by TEST-004. Left as an E2E follow-up.
 
 **Notes:** No test hides an account, reloads the page, and asserts it is visible again. This is
 the AC most specific to REQ-008's "intentionally not persisted" design decision (ARCH-008) and

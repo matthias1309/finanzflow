@@ -223,6 +223,12 @@ describe("GET /api/auth/2fa/status after setup", () => {
     expect(res.body.configured).toBe(true);
     expect(res.body.recoveryCodesRemaining).toBe(8);
   });
+
+  // TC-013-05
+  it("never re-exposes plaintext recovery codes", async () => {
+    const res = await request(app).get("/api/auth/2fa/status");
+    expect(res.body).not.toHaveProperty("recoveryCodes");
+  });
 });
 
 // ─── POST /api/auth/totp ──────────────────────────────────────────────────────

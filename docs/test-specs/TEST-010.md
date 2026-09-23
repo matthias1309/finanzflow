@@ -13,6 +13,8 @@
 **Type:** e2e
 **File:** ❌ missing
 
+**Status: accepted (Session 10).** UI-rendering/propagation concern with no server-side counterpart (the underlying `/api/months` and `/api/summary` data are covered — see TEST-004, TEST-007). Left as an E2E follow-up.
+
 **Notes:** No test asserts the month selector's *default value* is the current month (only that
 the selector is visible — `dashboard.spec.ts`). See Test Gap Backlog.
 
@@ -38,6 +40,8 @@ DISTINCT ... ORDER BY ... DESC` is simple, low-risk SQL).
 **Type:** e2e
 **File:** ❌ missing
 
+**Status: accepted (Session 10).** UI-rendering/propagation concern with no server-side counterpart (the underlying `/api/months` and `/api/summary` data are covered — see TEST-004, TEST-007). Left as an E2E follow-up.
+
 **Notes:** The client-side merge-with-current-month logic (ARCH-010) has no test on either page.
 See Test Gap Backlog.
 
@@ -48,6 +52,8 @@ See Test Gap Backlog.
 **Maps to:** AC-010-04
 **Type:** e2e
 **File:** ❌ missing
+
+**Status: accepted (Session 10).** UI-rendering/propagation concern with no server-side counterpart (the underlying `/api/months` and `/api/summary` data are covered — see TEST-004, TEST-007). Left as an E2E follow-up.
 
 **Notes:** Overlaps TEST-007's TC-007-02 (KPIs update on month change) and TEST-009's TC-009-07
 (Sankey updates on month change) — same underlying gap, counted once here and cross-referenced
@@ -61,6 +67,8 @@ rather than tripled in the backlog.
 **Type:** e2e
 **File:** ❌ missing
 
+**Status: accepted (Session 10).** UI-rendering/propagation concern with no server-side counterpart (the underlying `/api/months` and `/api/summary` data are covered — see TEST-004, TEST-007). Left as an E2E follow-up.
+
 **Notes:** No E2E spec exists for the Transactions page at all (same gap noted in TEST-004's
 TC-004-01). See Test Gap Backlog.
 
@@ -70,16 +78,15 @@ TC-004-01). See Test Gap Backlog.
 
 **Maps to:** AC-010-06
 **Type:** integration
-**File:** ❌ missing (transaction-list path is covered elsewhere)
+**File:** `tests/server/api/summary.test.ts`
 
 **Notes:** The AC's own example (`GET /api/summary/2026-4`) targets the **summary** endpoint.
-🔴 **Confirmed by direct test, not inferred: `GET /api/summary/:month` has no month-format
-validation at all** — `GET /api/summary/2026-4` returns `200` with an empty/zeroed summary, not
-`400`. See `docs/architecture/ARCH-010.md` Open Questions. **Medium risk**, logged in the Test Gap
-Backlog as a confirmed implementation gap. (The *transaction-list* query-param path,
-`GET /api/transactions?month=`, does validate correctly and is already covered by TEST-004's
-`rejects invalid month format on GET` — that test satisfies a *related* but not *this* AC, since
-the AC's own Gherkin names the summary endpoint specifically.)
+🔴 **Confirmed by a Session 10 regression test: `GET /api/summary/:month` has no month-format
+validation at all** — `known issue: currently returns 200 with an empty summary for an invalid
+month (AC-010-06)` pins the current, incorrect `200` response; update it to assert `400` once the
+route gets the same `monthSchema` guard `GET /api/transactions?month=` already has. See
+`docs/architecture/ARCH-010.md` Open Questions. **Medium risk, implementation gap still open** —
+not closed by this test, only pinned.
 
 ---
 
@@ -88,6 +95,8 @@ the AC's own Gherkin names the summary endpoint specifically.)
 **Maps to:** AC-010-07
 **Type:** e2e
 **File:** ❌ missing
+
+**Status: accepted (Session 10).** UI-rendering/propagation concern with no server-side counterpart (the underlying `/api/months` and `/api/summary` data are covered — see TEST-004, TEST-007). Left as an E2E follow-up.
 
 **Notes:** No test asserts the rendered month text is German ("April 2026") rather than English.
 `toLocaleDateString("de-DE", ...)` is used identically in both `Dashboard.tsx` and

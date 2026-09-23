@@ -108,7 +108,12 @@ And the used recovery code is permanently invalid
 **Notes:** `authRateLimiter` is explicitly disabled in `NODE_ENV=test`
 (`server/auth.ts`: `skip: () => process.env.NODE_ENV === "test"`), so it cannot be exercised
 through `createApp()` as tests currently configure it. No test in `tests/server/api/auth.test.ts`
-or elsewhere asserts the 429 behavior. See Test Gap Backlog.
+or elsewhere asserts the 429 behavior.
+
+**Status: accepted (Session 10).** Not testable without changing the test-env skip condition
+(which itself risks masking other tests that rely on the bypass) — would need a dedicated
+`createApp()` call that overrides the skip, similar to `pdf-rate-limit.test.ts`'s isolated-file
+pattern. Left as a follow-up.
 
 ---
 
@@ -120,7 +125,11 @@ or elsewhere asserts the 429 behavior. See Test Gap Backlog.
 
 **Notes:** No test advances or fakes session expiry and then asserts a redirect/401. The closest
 existing coverage is `Session enforcement` → `rejects unauthenticated requests to protected routes
-with 401`, which tests "never logged in," not "session expired." See Test Gap Backlog.
+with 401`, which tests "never logged in," not "session expired."
+
+**Status: accepted (Session 10).** Would need either a fake timer against the session store's TTL
+or a short-lived test-only session config — non-trivial without touching `server/session.ts`'s
+production configuration. Left as a follow-up.
 
 ---
 
@@ -149,13 +158,20 @@ a 200 response).
 
 **Maps to:** AC-001-08
 **Type:** unit
-**File:** ❌ missing
+**File:** `tests/server/unit/auth-failsecure.test.ts`
 
-**Notes:** The fail-secure checks run at module top-level in `server/auth.ts`, guarded by
-`NODE_ENV === "production" && DOCKER_DEPLOY !== "true"`. No test spawns a subprocess or fresh
-module context with `NODE_ENV=production` to observe `process.exit(1)`. This is inherently hard to
-unit-test in-process (the check runs once at import time and calls `process.exit`), which is
-likely why it was never covered. See Test Gap Backlog.
+**Notes:** 🔴 **Investigated and confirmed by a Session 10 test: this AC does not hold at all —
+the fail-secure check is dead code in practice.** `server/auth.ts` sets a hardcoded fallback for
+`APP_PASSWORD_HASH`/`SESSION_SECRET`/`TOTP_ENCRYPTION_KEY` whenever they're missing, for *any*
+`NODE_ENV !== "test"` — before the production-only fatal check even runs. So a production start
+with no `APP_PASSWORD_HASH` set does not call `process.exit(1)`; it silently starts with a
+publicly-known hardcoded hash. `vi.resetModules()` plus a fresh import of `server/auth.ts` (with
+`process.exit` mocked) makes this testable in-process after all — the `known issue: ...` test
+pins the current behavior. Same root cause as the "Hardcoded fallback secrets" item already
+tracked in `docs/MIGRATION-PLAN.md` ("Out of Scope / Follow-ups"), now confirmed by a direct test
+rather than code inspection alone. **High risk, implementation gap still open** — not closed by
+this test, only pinned; the fix is to gate the fallback-setting block to genuine Docker dev mode
+(check `DOCKER_DEPLOY === "true"`, not just `NODE_ENV !== "test"`).
 
 ---
 

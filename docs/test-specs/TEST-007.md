@@ -37,13 +37,19 @@ Gap Backlog.
 
 **Maps to:** AC-007-03
 **Type:** e2e
-**File:** ❌ missing
+**File:** `tests/server/api/summary.test.ts`
 
-**Notes:** No test seeds a known income/expense pair and asserts the exact "Bilanz"/"Sparquote"
-card text. This is the core formula of the whole REQ and has zero coverage — the closest existing
-coverage is `dashboard.spec.ts`'s `seedData()` helper, which creates one income transaction but
-never reads back a KPI value. See Test Gap Backlog (**high** — a formula regression here would be
-silently wrong on every user's dashboard).
+**Notes:** Session 10 closed the underlying data-correctness gap at the API level (the formula
+itself lives server-side in `summary.ts`, the Dashboard just renders it) —
+`GET /api/summary/:month — Bilanz-Berechnung` → `berechnet totalIncome und totalExpenses korrekt
+für bekannte Eingabedaten` seeds two income and two expense transactions with known amounts and
+asserts the exact `totalIncome`/`totalExpenses` the Bilanz/Sparquote card is computed from. The
+E2E-level assertion of the exact rendered card text (including the Sparquote percentage formula
+applied client-side) is still not covered.
+
+**Status: partially accepted (Session 10).** Server-side formula correctness — the actual
+high-risk part — is now covered; the remaining gap is a thin, low-risk client-side rendering
+concern. Left as a follow-up.
 
 ---
 

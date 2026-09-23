@@ -31,12 +31,10 @@ section placement and toast text are client-side concerns.
 
 **Maps to:** AC-003-02
 **Type:** integration
-**File:** ❌ missing
+**File:** `tests/server/api/categories.test.ts`
 
-**Notes:** No test creates a category with `type: "income"` and asserts it round-trips correctly
-(the existing `POST` test only creates `type: "expense"`). `GET /api/categories` →
-`includes the seeded default categories` incidentally proves income categories exist ("Gehalt"),
-but nothing exercises *creating* one. See Test Gap Backlog.
+**Notes:** Closed in Session 10 — `POST /api/categories` → `creates an income-type category and
+returns 201`.
 
 ---
 
@@ -77,7 +75,11 @@ And the color "#437a22" is highlighted in the color picker
 **Notes:** Covered **partially** by `edits an existing category` →
 `expect(editDialog.getByTestId("input-cat-name")).toHaveValue("Zu Bearbeiten")` — only the *name*
 field's pre-fill is asserted. Neither the type-selector pre-fill nor the color-picker highlight is
-checked. See Test Gap Backlog.
+checked.
+
+**Status: accepted (Session 10).** Client-only UI-state assertion (dialog pre-fill), no
+data-integrity risk — would need a dedicated Playwright assertion on the type-selector and
+color-picker DOM state. Left as a low-priority E2E follow-up rather than closed in this session.
 
 ---
 
@@ -123,5 +125,7 @@ sending an empty string — same Zod `required` failure mode, not worth a separa
 
 **Notes:** Purely a UI-layout assertion (two-column split by type with colored headers). None of
 the three tests in `tests/e2e/categories.spec.ts` (create/edit/delete) assert column placement or
-header color — all three only check the category name text becomes visible/invisible. See Test
-Gap Backlog.
+header color — all three only check the category name text becomes visible/invisible.
+
+**Status: accepted (Session 10).** Pure layout assertion, no data-integrity risk. Left as a
+low-priority E2E follow-up.

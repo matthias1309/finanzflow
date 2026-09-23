@@ -41,8 +41,8 @@ Then the form shows a validation error on the IBAN field
 And no account is created
 ```
 
-**Notes:** ❌ **Not directly covered.** `POST /api/accounts` → `accepts a valid IBAN` tests the
-happy path only; no test submits an invalid IBAN and asserts `400`. See Test Gap Backlog.
+**Notes:** Closed in Session 10 — `POST /api/accounts` → `rejects an invalid IBAN` (asserts `400`
+for `"not-an-iban"`).
 
 ---
 
@@ -69,12 +69,10 @@ And a success toast is shown
 
 **Maps to:** AC-002-04
 **Type:** integration
-**File:** ❌ missing
+**File:** `tests/server/api/accounts.test.ts`
 
-**Notes:** No test performs a `PUT` with `iban: null` on an existing account. `ibanSchema` is
-presumably nullable (used successfully on create via `NEW_ACC`'s `iban: null`), so this is very
-likely already correct behavior, just unverified for the *update* path specifically. See Test Gap
-Backlog.
+**Notes:** Closed in Session 10 — `PUT /api/accounts/:id` → `clears an existing IBAN when updated
+with iban: null` confirms `ibanSchema` is nullable on the update path too.
 
 ---
 

@@ -46,6 +46,13 @@ describe("POST /api/categories", () => {
     expect(res.status).toBe(400);
   });
 
+  // TC-003-02
+  it("creates an income-type category and returns 201", async () => {
+    const res = await agent.post("/api/categories").send({ ...NEW_CAT, type: "income" });
+    expect(res.status).toBe(201);
+    expect(res.body.type).toBe("income");
+  });
+
   // TC-003-06
   it("rejects missing name", async () => {
     const res = await agent.post("/api/categories").send({ type: "income", color: "#437a22" });
