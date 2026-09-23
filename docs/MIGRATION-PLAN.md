@@ -172,7 +172,7 @@ Per REQ in the session:
 |---|---|---|
 | 5 | `docs/retrofit-auth` | [x] REQ-001 Authentication · [x] REQ-013 2FA/TOTP · [x] REQ-015 User management |
 | 6 | `docs/retrofit-master-data` | [x] REQ-002 Accounts · [x] REQ-003 Categories · [x] REQ-004 Transactions · [x] REQ-008 Account visibility |
-| 7 | `docs/retrofit-import` | [ ] REQ-005 PDF import · [ ] REQ-006 Category learning · [ ] REQ-011 Batch import |
+| 7 | `docs/retrofit-import` | [x] REQ-005 PDF import · [x] REQ-006 Category learning · [x] REQ-011 Batch import |
 | 8 | `docs/retrofit-paperless-dashboard` | [ ] REQ-016 Paperless import · [ ] REQ-007 Dashboard · [ ] REQ-009 Sankey chart |
 | 9 | `docs/retrofit-ui` | [ ] REQ-010 Month navigation · [ ] REQ-012 Theme · [ ] REQ-014 Mobile responsive |
 
@@ -266,6 +266,47 @@ _Filled during Sessions 5–9. Format: `TC-NNN-YY — short description — risk
   data-integrity check currently exists server-side. See `docs/architecture/ARCH-004.md` Open
   Questions.
 
+**From Session 7 (PDF import, category learning, batch import):**
+
+- `TC-005-01`/`TC-005-02` — upload+parse an N26/DKB PDF end-to-end (`POST /api/import/pdf`) —
+  **no test coverage at all**, needs synthetic PDF fixtures or a mocked `extractPDFText` — **high**
+- `TC-005-03` — `parseGeneric` fallback (route level; `detectBank`'s own fallback is tested) — med
+- `TC-005-04` — non-PDF upload rejected with `400` (multer `fileFilter`, implemented, untested) — med
+- `TC-005-05` — oversized upload rejected (multer `limits.fileSize`, implemented, untested) — low
+- `TC-005-06` — corrupted-but-PDF-signed file shows a friendly error — med
+- `TC-005-07` — zero-transaction PDF shows the "no transactions detected" guidance — low
+- `TC-005-08`/`TC-005-09` — full Import-page E2E flow (upload → preview → override → confirm) —
+  **no `tests/e2e/` spec for the Import page exists at all** — med
+- `TC-005-10` — PDF-upload rate limit (`pdfRateLimiter`, no test-env skip — testable, just missing) — med
+- `TC-006-01`, `TC-006-04` — `suggestCategory`/`learnCategoryRules` end-to-end (suggest-on-import,
+  hits increment) — **no test coverage of the learning system at all** — high
+- `TC-006-02` — longest-keyword-wins tie-breaking — the core algorithmic guarantee of the whole
+  feature, untested — high
+- `TC-006-03` — override clears the sparkles icon / excludes the row from `/learn` — med
+- `TC-006-05` — `suggestCategory` returns `null` for an unknown payee — med
+- `TC-006-06` — sub-3-character keyword is not learned — med
+- `TC-006-07` — `/learn` accepts a full 500-entry batch — low
+- `TC-011-04` — `/api/transactions/batch` rate limit (`batchRateLimiter`, no test-env skip —
+  testable, just missing) — med
+- `TC-011-05` — the batch-save-then-learn two-request workflow, E2E — med
+- 🔴 **`TC-006-08` / `TC-011-06` — "invalid learn-batch entries are skipped" does not hold —
+  confirmed by direct test, not inferred.** `POST /api/category-rules/learn` validates the whole
+  array with one `learnBatchSchema.safeParse(req.body)`; a single invalid entry (e.g. negative
+  `categoryId`) fails the request with `400` and **no entries are saved**, including otherwise-valid
+  ones — contradicting both ACs. `POST /api/transactions/batch` already has the correct pattern
+  (per-item `safeParse` + filter) one file over in `transactions.ts` — this is a missing
+  implementation, not just a missing test. **High risk.** See
+  `docs/architecture/ARCH-011.md` Open Questions.
+- **`/api/category-rules/learn` has no dedicated rate limiter**, contradicting REQ-011 Notes'
+  claim that both batch endpoints share `batchRateLimiter` (20/15min) — only
+  `/api/transactions/batch` actually has it. **Medium risk** — documentation/implementation
+  mismatch. See `docs/architecture/ARCH-011.md` Open Questions.
+- `docs/architecture/ARC42.md` §6.4 describes `extractKeyword()` as stripping German stopwords —
+  no such logic exists in `server/storage.ts`. Stale ARC42 text, not a code bug — **low**, doc fix.
+- ARC42/REQ-005 list "ING" as bank-detected, but no `parseING` exists — ING statements always fall
+  through to `parseGeneric`. Not a functional bug (AC-005-03 covers exactly this), but the bank
+  table should say so explicitly — **low**, doc fix.
+
 ## Out of Scope / Follow-ups
 
 - Dockerfile uses `node:18-alpine` — Node 18 is EOL; upgrade (incl. `better-sqlite3` major) as a separate REQ-less chore after the migration.
@@ -293,3 +334,4 @@ _Filled during Sessions 5–9. Format: `TC-NNN-YY — short description — risk
 | 2026-09-23 | Session 4 | [#9](https://github.com/matthias1309/finanzflow/pull/9) | All 16 REQs moved from `docs/REQ/REQ-NNN-slug.md` to `docs/requirements/REQ-NNN.md`, translated to English (REQ-001/013/014/015/016 were German), restructured into `### AC-NNN-YY` headings (one Gherkin scenario each), and given `Status`/`Created`/`Traced by` headers. New `REQ-INDEX.md`. `ARC42.md` was already at its target path from an earlier session. All stale `docs/REQ/` references removed from `CLAUDE.md`, `v-model.md`, and the `traceability`/`system-map`/`new-requirement` commands. Docs-only change; `typecheck`/`lint` verified clean. |
 | 2026-09-23 | Session 5 | [#11](https://github.com/matthias1309/finanzflow/pull/11) | ARCH-001/013/015 + TEST-001/013/015 retrofitted for REQ-001 (Authentication), REQ-013 (2FA/TOTP), REQ-015 (User management); `// TC-NNN-YY` comments added to the existing `tests/server/api/auth.test.ts` and `users.test.ts` (no behavior changes — 48/48 still pass). `Traced by` updated on all three REQs. 8 gaps added to the Test Gap Backlog, two flagged 🔴 high-risk and *not* just missing tests: (1) admin-triggered session invalidation (AC-015-07/09/13 — "all active sessions invalidated") is unimplemented, a reset/deleted user's existing session survives until natural expiry; (2) `PATCH /api/users/:id/password` has no ownership check — any authenticated user can change any other user's password by ID, not only their own. Both need a decision from Matthias before Session 10 (or sooner). Docs + test-comment-only change; `typecheck`/`lint`/`npm test` verified clean. |
 | 2026-09-23 | Session 6 | _(pending)_ | ARCH-002/003/004/008 + TEST-002/003/004/008 retrofitted for REQ-002 (Accounts), REQ-003 (Categories), REQ-004 (Transactions), REQ-008 (Dashboard account-visibility toggle, client-only); `// TC-NNN-YY` comments added to `accounts.test.ts`, `categories.test.ts`, `transactions.test.ts`, `summary.test.ts` (no behavior changes — 125/125 still pass). `Traced by` updated on all four REQs. 21 gaps added to the Test Gap Backlog. One 🔴 high-risk finding **confirmed by direct test, not inferred**: `POST /api/transactions` with a negative `amount` returns `201`, not `400` — AC-004-09 and the `amount`-always-positive domain invariant are both violated server-side (a negative amount on an income row would silently subtract from `totalIncome`). One medium-risk finding: "transfer requires a target account" (AC-004-06) is enforced client-side only — the server accepts a transfer with no `transferToAccountId`, and `summary.ts` then silently drops that amount from both accounts' transfer totals. Both need a decision from Matthias. Docs + test-comment-only change; `typecheck`/`lint`/`npm test` verified clean. |
+| 2026-09-23 | Session 7 | _(pending)_ | ARCH-005/006/011 + TEST-005/006/011 retrofitted for REQ-005 (PDF import), REQ-006 (Category learning), REQ-011 (Batch import); `// TC-NNN-YY` comments added to the two already-covered cases in `transactions.test.ts` (no behavior changes — 125/125 still pass). `Traced by` updated on all three REQs. This session found the **largest test-coverage gap so far**: `POST /api/import/pdf` and the entire category-learning system (`storage.suggestCategory`/`learnCategoryRules`, `categoryRulesRouter`) have **zero test coverage** — 23 gaps added to the Test Gap Backlog. One 🔴 high-risk finding **confirmed by direct test, not inferred**: `POST /api/category-rules/learn` fails its *entire* batch with `400` when any single entry is invalid (e.g. negative `categoryId`) instead of skipping just that entry — contradicting AC-006-08/AC-011-06; `POST /api/transactions/batch` already has the correct per-item pattern one file over, so this is a missing implementation, not just a missing test. One medium-risk finding: `/api/category-rules/learn` has no dedicated rate limiter despite REQ-011 Notes claiming it shares `batchRateLimiter` with the transaction-batch endpoint. Both need a decision from Matthias. Docs + test-comment-only change; `typecheck`/`lint`/`npm test` verified clean. |

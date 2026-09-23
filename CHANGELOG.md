@@ -8,6 +8,12 @@ Format angelehnt an [Keep a Changelog](https://keepachangelog.com/de/1.0.0/).
 ## [Unreleased]
 
 ### Hinzugefügt
+- **ARCH/TEST-SPEC retrofit for PDF import, category learning, batch import (migration Session 7)**
+  — `docs/architecture/ARCH-005.md`, `ARCH-006.md`, `ARCH-011.md` and `docs/test-specs/TEST-005.md`,
+  `TEST-006.md`, `TEST-011.md`, retrofitted for REQ-005 (PDF import), REQ-006 (Category learning),
+  REQ-011 (Batch import). `// TC-NNN-YY` comments added to the existing `transactions.test.ts`
+  cases (no behavior changes). Docs-only change, no application behavior affected. Details in
+  `docs/MIGRATION-PLAN.md`.
 - **ARCH/TEST-SPEC retrofit for accounts, categories, transactions, account visibility (migration
   Session 6)** — `docs/architecture/ARCH-002.md`, `ARCH-003.md`, `ARCH-004.md`, `ARCH-008.md` and
   `docs/test-specs/TEST-002.md`, `TEST-003.md`, `TEST-004.md`, `TEST-008.md`, retrofitted for
@@ -23,6 +29,17 @@ Format angelehnt an [Keep a Changelog](https://keepachangelog.com/de/1.0.0/).
   Docs-only change, no application behavior affected. Details in `docs/MIGRATION-PLAN.md`.
 
 ### Gefunden (nicht behoben — dokumentiert als Migration-Follow-up)
+- **`POST /api/category-rules/learn` fails the entire batch on one invalid entry** — confirmed by
+  a direct test: a batch with one valid and one invalid entry (e.g. negative `categoryId`) returns
+  `400` for the whole request, and the valid entry is not saved either. Contradicts AC-006-08 and
+  AC-011-06 ("invalid entries are skipped, valid ones still processed"); `POST /api/transactions/batch`
+  already implements the correct per-item validate-and-filter pattern one file over in
+  `transactions.ts`. See `docs/architecture/ARCH-011.md` and the Test Gap Backlog in
+  `docs/MIGRATION-PLAN.md`.
+- **`/api/category-rules/learn` has no dedicated rate limiter** — REQ-011 Notes claim it shares
+  the 20-requests/15-min `batchRateLimiter` with `/api/transactions/batch`; only the transaction
+  batch endpoint actually has it. See `docs/architecture/ARCH-011.md` and the Test Gap Backlog in
+  `docs/MIGRATION-PLAN.md`.
 - **`amount` positivity is not enforced by the server (`POST /api/transactions`)** — confirmed by
   a direct test: `amount: -50` returns `201`, not the `400` AC-004-09 requires. Violates the
   project-wide invariant that `amount` is always positive and `type` carries the sign; a negative

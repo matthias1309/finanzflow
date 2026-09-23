@@ -116,6 +116,7 @@ describe("POST /api/transactions/batch", () => {
     accountId = await createAccount();
   });
 
+  // TC-011-01
   it("saves all valid transactions and returns 201 with created array", async () => {
     const batch = Array.from({ length: 5 }, (_, i) => ({
       month: "2026-04",
@@ -132,6 +133,7 @@ describe("POST /api/transactions/batch", () => {
     expect(res.body.skipped).toBe(0);
   });
 
+  // TC-011-03
   it("rejects a batch exceeding 500 items", async () => {
     const batch = Array.from({ length: 501 }, (_, i) => ({
       month: "2026-04",
@@ -150,6 +152,7 @@ describe("POST /api/transactions/batch", () => {
     expect(res.status).toBe(400);
   });
 
+  // TC-011-02
   it("partially succeeds — valid items saved, invalid type skipped", async () => {
     const batch = [
       { month: "2026-04", description: "Valide",    amount: 10, accountId, type: "expense" },
