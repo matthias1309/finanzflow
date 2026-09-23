@@ -8,6 +8,13 @@ Format angelehnt an [Keep a Changelog](https://keepachangelog.com/de/1.0.0/).
 ## [Unreleased]
 
 ### Hinzugefügt
+- **ARCH/TEST-SPEC retrofit for month navigation, theme, mobile UI (migration Session 9, final
+  retrofit session)** — `docs/architecture/ARCH-010.md`, `ARCH-012.md`, `ARCH-014.md` and
+  `docs/test-specs/TEST-010.md`, `TEST-012.md`, `TEST-014.md`, retrofitted for REQ-010 (Month
+  navigation), REQ-012 (Theme), REQ-014 (Mobile-responsive UI). `// TC-NNN-YY` comment added to
+  the one already-covered case in `transactions.test.ts` (no behavior changes). **All 16 REQs now
+  trace to an ARCH and TEST-SPEC document.** Docs-only change, no application behavior affected.
+  Details in `docs/MIGRATION-PLAN.md`.
 - **ARCH/TEST-SPEC retrofit for Paperless import, Dashboard, Sankey chart (migration Session 8)** —
   `docs/architecture/ARCH-007.md`, `ARCH-009.md`, `ARCH-016.md` and `docs/test-specs/TEST-007.md`,
   `TEST-009.md`, `TEST-016.md`, retrofitted for REQ-016 (Paperless import), REQ-007 (Dashboard),
@@ -35,6 +42,11 @@ Format angelehnt an [Keep a Changelog](https://keepachangelog.com/de/1.0.0/).
   Docs-only change, no application behavior affected. Details in `docs/MIGRATION-PLAN.md`.
 
 ### Gefunden (nicht behoben — dokumentiert als Migration-Follow-up)
+- **`GET /api/summary/:month` has no month-format validation** — confirmed by a direct test:
+  `GET /api/summary/2026-4` (missing leading zero) returns `200` with an empty/zeroed summary
+  instead of the `400` AC-010-06 requires. The equivalent `GET /api/transactions?month=` path
+  validates correctly via `monthSchema`; the summary endpoint never got the same guard. See
+  `docs/architecture/ARCH-010.md` and the Test Gap Backlog in `docs/MIGRATION-PLAN.md`.
 - **`POST /api/category-rules/learn` fails the entire batch on one invalid entry** — confirmed by
   a direct test: a batch with one valid and one invalid entry (e.g. negative `categoryId`) returns
   `400` for the whole request, and the valid entry is not saved either. Contradicts AC-006-08 and
