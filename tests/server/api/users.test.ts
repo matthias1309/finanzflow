@@ -28,11 +28,11 @@ let adminId: number;
 beforeAll(async () => {
   const bcrypt = await import("bcryptjs");
 
-  process.env.APP_USER            = SEED_USER;
-  process.env.APP_PASSWORD_HASH   = bcrypt.default.hashSync(SEED_PASS, 10);
-  process.env.SESSION_SECRET      = "test-session-secret-at-least-32-chars!!";
+  process.env.APP_USER = SEED_USER;
+  process.env.APP_PASSWORD_HASH = bcrypt.default.hashSync(SEED_PASS, 10);
+  process.env.SESSION_SECRET = "test-session-secret-at-least-32-chars!!";
   process.env.TOTP_ENCRYPTION_KEY = "ab".repeat(32);
-  process.env.APP_ORIGIN          = "http://localhost:3000";
+  process.env.APP_ORIGIN = "http://localhost:3000";
 
   const { createApp } = await import("../../../server/createApp");
   ({ app } = createApp());
@@ -45,7 +45,7 @@ beforeAll(async () => {
   expect(loginRes.body.step).toBe("done");
 
   const res = await adminSession.get("/api/users");
-  adminId = (res.body as PublicUser[]).find(u => u.username === SEED_USER)?.id ?? 0;
+  adminId = (res.body as PublicUser[]).find((u) => u.username === SEED_USER)?.id ?? 0;
 });
 
 // ─── GET /api/users ───────────────────────────────────────────────────────────
@@ -56,19 +56,19 @@ describe("GET /api/users", () => {
     const res = await adminSession.get("/api/users");
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
-    expect((res.body as PublicUser[]).some(u => u.username === SEED_USER)).toBe(true);
+    expect((res.body as PublicUser[]).some((u) => u.username === SEED_USER)).toBe(true);
   });
 
   it("seeded admin has isAdmin=1", async () => {
     const res = await adminSession.get("/api/users");
-    const admin = (res.body as PublicUser[]).find(u => u.username === SEED_USER);
+    const admin = (res.body as PublicUser[]).find((u) => u.username === SEED_USER);
     // users.is_admin ist 0/1 (SQLite-Integer), kein Boolean — siehe shared/schema.ts
     expect(admin?.isAdmin).toBe(1);
   });
 
   it("does not include passwordHash or totpSecret in response", async () => {
     const res = await adminSession.get("/api/users");
-    (res.body as PublicUser[]).forEach(u => {
+    (res.body as PublicUser[]).forEach((u) => {
       expect(u).not.toHaveProperty("passwordHash");
       expect(u).not.toHaveProperty("totpSecret");
     });
@@ -93,9 +93,7 @@ describe("POST /api/users", () => {
 
   // TC-015-03
   it("returns 409 when username is already taken", async () => {
-    await adminSession
-      .post("/api/users")
-      .send({ username: "doppelt", password: "Password123!" });
+    await adminSession.post("/api/users").send({ username: "doppelt", password: "Password123!" });
     const res = await adminSession
       .post("/api/users")
       .send({ username: "doppelt", password: "Password123!" });
@@ -103,16 +101,12 @@ describe("POST /api/users", () => {
   });
 
   it("returns 400 when username is missing", async () => {
-    const res = await adminSession
-      .post("/api/users")
-      .send({ password: "Password123!" });
+    const res = await adminSession.post("/api/users").send({ password: "Password123!" });
     expect(res.status).toBe(400);
   });
 
   it("returns 400 when password is missing", async () => {
-    const res = await adminSession
-      .post("/api/users")
-      .send({ username: "nopw" });
+    const res = await adminSession.post("/api/users").send({ username: "nopw" });
     expect(res.status).toBe(400);
   });
 
@@ -138,34 +132,26 @@ describe("PATCH /api/users/:id", () => {
 
   // TC-015-04
   it("grants admin rights to a user and returns 200", async () => {
-    const res = await adminSession
-      .patch(`/api/users/${testUserId}`)
-      .send({ isAdmin: true });
+    const res = await adminSession.patch(`/api/users/${testUserId}`).send({ isAdmin: true });
     expect(res.status).toBe(200);
     expect(res.body.isAdmin).toBe(1);
   });
 
   // TC-015-05
   it("revokes admin rights when another admin exists", async () => {
-    const res = await adminSession
-      .patch(`/api/users/${testUserId}`)
-      .send({ isAdmin: false });
+    const res = await adminSession.patch(`/api/users/${testUserId}`).send({ isAdmin: false });
     expect(res.status).toBe(200);
     expect(res.body.isAdmin).toBe(0);
   });
 
   // TC-015-06
   it("returns 409 when trying to demote the last admin", async () => {
-    const res = await adminSession
-      .patch(`/api/users/${adminId}`)
-      .send({ isAdmin: false });
+    const res = await adminSession.patch(`/api/users/${adminId}`).send({ isAdmin: false });
     expect(res.status).toBe(409);
   });
 
   it("returns 404 for an unknown user id", async () => {
-    const res = await adminSession
-      .patch("/api/users/99999")
-      .send({ isAdmin: true });
+    const res = await adminSession.patch("/api/users/99999").send({ isAdmin: true });
     expect(res.status).toBe(404);
   });
 });
@@ -182,7 +168,7 @@ describe("DELETE /api/users/:id", () => {
     expect(res.status).toBe(204);
 
     const list = await adminSession.get("/api/users");
-    expect((list.body as PublicUser[]).some(u => u.username === "todelete")).toBe(false);
+    expect((list.body as PublicUser[]).some((u) => u.username === "todelete")).toBe(false);
   });
 
   // TC-015-08
@@ -225,9 +211,7 @@ describe("PATCH /api/users/:id/password", () => {
   });
 
   it("returns 400 when newPassword is missing", async () => {
-    const res = await adminSession
-      .patch(`/api/users/${targetId}/password`)
-      .send({});
+    const res = await adminSession.patch(`/api/users/${targetId}/password`).send({});
     expect(res.status).toBe(400);
   });
 
@@ -271,7 +255,7 @@ describe("POST /api/users/:id/2fa-reset", () => {
     expect(res.status).toBe(200);
 
     const list = await adminSession.get("/api/users");
-    const user = (list.body as PublicUser[]).find(u => u.id === created.body.id);
+    const user = (list.body as PublicUser[]).find((u) => u.id === created.body.id);
     expect(user?.totpEnabled).toBe(0);
   });
 
@@ -287,7 +271,7 @@ describe("Seeding: ENV-Sync beim Serverstart", () => {
   // TC-015-14
   it("seed-Admin existiert in der users-Tabelle", async () => {
     const res = await adminSession.get("/api/users");
-    const admin = (res.body as PublicUser[]).find(u => u.username === SEED_USER);
+    const admin = (res.body as PublicUser[]).find((u) => u.username === SEED_USER);
     expect(admin).toBeDefined();
     expect(admin?.isAdmin).toBe(1);
   });

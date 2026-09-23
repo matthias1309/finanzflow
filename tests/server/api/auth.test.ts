@@ -15,7 +15,7 @@ import request from "supertest";
 import { authenticator } from "otplib";
 import type { Express } from "express";
 
-const TEST_USER     = "admin";
+const TEST_USER = "admin";
 const TEST_PASSWORD = "TestPass123!";
 
 let app: Express;
@@ -37,11 +37,11 @@ let initialRecoveryCodes: string[];
 beforeAll(async () => {
   const bcrypt = await import("bcryptjs");
 
-  process.env.APP_USER             = TEST_USER;
-  process.env.APP_PASSWORD_HASH    = bcrypt.default.hashSync(TEST_PASSWORD, 10);
-  process.env.SESSION_SECRET       = "test-session-secret-at-least-32-chars!!";
-  process.env.TOTP_ENCRYPTION_KEY  = "ab".repeat(32); // 64 hex chars = 32 bytes
-  process.env.APP_ORIGIN           = "http://localhost:3000";
+  process.env.APP_USER = TEST_USER;
+  process.env.APP_PASSWORD_HASH = bcrypt.default.hashSync(TEST_PASSWORD, 10);
+  process.env.SESSION_SECRET = "test-session-secret-at-least-32-chars!!";
+  process.env.TOTP_ENCRYPTION_KEY = "ab".repeat(32); // 64 hex chars = 32 bytes
+  process.env.APP_ORIGIN = "http://localhost:3000";
 
   const { createApp } = await import("../../../server/createApp");
   ({ app } = createApp());
@@ -70,7 +70,10 @@ function totpCodeAt(secret: string, windowOffset: -1 | 0 | 1 = 0): string {
 
 // ─── Hilfsfunktion: vollständiger Login (Passwort + TOTP) ────────────────────
 
-async function loginWithTotp(totpSecret: string, windowOffset: -1 | 0 | 1 = 0): Promise<request.SuperAgentTest> {
+async function loginWithTotp(
+  totpSecret: string,
+  windowOffset: -1 | 0 | 1 = 0,
+): Promise<request.SuperAgentTest> {
   const sessionAgent = request.agent(app);
   await sessionAgent.post("/api/auth/login").send({ username: TEST_USER, password: TEST_PASSWORD });
   const code = totpCodeAt(totpSecret, windowOffset);
@@ -115,16 +118,12 @@ describe("POST /api/auth/login", () => {
   });
 
   it("returns 400 when body is missing username", async () => {
-    const res = await request(app)
-      .post("/api/auth/login")
-      .send({ password: TEST_PASSWORD });
+    const res = await request(app).post("/api/auth/login").send({ password: TEST_PASSWORD });
     expect(res.status).toBe(400);
   });
 
   it("returns 400 when body is missing password", async () => {
-    const res = await request(app)
-      .post("/api/auth/login")
-      .send({ username: TEST_USER });
+    const res = await request(app).post("/api/auth/login").send({ username: TEST_USER });
     expect(res.status).toBe(400);
   });
 
@@ -176,9 +175,7 @@ describe("POST /api/auth/2fa/setup", () => {
   it("returns 400 when an invalid code is submitted to verify-setup", async () => {
     await passwordSession.post("/api/auth/2fa/setup");
 
-    const res = await passwordSession
-      .post("/api/auth/2fa/verify-setup")
-      .send({ code: "000000" });
+    const res = await passwordSession.post("/api/auth/2fa/verify-setup").send({ code: "000000" });
     expect(res.status).toBe(400);
   });
 
@@ -190,9 +187,7 @@ describe("POST /api/auth/2fa/setup", () => {
     activeTotpSecret = secret;
 
     const code = authenticator.generate(secret);
-    const verifyRes = await passwordSession
-      .post("/api/auth/2fa/verify-setup")
-      .send({ code });
+    const verifyRes = await passwordSession.post("/api/auth/2fa/verify-setup").send({ code });
 
     expect(verifyRes.status).toBe(200);
     expect(Array.isArray(verifyRes.body.recoveryCodes)).toBe(true);
@@ -234,9 +229,7 @@ describe("GET /api/auth/2fa/status after setup", () => {
 
 describe("POST /api/auth/totp", () => {
   it("returns 401 when called without a pending login session", async () => {
-    const res = await request(app)
-      .post("/api/auth/totp")
-      .send({ code: "000000" });
+    const res = await request(app).post("/api/auth/totp").send({ code: "000000" });
     expect(res.status).toBe(401);
   });
 
