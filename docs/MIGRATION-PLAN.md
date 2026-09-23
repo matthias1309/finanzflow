@@ -50,12 +50,20 @@ From Session 2 on, **CI must be green** before merge.
 
 ### Session 0 — Remove leaked secrets 🔴 urgent
 Branch: `fix/remove-committed-secrets`
-- [ ] Delete `sankey-finance/secrets.env` from the repo, add `secrets.env` / `*.env` pattern to `.gitignore`
-- [ ] Decide whether to purge it from git history (`git filter-repo`) — repo is **public**
+- [x] Delete `sankey-finance/secrets.env` from the repo, add `secrets.env` / `*.env` pattern to `.gitignore`
+- [x] Decide whether to purge it from git history (`git filter-repo`) — repo is **public**
+      → **Decision:** not purged now (would force-push a public repo); revisit after credential
+      rotation if desired. Old values remain visible in history until then.
 - [ ] **Manual (Matthias, on the Pi):** rotate `SESSION_SECRET`, `TOTP_ENCRYPTION_KEY`, admin password
       (→ new `APP_PASSWORD_HASH`). Rotating the TOTP key invalidates stored 2FA secrets →
       re-enroll 2FA (`npm run 2fa:reset`).
 - [ ] Note the incident in `.claude/rules/learnings.md` (created in Session 3 — note it here until then)
+
+**Incident note (for Session 3 learnings.md):** `sankey-finance/secrets.env` (containing
+`SESSION_SECRET`, `TOTP_ENCRYPTION_KEY`, `APP_PASSWORD_HASH`, etc.) was committed to the public
+repo. Removed from tracking 2026-09-23 (PR for `fix/remove-committed-secrets`); history not yet
+purged. Credentials must be rotated on the Pi (see checklist above) — history still contains the
+old values until rotation + optional `git filter-repo`.
 
 ### Session 1 — Flatten repository layout
 Branch: `chore/flatten-repo-root`
@@ -152,3 +160,4 @@ _Filled during Sessions 5–9. Format: `TC-NNN-YY — short description — risk
 | Date | Session | PR | Notes |
 |---|---|---|---|
 | 2026-09-23 | Planning | — | Assessment done, decisions D1–D7 recorded. Baseline: 6 tsc errors, 7/9 Vitest files fail locally (missing `better-sqlite3` binding), no CI, no lint. |
+| 2026-09-23 | Session 0 | _(pending)_ | `secrets.env` removed from tracking + `.gitignore` updated. History purge deferred (would need force-push to public repo). Credential rotation on the Pi is still open — manual, Matthias. |
