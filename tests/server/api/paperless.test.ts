@@ -45,6 +45,7 @@ async function createAccount(name = "Gemeinschaftskonto"): Promise<number> {
 }
 
 describe("Paperless-Mappings", () => {
+  // TC-016-01
   it("legt ein Mapping an und listet es", async () => {
     const accountId = await createAccount();
     const create = await agent.post("/api/paperless/mappings").send({ paperlessTag: "Essenskonto", accountId });
@@ -62,6 +63,7 @@ describe("Paperless-Mappings", () => {
     expect(res.status).toBe(400);
   });
 
+  // TC-016-02
   it("aktualisiert ein bestehendes Mapping", async () => {
     const accId1 = await createAccount("Auto");
     const accId2 = await createAccount("Auto & Verkehr");
@@ -85,24 +87,28 @@ describe("Paperless-Mappings", () => {
 });
 
 describe("GET /api/paperless/documents", () => {
+  // TC-016-09 (config error variant)
   it("liefert 503, wenn Paperless nicht konfiguriert ist", async () => {
     fetchKontoauszugDocuments.mockRejectedValue(new PaperlessConfigError());
     const res = await agent.get("/api/paperless/documents");
     expect(res.status).toBe(503);
   });
 
+  // TC-016-09
   it("liefert 502, wenn Paperless nicht erreichbar ist", async () => {
     fetchKontoauszugDocuments.mockRejectedValue(new PaperlessUnreachableError());
     const res = await agent.get("/api/paperless/documents");
     expect(res.status).toBe(502);
   });
 
+  // TC-016-10
   it("liefert 401, wenn der API-Token ungültig ist", async () => {
     fetchKontoauszugDocuments.mockRejectedValue(new PaperlessAuthError());
     const res = await agent.get("/api/paperless/documents");
     expect(res.status).toBe(401);
   });
 
+  // TC-016-04, TC-016-05, TC-016-06
   it("klassifiziert Dokumente nach eindeutigem, fehlendem und mehrdeutigem Konto-Tag", async () => {
     const accountId = await createAccount("Gemeinschaftskonto (Klassifizierung)");
     await agent.post("/api/paperless/mappings").send({ paperlessTag: "Essenskonto-Klassifizierung", accountId });
@@ -124,6 +130,7 @@ describe("GET /api/paperless/documents", () => {
     expect(byId(4)).toMatchObject({ status: "ambiguous", accountId: null, matchedTag: null });
   });
 
+  // TC-016-03, TC-016-08 (partial — document no longer listed)
   it("blendet bereits importierte Dokumente aus", async () => {
     fetchKontoauszugDocuments.mockResolvedValue([
       { id: 5, title: "Schon importiert", created: "2026-04-01T00:00:00Z", tags: ["Kontoauszug"] },
@@ -142,6 +149,7 @@ describe("POST /api/paperless/documents/:id/import", () => {
     expect(res.status).toBe(400);
   });
 
+  // TC-016-07
   it("lädt das Dokument und liefert eine Vorschau mit Kategorie-Vorschlag", async () => {
     downloadDocument.mockResolvedValue(Buffer.from("%PDF-1.4"));
     const res = await agent.post("/api/paperless/documents/7/import");
@@ -152,6 +160,7 @@ describe("POST /api/paperless/documents/:id/import", () => {
     expect(downloadDocument).toHaveBeenCalledWith(7);
   });
 
+  // TC-016-10 (import path)
   it("gibt 401 zurück, wenn Paperless den Zugriff verweigert", async () => {
     downloadDocument.mockRejectedValue(new PaperlessAuthError());
     const res = await agent.post("/api/paperless/documents/7/import");
@@ -170,6 +179,7 @@ describe("POST /api/paperless/documents/:id/confirm", () => {
     expect(res.status).toBe(400);
   });
 
+  // TC-016-08
   it("markiert das Dokument als importiert", async () => {
     const accountId = await createAccount();
     const res = await agent.post("/api/paperless/documents/9/confirm").send({ accountId });

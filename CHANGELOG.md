@@ -8,6 +8,12 @@ Format angelehnt an [Keep a Changelog](https://keepachangelog.com/de/1.0.0/).
 ## [Unreleased]
 
 ### Hinzugefügt
+- **ARCH/TEST-SPEC retrofit for Paperless import, Dashboard, Sankey chart (migration Session 8)** —
+  `docs/architecture/ARCH-007.md`, `ARCH-009.md`, `ARCH-016.md` and `docs/test-specs/TEST-007.md`,
+  `TEST-009.md`, `TEST-016.md`, retrofitted for REQ-016 (Paperless import), REQ-007 (Dashboard),
+  REQ-009 (Sankey chart). `// TC-NNN-YY` comments added to all 12 already-covered cases in
+  `paperless.test.ts` (no behavior changes). Docs-only change, no application behavior affected.
+  Details in `docs/MIGRATION-PLAN.md`.
 - **ARCH/TEST-SPEC retrofit for PDF import, category learning, batch import (migration Session 7)**
   — `docs/architecture/ARCH-005.md`, `ARCH-006.md`, `ARCH-011.md` and `docs/test-specs/TEST-005.md`,
   `TEST-006.md`, `TEST-011.md`, retrofitted for REQ-005 (PDF import), REQ-006 (Category learning),

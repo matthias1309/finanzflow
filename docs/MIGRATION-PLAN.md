@@ -173,7 +173,7 @@ Per REQ in the session:
 | 5 | `docs/retrofit-auth` | [x] REQ-001 Authentication · [x] REQ-013 2FA/TOTP · [x] REQ-015 User management |
 | 6 | `docs/retrofit-master-data` | [x] REQ-002 Accounts · [x] REQ-003 Categories · [x] REQ-004 Transactions · [x] REQ-008 Account visibility |
 | 7 | `docs/retrofit-import` | [x] REQ-005 PDF import · [x] REQ-006 Category learning · [x] REQ-011 Batch import |
-| 8 | `docs/retrofit-paperless-dashboard` | [ ] REQ-016 Paperless import · [ ] REQ-007 Dashboard · [ ] REQ-009 Sankey chart |
+| 8 | `docs/retrofit-paperless-dashboard` | [x] REQ-016 Paperless import · [x] REQ-007 Dashboard · [x] REQ-009 Sankey chart |
 | 9 | `docs/retrofit-ui` | [ ] REQ-010 Month navigation · [ ] REQ-012 Theme · [ ] REQ-014 Mobile responsive |
 
 After Session 9: run `/traceability` → every REQ must show ARCH + TEST-SPEC ✅.
@@ -307,6 +307,26 @@ _Filled during Sessions 5–9. Format: `TC-NNN-YY — short description — risk
   through to `parseGeneric`. Not a functional bug (AC-005-03 covers exactly this), but the bank
   table should say so explicitly — **low**, doc fix.
 
+**From Session 8 (Paperless import, Dashboard, Sankey chart):**
+
+REQ-016 (Paperless) is fully covered by existing tests — no gaps. REQ-007 (Dashboard) and REQ-009
+(Sankey) are 100% client-only features with **zero E2E coverage beyond "the container renders"**:
+
+- `TC-007-01`…`TC-007-08` — no test asserts actual KPI values, month-switching behavior, the
+  negative-balance red styling, per-account card content, the empty-month zero state, the
+  no-accounts placeholder, or the loading skeleton. `TC-007-03` (Bilanz/Sparquote formula
+  correctness) is **high** risk — a regression here would be silently wrong for every user; the
+  rest are **medium/low**.
+- `TC-009-01`…`TC-009-07` — no test asserts the Sankey diagram's actual nodes/links, transfer flow
+  color, hidden/empty-account exclusion from the rendered graph, dark/light theming, or
+  month-binding. `TC-009-01` (basic income/expense flow rendering) is **high** risk — this is
+  FinanzFlow's signature visualization and has no structural test coverage at all; the rest are
+  **medium/low**.
+
+No new implementation bugs were confirmed this session (unlike Sessions 5–7) — this is purely a
+test-coverage gap on two client-rendered features that already have solid server-side coverage
+(TEST-004 for the underlying summary data) underneath them.
+
 ## Out of Scope / Follow-ups
 
 - Dockerfile uses `node:18-alpine` — Node 18 is EOL; upgrade (incl. `better-sqlite3` major) as a separate REQ-less chore after the migration.
@@ -335,3 +355,4 @@ _Filled during Sessions 5–9. Format: `TC-NNN-YY — short description — risk
 | 2026-09-23 | Session 5 | [#11](https://github.com/matthias1309/finanzflow/pull/11) | ARCH-001/013/015 + TEST-001/013/015 retrofitted for REQ-001 (Authentication), REQ-013 (2FA/TOTP), REQ-015 (User management); `// TC-NNN-YY` comments added to the existing `tests/server/api/auth.test.ts` and `users.test.ts` (no behavior changes — 48/48 still pass). `Traced by` updated on all three REQs. 8 gaps added to the Test Gap Backlog, two flagged 🔴 high-risk and *not* just missing tests: (1) admin-triggered session invalidation (AC-015-07/09/13 — "all active sessions invalidated") is unimplemented, a reset/deleted user's existing session survives until natural expiry; (2) `PATCH /api/users/:id/password` has no ownership check — any authenticated user can change any other user's password by ID, not only their own. Both need a decision from Matthias before Session 10 (or sooner). Docs + test-comment-only change; `typecheck`/`lint`/`npm test` verified clean. |
 | 2026-09-23 | Session 6 | _(pending)_ | ARCH-002/003/004/008 + TEST-002/003/004/008 retrofitted for REQ-002 (Accounts), REQ-003 (Categories), REQ-004 (Transactions), REQ-008 (Dashboard account-visibility toggle, client-only); `// TC-NNN-YY` comments added to `accounts.test.ts`, `categories.test.ts`, `transactions.test.ts`, `summary.test.ts` (no behavior changes — 125/125 still pass). `Traced by` updated on all four REQs. 21 gaps added to the Test Gap Backlog. One 🔴 high-risk finding **confirmed by direct test, not inferred**: `POST /api/transactions` with a negative `amount` returns `201`, not `400` — AC-004-09 and the `amount`-always-positive domain invariant are both violated server-side (a negative amount on an income row would silently subtract from `totalIncome`). One medium-risk finding: "transfer requires a target account" (AC-004-06) is enforced client-side only — the server accepts a transfer with no `transferToAccountId`, and `summary.ts` then silently drops that amount from both accounts' transfer totals. Both need a decision from Matthias. Docs + test-comment-only change; `typecheck`/`lint`/`npm test` verified clean. |
 | 2026-09-23 | Session 7 | _(pending)_ | ARCH-005/006/011 + TEST-005/006/011 retrofitted for REQ-005 (PDF import), REQ-006 (Category learning), REQ-011 (Batch import); `// TC-NNN-YY` comments added to the two already-covered cases in `transactions.test.ts` (no behavior changes — 125/125 still pass). `Traced by` updated on all three REQs. This session found the **largest test-coverage gap so far**: `POST /api/import/pdf` and the entire category-learning system (`storage.suggestCategory`/`learnCategoryRules`, `categoryRulesRouter`) have **zero test coverage** — 23 gaps added to the Test Gap Backlog. One 🔴 high-risk finding **confirmed by direct test, not inferred**: `POST /api/category-rules/learn` fails its *entire* batch with `400` when any single entry is invalid (e.g. negative `categoryId`) instead of skipping just that entry — contradicting AC-006-08/AC-011-06; `POST /api/transactions/batch` already has the correct per-item pattern one file over, so this is a missing implementation, not just a missing test. One medium-risk finding: `/api/category-rules/learn` has no dedicated rate limiter despite REQ-011 Notes claiming it shares `batchRateLimiter` with the transaction-batch endpoint. Both need a decision from Matthias. Docs + test-comment-only change; `typecheck`/`lint`/`npm test` verified clean. |
+| 2026-09-23 | Session 8 | _(pending)_ | ARCH-007/009/016 + TEST-007/009/016 retrofitted for REQ-016 (Paperless import), REQ-007 (Dashboard), REQ-009 (Sankey chart); `// TC-NNN-YY` comments added to all 12 already-covered cases in `paperless.test.ts` (no behavior changes — 125/125 still pass). `Traced by` updated on all three REQs. REQ-016 turned out **fully covered** by existing tests — no gaps. REQ-007/REQ-009 (Dashboard, Sankey) are entirely client-rendered features with **zero E2E coverage beyond "the container renders"** — 15 gaps added to the Test Gap Backlog, two flagged **high** risk though not confirmed bugs: (1) the Bilanz/Sparquote KPI formula has no test verifying its actual output for known input; (2) the Sankey diagram — FinanzFlow's signature visualization — has no test asserting its rendered nodes/links match the underlying data. Unlike Sessions 5–7, no new implementation bug was confirmed this session; this is purely a coverage gap on two features whose underlying server data (the summary endpoint) is already well-tested via TEST-004. Docs + test-comment-only change; `typecheck`/`lint`/`npm test` verified clean. |
