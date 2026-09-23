@@ -3,11 +3,13 @@ import bcrypt from "bcryptjs";
 import { db } from "./db";
 import {
   accounts, categories, transactions, categoryRules, recoveryCodes, users,
+  paperlessAccountMappings, paperlessImports,
   type Account, type InsertAccount,
   type Category, type InsertCategory,
   type Transaction, type InsertTransaction,
   type CategoryRule,
   type User,
+  type PaperlessAccountMapping, type InsertPaperlessAccountMapping,
 } from "@shared/schema";
 import { encryptSecret, decryptSecret, generateRecoveryCodePlaintext } from "./totp";
 
@@ -60,6 +62,13 @@ export interface IStorage {
   getCategoryRules(): CategoryRule[];
   suggestCategory(description: string): number | null;
   learnCategoryRules(entries: { description: string; categoryId: number }[]): void;
+  // Paperless Integration
+  getPaperlessMappings(): PaperlessAccountMapping[];
+  createPaperlessMapping(data: InsertPaperlessAccountMapping): PaperlessAccountMapping;
+  updatePaperlessMapping(id: number, data: InsertPaperlessAccountMapping): PaperlessAccountMapping | undefined;
+  deletePaperlessMapping(id: number): void;
+  getImportedPaperlessDocumentIds(): Set<number>;
+  recordPaperlessImport(data: { paperlessDocumentId: number; accountId: number }): void;
 }
 
 // ─── Implementation ───────────────────────────────────────────────────────────
@@ -255,6 +264,32 @@ export const storage: IStorage = {
         db.insert(categoryRules).values({ keyword, categoryId, hits: 1 }).run();
       }
     }
+  },
+
+  // ── Paperless Integration ────────────────────────────────────────────────
+  getPaperlessMappings() { return db.select().from(paperlessAccountMappings).all(); },
+
+  createPaperlessMapping(data) {
+    return db.insert(paperlessAccountMappings).values(data).returning().get();
+  },
+
+  updatePaperlessMapping(id, data) {
+    return db.update(paperlessAccountMappings).set(data).where(eq(paperlessAccountMappings.id, id)).returning().get();
+  },
+
+  deletePaperlessMapping(id) {
+    db.delete(paperlessAccountMappings).where(eq(paperlessAccountMappings.id, id)).run();
+  },
+
+  getImportedPaperlessDocumentIds() {
+    const rows = db.select({ id: paperlessImports.paperlessDocumentId }).from(paperlessImports).all();
+    return new Set(rows.map(r => r.id));
+  },
+
+  recordPaperlessImport({ paperlessDocumentId, accountId }) {
+    db.insert(paperlessImports).values({
+      paperlessDocumentId, accountId, importedAt: new Date().toISOString(),
+    }).run();
   },
 
 };

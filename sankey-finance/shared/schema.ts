@@ -100,6 +100,29 @@ export const insertCategoryRuleSchema = createInsertSchema(categoryRules).omit({
 export type InsertCategoryRule = z.infer<typeof insertCategoryRuleSchema>;
 export type CategoryRule = typeof categoryRules.$inferSelect;
 
+// ─── Paperless Integration (REQ-016) ─────────────────────────
+// Ordnet einen Paperless-Tag (z.B. "Essenskonto") einem FinanzFlow-Konto zu.
+export const paperlessAccountMappings = sqliteTable("paperless_account_mappings", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  paperlessTag: text("paperless_tag").notNull().unique(),
+  accountId: integer("account_id").notNull(),
+});
+
+export const insertPaperlessAccountMappingSchema = createInsertSchema(paperlessAccountMappings).omit({ id: true }).extend({
+  paperlessTag: z.string().min(1, "Tag erforderlich").max(200, "Tag zu lang"),
+});
+export type InsertPaperlessAccountMapping = z.infer<typeof insertPaperlessAccountMappingSchema>;
+export type PaperlessAccountMapping = typeof paperlessAccountMappings.$inferSelect;
+
+// Verhindert Doppel-Import: welche Paperless-Dokumente wurden bereits übernommen.
+export const paperlessImports = sqliteTable("paperless_imports", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  paperlessDocumentId: integer("paperless_document_id").notNull().unique(),
+  accountId: integer("account_id").notNull(),
+  importedAt: text("imported_at").notNull(),
+});
+export type PaperlessImport = typeof paperlessImports.$inferSelect;
+
 // ─── Insert schemas ──────────────────────────────────────────
 /** Hex-Farbe: #rrggbb oder #rgb */
 const hexColorSchema = z.string().regex(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/, "Ungültiges Farbformat (erwartet #rrggbb)");

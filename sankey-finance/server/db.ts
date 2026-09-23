@@ -60,6 +60,19 @@ sqlite.exec(`
     used      INTEGER NOT NULL DEFAULT 0
   );
 
+  CREATE TABLE IF NOT EXISTS paperless_account_mappings (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    paperless_tag  TEXT    NOT NULL UNIQUE,
+    account_id     INTEGER NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS paperless_imports (
+    id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+    paperless_document_id INTEGER NOT NULL UNIQUE,
+    account_id            INTEGER NOT NULL,
+    imported_at           TEXT    NOT NULL
+  );
+
   CREATE TABLE IF NOT EXISTS users (
     id                   INTEGER PRIMARY KEY AUTOINCREMENT,
     username             TEXT    NOT NULL UNIQUE,
