@@ -247,6 +247,16 @@ function PreviewSection({ documentId, parseResult, accounts, categories, default
           </div>
         </div>
       </CardHeader>
+      {parseResult.errors.length > 0 && (
+        <div className="px-6 pb-3 space-y-1.5">
+          {parseResult.errors.map((msg, i) => (
+            <div key={i} className="flex items-start gap-2 bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">
+              <AlertCircle size={14} className="text-destructive mt-0.5 flex-shrink-0" />
+              <p className="text-xs text-destructive">{msg}</p>
+            </div>
+          ))}
+        </div>
+      )}
       <CardContent className="px-0 pb-0">
         <div className="overflow-auto max-h-[420px]">
           <table className="w-full text-sm">
