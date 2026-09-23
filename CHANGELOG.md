@@ -8,6 +8,13 @@ Format angelehnt an [Keep a Changelog](https://keepachangelog.com/de/1.0.0/).
 ## [Unreleased]
 
 ### Hinzugefügt
+- **ARCH/TEST-SPEC retrofit for accounts, categories, transactions, account visibility (migration
+  Session 6)** — `docs/architecture/ARCH-002.md`, `ARCH-003.md`, `ARCH-004.md`, `ARCH-008.md` and
+  `docs/test-specs/TEST-002.md`, `TEST-003.md`, `TEST-004.md`, `TEST-008.md`, retrofitted for
+  REQ-002 (Accounts), REQ-003 (Categories), REQ-004 (Transactions), REQ-008 (Dashboard account
+  visibility). `// TC-NNN-YY` comments added to the existing `accounts.test.ts`,
+  `categories.test.ts`, `transactions.test.ts`, `summary.test.ts` (no behavior changes). Docs-only
+  change, no application behavior affected. Details in `docs/MIGRATION-PLAN.md`.
 - **ARCH/TEST-SPEC retrofit for auth, 2FA, user management (migration Session 5)** —
   `docs/architecture/ARCH-001.md`, `ARCH-013.md`, `ARCH-015.md` and
   `docs/test-specs/TEST-001.md`, `TEST-013.md`, `TEST-015.md`, retrofitted for REQ-001
@@ -16,6 +23,16 @@ Format angelehnt an [Keep a Changelog](https://keepachangelog.com/de/1.0.0/).
   Docs-only change, no application behavior affected. Details in `docs/MIGRATION-PLAN.md`.
 
 ### Gefunden (nicht behoben — dokumentiert als Migration-Follow-up)
+- **`amount` positivity is not enforced by the server (`POST /api/transactions`)** — confirmed by
+  a direct test: `amount: -50` returns `201`, not the `400` AC-004-09 requires. Violates the
+  project-wide invariant that `amount` is always positive and `type` carries the sign; a negative
+  amount on an `"income"` transaction would silently subtract from `totalIncome`. See
+  `docs/architecture/ARCH-004.md` and the Test Gap Backlog in `docs/MIGRATION-PLAN.md`.
+- **"Transfer requires a target account" (AC-004-06) is enforced client-side only** — the server
+  accepts a `type: "transfer"` transaction with `transferToAccountId: null`; the amount then
+  silently disappears from both the source and target account's transfer totals in
+  `server/routes/summary.ts`. See `docs/architecture/ARCH-004.md` and the Test Gap Backlog in
+  `docs/MIGRATION-PLAN.md`.
 - **Admin-triggered session invalidation is unimplemented** — REQ-015's AC-015-07, AC-015-09, and
   AC-015-13 all require that deleting a user, resetting their password, or resetting their TOTP as
   an admin invalidates that user's active sessions. No code path does this today; a reset/deleted

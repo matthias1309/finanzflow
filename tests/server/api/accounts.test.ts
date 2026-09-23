@@ -17,6 +17,7 @@ describe("GET /api/accounts", () => {
 });
 
 describe("POST /api/accounts", () => {
+  // TC-002-01
   it("creates an account and returns 201", async () => {
     const res = await agent.post("/api/accounts").send(NEW_ACC);
     expect(res.status).toBe(201);
@@ -33,6 +34,7 @@ describe("POST /api/accounts", () => {
     expect(res.body.iban).toBe("DE89370400440532013000");
   });
 
+  // TC-002-06
   it("rejects an invalid color", async () => {
     const res = await agent.post("/api/accounts").send({ ...NEW_ACC, color: "red" });
     expect(res.status).toBe(400);
@@ -57,6 +59,7 @@ describe("PUT /api/accounts/:id", () => {
     id = res.body.id;
   });
 
+  // TC-002-03
   it("updates account name", async () => {
     const res = await agent
       .put(`/api/accounts/${id}`)
@@ -77,6 +80,7 @@ describe("PUT /api/accounts/:id", () => {
 });
 
 describe("DELETE /api/accounts/:id", () => {
+  // TC-002-05
   it("deletes the account", async () => {
     const create = await agent.post("/api/accounts").send(NEW_ACC);
     const id = create.body.id;
