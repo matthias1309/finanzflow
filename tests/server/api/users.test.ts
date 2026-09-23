@@ -51,6 +51,7 @@ beforeAll(async () => {
 // ─── GET /api/users ───────────────────────────────────────────────────────────
 
 describe("GET /api/users", () => {
+  // TC-015-01
   it("returns 200 with an array containing the seeded admin", async () => {
     const res = await adminSession.get("/api/users");
     expect(res.status).toBe(200);
@@ -77,6 +78,7 @@ describe("GET /api/users", () => {
 // ─── POST /api/users ──────────────────────────────────────────────────────────
 
 describe("POST /api/users", () => {
+  // TC-015-02
   it("creates a new user and returns 201", async () => {
     const res = await adminSession
       .post("/api/users")
@@ -89,6 +91,7 @@ describe("POST /api/users", () => {
     expect(res.body).not.toHaveProperty("passwordHash");
   });
 
+  // TC-015-03
   it("returns 409 when username is already taken", async () => {
     await adminSession
       .post("/api/users")
@@ -133,6 +136,7 @@ describe("PATCH /api/users/:id", () => {
     testUserId = res.body.id;
   });
 
+  // TC-015-04
   it("grants admin rights to a user and returns 200", async () => {
     const res = await adminSession
       .patch(`/api/users/${testUserId}`)
@@ -141,6 +145,7 @@ describe("PATCH /api/users/:id", () => {
     expect(res.body.isAdmin).toBe(1);
   });
 
+  // TC-015-05
   it("revokes admin rights when another admin exists", async () => {
     const res = await adminSession
       .patch(`/api/users/${testUserId}`)
@@ -149,6 +154,7 @@ describe("PATCH /api/users/:id", () => {
     expect(res.body.isAdmin).toBe(0);
   });
 
+  // TC-015-06
   it("returns 409 when trying to demote the last admin", async () => {
     const res = await adminSession
       .patch(`/api/users/${adminId}`)
@@ -167,6 +173,7 @@ describe("PATCH /api/users/:id", () => {
 // ─── DELETE /api/users/:id ────────────────────────────────────────────────────
 
 describe("DELETE /api/users/:id", () => {
+  // TC-015-07 (partial — session invalidation not covered, see TEST-015)
   it("deletes a non-admin user and returns 204", async () => {
     const created = await adminSession
       .post("/api/users")
@@ -178,6 +185,7 @@ describe("DELETE /api/users/:id", () => {
     expect((list.body as PublicUser[]).some(u => u.username === "todelete")).toBe(false);
   });
 
+  // TC-015-08
   it("returns 409 when trying to delete the last admin", async () => {
     const res = await adminSession.delete(`/api/users/${adminId}`);
     expect(res.status).toBe(409);
@@ -201,6 +209,7 @@ describe("PATCH /api/users/:id/password", () => {
     targetId = res.body.id;
   });
 
+  // TC-015-09 (partial — session invalidation not covered, see TEST-015)
   it("sets a new password without oldPassword (admin flow) and returns 200", async () => {
     const res = await adminSession
       .patch(`/api/users/${targetId}/password`)
@@ -222,6 +231,7 @@ describe("PATCH /api/users/:id/password", () => {
     expect(res.status).toBe(400);
   });
 
+  // TC-015-11
   it("returns 401 when oldPassword is provided but wrong", async () => {
     const res = await adminSession
       .patch(`/api/users/${targetId}/password`)
@@ -229,6 +239,7 @@ describe("PATCH /api/users/:id/password", () => {
     expect(res.status).toBe(401);
   });
 
+  // TC-015-10 (partial — "current session preserved" not separately re-asserted)
   it("changes password when oldPassword is correct", async () => {
     await adminSession
       .patch(`/api/users/${targetId}/password`)
@@ -251,6 +262,7 @@ describe("PATCH /api/users/:id/password", () => {
 // ─── POST /api/users/:id/2fa-reset ───────────────────────────────────────────
 
 describe("POST /api/users/:id/2fa-reset", () => {
+  // TC-015-13 (partial — target user never had TOTP configured in this test, session invalidation not covered, see TEST-015)
   it("returns 200 and resets TOTP state for a user", async () => {
     const created = await adminSession
       .post("/api/users")
@@ -272,6 +284,7 @@ describe("POST /api/users/:id/2fa-reset", () => {
 // ─── ENV-Sync beim Start ──────────────────────────────────────────────────────
 
 describe("Seeding: ENV-Sync beim Serverstart", () => {
+  // TC-015-14
   it("seed-Admin existiert in der users-Tabelle", async () => {
     const res = await adminSession.get("/api/users");
     const admin = (res.body as PublicUser[]).find(u => u.username === SEED_USER);
@@ -279,6 +292,7 @@ describe("Seeding: ENV-Sync beim Serverstart", () => {
     expect(admin?.isAdmin).toBe(1);
   });
 
+  // TC-015-14 (password hash)
   it("seed-Admin hat den korrekten Passwort-Hash aus APP_PASSWORD_HASH", async () => {
     // Bewusst ein frischer, unauthentifizierter Client — testet den Login selbst.
     const res = await request(app).post("/api/auth/login").send({
