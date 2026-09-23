@@ -27,6 +27,7 @@ describe("GET /api/categories", () => {
 });
 
 describe("POST /api/categories", () => {
+  // TC-003-01
   it("creates a new category and returns 201", async () => {
     const res = await agent.post("/api/categories").send(NEW_CAT);
     expect(res.status).toBe(201);
@@ -45,6 +46,7 @@ describe("POST /api/categories", () => {
     expect(res.status).toBe(400);
   });
 
+  // TC-003-06
   it("rejects missing name", async () => {
     const res = await agent.post("/api/categories").send({ type: "income", color: "#437a22" });
     expect(res.status).toBe(400);
@@ -59,6 +61,7 @@ describe("PUT /api/categories/:id", () => {
     createdId = res.body.id;
   });
 
+  // TC-003-03
   it("updates name and color", async () => {
     const res = await agent
       .put(`/api/categories/${createdId}`)
@@ -82,6 +85,7 @@ describe("PUT /api/categories/:id", () => {
 });
 
 describe("DELETE /api/categories/:id", () => {
+  // TC-003-05
   it("deletes a created category", async () => {
     const create = await agent.post("/api/categories").send(NEW_CAT);
     const id = create.body.id;

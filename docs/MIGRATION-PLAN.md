@@ -170,8 +170,8 @@ Per REQ in the session:
 
 | Session | Branch | REQs |
 |---|---|---|
-| 5 | `docs/retrofit-auth` | [ ] REQ-001 Authentication · [ ] REQ-013 2FA/TOTP · [ ] REQ-015 User management |
-| 6 | `docs/retrofit-master-data` | [ ] REQ-002 Accounts · [ ] REQ-003 Categories · [ ] REQ-004 Transactions · [ ] REQ-008 Account visibility |
+| 5 | `docs/retrofit-auth` | [x] REQ-001 Authentication · [x] REQ-013 2FA/TOTP · [x] REQ-015 User management |
+| 6 | `docs/retrofit-master-data` | [x] REQ-002 Accounts · [x] REQ-003 Categories · [x] REQ-004 Transactions · [x] REQ-008 Account visibility |
 | 7 | `docs/retrofit-import` | [ ] REQ-005 PDF import · [ ] REQ-006 Category learning · [ ] REQ-011 Batch import |
 | 8 | `docs/retrofit-paperless-dashboard` | [ ] REQ-016 Paperless import · [ ] REQ-007 Dashboard · [ ] REQ-009 Sankey chart |
 | 9 | `docs/retrofit-ui` | [ ] REQ-010 Month navigation · [ ] REQ-012 Theme · [ ] REQ-014 Mobile responsive |
@@ -197,7 +197,74 @@ Branch: `docs/migration-acceptance`
 
 _Filled during Sessions 5–9. Format: `TC-NNN-YY — short description — risk (high/med/low)`._
 
-(empty)
+**From Session 5 (auth, 2FA, user management):**
+
+- `TC-001-05` — brute-force limiter (429 after 10 failed attempts) — not testable as `createApp()`
+  is currently configured (`authRateLimiter` is skipped whenever `NODE_ENV=test`) — med
+- `TC-001-06` — session expiry → redirect/401 (only "never logged in" is covered, not "session
+  that has actually expired") — med
+- `TC-001-08` — production start fails fast without `APP_USER`/`APP_PASSWORD_HASH` (module-level
+  `process.exit(1)`, hard to unit-test in-process) — low
+- `TC-013-05` — `GET /api/auth/2fa/status` never re-exposes plaintext recovery codes after the
+  initial setup/regenerate response — med
+- `TC-013-07` — CLI `npm run 2fa:reset -- --user <username>` (argument parsing, missing-`--user`
+  usage message) is not exercised by any test — low
+- `TC-015-12` — no test asserts a non-admin user gets `403` from `requireAdmin`-protected
+  `/api/users/*` routes — **high** (access-control assumption currently unverified)
+- `TC-015-15` — env-sync "existing user's password hash is updated on restart" path (only the
+  create-on-first-start path is covered) — low
+- 🔴 **`TC-015-07` / `TC-015-09` / `TC-015-13` — session invalidation not implemented.** AC-015-07,
+  AC-015-09, and AC-015-13 all require that an admin deleting a user, resetting their password, or
+  resetting their TOTP invalidates that user's active sessions. No code path does this —
+  `server/routes/users.ts` never touches the session store. A reset/deleted user keeps any
+  already-authenticated session until natural expiry (up to `SESSION_MAX_AGE_HOURS`, default 8h).
+  This is a missing *implementation*, not just a missing test — **high risk**, needs a REQ-015 AC
+  fix or explicit re-scoping, not only a new test. See `docs/architecture/ARCH-015.md` Open
+  Questions.
+- 🔴 **Access control on `PATCH /api/users/:id/password` — high**. The route has no `requireAdmin`
+  (by design, so users can change their own password) but also never checks
+  `req.session.userId === id`. Any authenticated user can currently change any other user's
+  password without knowing their old password, by calling this endpoint with another user's `id`.
+  See `docs/architecture/ARCH-015.md` Open Questions.
+
+**From Session 6 (accounts, categories, transactions, account visibility):**
+
+- `TC-002-02` — invalid IBAN on create is rejected with `400` (happy path only is covered) — low
+- `TC-002-04` — editing an account to clear its IBAN (`PUT` with `iban: null`) — low
+- `TC-003-02` — creating an `income`-type category (only `expense` creation is tested) — low
+- `TC-003-04` — edit dialog pre-fill for the *type* selector and *color* picker (only the name
+  field's pre-fill is asserted in `categories.spec.ts`) — low
+- `TC-003-07` — categories split into income/expense columns with colored headers (UI layout,
+  no E2E coverage) — low
+- `TC-004-01` — Transactions page row rendering (description/amount/category/date) — no
+  `tests/e2e/transactions.spec.ts` exists at all — med
+- `TC-004-03` — `GET /api/transactions?accountId=` filter (implemented, untested) — med
+- `TC-004-05` — creating a `type: "transfer"` transaction via the API (only its downstream summary
+  effect is tested, not the create response itself) — low
+- `TC-004-07` — `PATCH /api/transactions/:id` (category edit) — implemented, **completely
+  untested** — med
+- `TC-004-08` — `DELETE /api/transactions/:id` — implemented, **completely untested** — med
+- `TC-004-10` — invalid `month` in a transaction **create** body (only the `GET` query-param path
+  is tested) — med
+- `TC-008-01`/`TC-008-03` — dashboard KPI-hide test only asserts the opacity class toggles, not
+  the EyeOff/Eye icon or that KPI totals actually recompute (single-account fixture) — low
+- `TC-008-02`, `TC-008-04`, `TC-008-05`, `TC-008-07` — Sankey exclusion, hiding 2+ accounts
+  simultaneously, the "N Konten ausgeblendet" header count, and reload-resets-visibility have
+  **no E2E coverage at all** — low (client-only feature, no data-integrity risk, but TC-008-07 is
+  the regression guard for REQ-008's core "intentionally not persisted" decision)
+- 🔴 **`TC-004-09` — `amount` positivity is not enforced by the server — confirmed by direct test,
+  not just inferred.** `POST /api/transactions` with `amount: -50` returns `201`. Contradicts
+  AC-004-09 and the project-wide `amount`-is-always-positive invariant in `architecture.md`; a
+  negative amount on an `"income"` transaction would silently *subtract* from `totalIncome` in
+  `server/routes/summary.ts` instead of being rejected. **High risk** — this is a missing
+  *implementation* (a `.positive()` refinement on `insertTransactionSchema`'s `amount`), not just
+  a missing test. See `docs/architecture/ARCH-004.md` Open Questions.
+- **`TC-004-06` — "transfer requires a target account" is enforced client-side only.** The server
+  accepts a `type: "transfer"` transaction with `transferToAccountId: null`; `summary.ts` then
+  silently drops its amount from both the source and target account's transfer totals (neither
+  rejected nor visibly wrong — it just vanishes from both balances). **Medium risk** — no
+  data-integrity check currently exists server-side. See `docs/architecture/ARCH-004.md` Open
+  Questions.
 
 ## Out of Scope / Follow-ups
 
@@ -224,3 +291,5 @@ _Filled during Sessions 5–9. Format: `TC-NNN-YY — short description — risk
 | 2026-09-23 | Session 2 | [#7](https://github.com/matthias1309/finanzflow/pull/7) | tsc 0 errors (added `target: "ES2020"`, fixed CSP directive typing, removed a dead `/test-session` debug endpoint). ESLint (flat config, `no-explicit-any`=error) + Prettier added; fixed all 43 lint errors / 12 warnings (typed all `any`, fixed a real double-DELETE bug in `Users.tsx` found via unused-var lint). GitHub Actions CI added (`typecheck` → `lint` → `test`). Package renamed `rest-express` → `finanzflow`. `.nvmrc` = 22. Prettier left unapplied to the existing tree (Matthias's call — avoid noise diff). Found pre-existing `npm run build` failure on macOS (`fsevents`, unrelated to this session, Docker build unaffected) — logged as a follow-up, not fixed. |
 | 2026-09-23 | Session 3 | [#8](https://github.com/matthias1309/finanzflow/pull/8) | `.claude/` rules (7 incl. new `architecture.md`), 9 commands, post-edit ESLint hook, clean `settings.json`, `CR-TEMPLATE.md`, slim English root `CLAUDE.md`, gitignored `CLAUDE.local.md`. Old `tests/CLAUDE.md` + `docs/documentation-CLAUDE.md` folded in and deleted. Function limit unified to ~30 lines (Matthias). Found + fixed leaked secret values in `DEPLOYMENT.md`; hardcoded fallback secrets in server code logged as 🔴 follow-up. |
 | 2026-09-23 | Session 4 | [#9](https://github.com/matthias1309/finanzflow/pull/9) | All 16 REQs moved from `docs/REQ/REQ-NNN-slug.md` to `docs/requirements/REQ-NNN.md`, translated to English (REQ-001/013/014/015/016 were German), restructured into `### AC-NNN-YY` headings (one Gherkin scenario each), and given `Status`/`Created`/`Traced by` headers. New `REQ-INDEX.md`. `ARC42.md` was already at its target path from an earlier session. All stale `docs/REQ/` references removed from `CLAUDE.md`, `v-model.md`, and the `traceability`/`system-map`/`new-requirement` commands. Docs-only change; `typecheck`/`lint` verified clean. |
+| 2026-09-23 | Session 5 | _(pending)_ | ARCH-001/013/015 + TEST-001/013/015 retrofitted for REQ-001 (Authentication), REQ-013 (2FA/TOTP), REQ-015 (User management); `// TC-NNN-YY` comments added to the existing `tests/server/api/auth.test.ts` and `users.test.ts` (no behavior changes — 48/48 still pass). `Traced by` updated on all three REQs. 8 gaps added to the Test Gap Backlog, two flagged 🔴 high-risk and *not* just missing tests: (1) admin-triggered session invalidation (AC-015-07/09/13 — "all active sessions invalidated") is unimplemented, a reset/deleted user's existing session survives until natural expiry; (2) `PATCH /api/users/:id/password` has no ownership check — any authenticated user can change any other user's password by ID, not only their own. Both need a decision from Matthias before Session 10 (or sooner). Docs + test-comment-only change; `typecheck`/`lint`/`npm test` verified clean. |
+| 2026-09-23 | Session 6 | _(pending)_ | ARCH-002/003/004/008 + TEST-002/003/004/008 retrofitted for REQ-002 (Accounts), REQ-003 (Categories), REQ-004 (Transactions), REQ-008 (Dashboard account-visibility toggle, client-only); `// TC-NNN-YY` comments added to `accounts.test.ts`, `categories.test.ts`, `transactions.test.ts`, `summary.test.ts` (no behavior changes — 125/125 still pass). `Traced by` updated on all four REQs. 21 gaps added to the Test Gap Backlog. One 🔴 high-risk finding **confirmed by direct test, not inferred**: `POST /api/transactions` with a negative `amount` returns `201`, not `400` — AC-004-09 and the `amount`-always-positive domain invariant are both violated server-side (a negative amount on an income row would silently subtract from `totalIncome`). One medium-risk finding: "transfer requires a target account" (AC-004-06) is enforced client-side only — the server accepts a transfer with no `transferToAccountId`, and `summary.ts` then silently drops that amount from both accounts' transfer totals. Both need a decision from Matthias. Docs + test-comment-only change; `typecheck`/`lint`/`npm test` verified clean. |
