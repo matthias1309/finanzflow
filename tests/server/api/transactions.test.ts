@@ -176,6 +176,7 @@ describe("GET /api/months", () => {
     expect(Array.isArray(res.body)).toBe(true);
   });
 
+  // TC-010-02 (partial — created month appears; ordering/UI-merge not covered)
   it("includes a month after a transaction is created for it", async () => {
     const accId = await createAccount();
     await agent.post("/api/transactions").send({

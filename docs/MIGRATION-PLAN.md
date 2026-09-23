@@ -174,7 +174,7 @@ Per REQ in the session:
 | 6 | `docs/retrofit-master-data` | [x] REQ-002 Accounts · [x] REQ-003 Categories · [x] REQ-004 Transactions · [x] REQ-008 Account visibility |
 | 7 | `docs/retrofit-import` | [x] REQ-005 PDF import · [x] REQ-006 Category learning · [x] REQ-011 Batch import |
 | 8 | `docs/retrofit-paperless-dashboard` | [x] REQ-016 Paperless import · [x] REQ-007 Dashboard · [x] REQ-009 Sankey chart |
-| 9 | `docs/retrofit-ui` | [ ] REQ-010 Month navigation · [ ] REQ-012 Theme · [ ] REQ-014 Mobile responsive |
+| 9 | `docs/retrofit-ui` | [x] REQ-010 Month navigation · [x] REQ-012 Theme · [x] REQ-014 Mobile responsive |
 
 After Session 9: run `/traceability` → every REQ must show ARCH + TEST-SPEC ✅.
 
@@ -327,6 +327,33 @@ No new implementation bugs were confirmed this session (unlike Sessions 5–7) �
 test-coverage gap on two client-rendered features that already have solid server-side coverage
 (TEST-004 for the underlying summary data) underneath them.
 
+**From Session 9 (month navigation, theme, mobile-responsive UI):**
+
+- `TC-010-01`, `TC-010-03`, `TC-010-04`/`TC-010-05`, `TC-010-07` — month-selector default value,
+  current-month-always-present merge logic, month-change propagation to Dashboard/Transactions,
+  and German locale formatting all have no E2E coverage — **medium/low**, cross-referenced against
+  the equivalent gaps already logged under REQ-007/REQ-009 where they overlap
+- 🔴 **`TC-010-06` — `GET /api/summary/:month` has no month-format validation — confirmed by direct
+  test, not inferred.** `GET /api/summary/2026-4` (missing leading zero) returns `200` with an
+  empty/zeroed summary instead of the `400` AC-010-06 requires. The equivalent
+  `GET /api/transactions?month=` path validates correctly (already tested, TEST-004) — the summary
+  endpoint simply never got the same guard. **Medium risk** — implementation gap, not just a
+  missing test. See `docs/architecture/ARCH-010.md` Open Questions.
+- `TC-012-01`…`TC-012-05` — the entire theme system (initial `prefers-color-scheme` read, toggle,
+  Sankey color integration) has **zero test coverage**; AC-012-01/02 are directly testable via
+  Playwright's `colorScheme` emulation — **medium**
+- `TC-014-01`…`TC-014-09` — mobile-responsive layout (hamburger/drawer, responsive grids, table
+  scroll, spacing) has no automated coverage, but this is an **explicitly accepted TDD exception**
+  from REQ-014 itself (`.claude/rules/v-model.md` "TDD Rule" — purely visual, no measurable
+  assertions at the time of implementation), not an oversight — logged as one **low-risk, accepted**
+  entry rather than 9 separate gaps. `resize_window`-style viewport emulation would make all 9 ACs
+  mechanically testable if this REQ is revisited.
+
+**All 16 REQs now have `Traced by: ARCH-NNN, TEST-NNN`** — verified manually after Session 9 per
+the migration plan's checkpoint (`for REQ-001..016: grep "Traced by"`), satisfying "every REQ must
+show ARCH + TEST-SPEC ✅." A full `/traceability` run (cross-checking commit history, not just the
+header fields) is deferred to Session 11's acceptance step, per the existing plan.
+
 ## Out of Scope / Follow-ups
 
 - Dockerfile uses `node:18-alpine` — Node 18 is EOL; upgrade (incl. `better-sqlite3` major) as a separate REQ-less chore after the migration.
@@ -356,3 +383,4 @@ test-coverage gap on two client-rendered features that already have solid server
 | 2026-09-23 | Session 6 | _(pending)_ | ARCH-002/003/004/008 + TEST-002/003/004/008 retrofitted for REQ-002 (Accounts), REQ-003 (Categories), REQ-004 (Transactions), REQ-008 (Dashboard account-visibility toggle, client-only); `// TC-NNN-YY` comments added to `accounts.test.ts`, `categories.test.ts`, `transactions.test.ts`, `summary.test.ts` (no behavior changes — 125/125 still pass). `Traced by` updated on all four REQs. 21 gaps added to the Test Gap Backlog. One 🔴 high-risk finding **confirmed by direct test, not inferred**: `POST /api/transactions` with a negative `amount` returns `201`, not `400` — AC-004-09 and the `amount`-always-positive domain invariant are both violated server-side (a negative amount on an income row would silently subtract from `totalIncome`). One medium-risk finding: "transfer requires a target account" (AC-004-06) is enforced client-side only — the server accepts a transfer with no `transferToAccountId`, and `summary.ts` then silently drops that amount from both accounts' transfer totals. Both need a decision from Matthias. Docs + test-comment-only change; `typecheck`/`lint`/`npm test` verified clean. |
 | 2026-09-23 | Session 7 | _(pending)_ | ARCH-005/006/011 + TEST-005/006/011 retrofitted for REQ-005 (PDF import), REQ-006 (Category learning), REQ-011 (Batch import); `// TC-NNN-YY` comments added to the two already-covered cases in `transactions.test.ts` (no behavior changes — 125/125 still pass). `Traced by` updated on all three REQs. This session found the **largest test-coverage gap so far**: `POST /api/import/pdf` and the entire category-learning system (`storage.suggestCategory`/`learnCategoryRules`, `categoryRulesRouter`) have **zero test coverage** — 23 gaps added to the Test Gap Backlog. One 🔴 high-risk finding **confirmed by direct test, not inferred**: `POST /api/category-rules/learn` fails its *entire* batch with `400` when any single entry is invalid (e.g. negative `categoryId`) instead of skipping just that entry — contradicting AC-006-08/AC-011-06; `POST /api/transactions/batch` already has the correct per-item pattern one file over, so this is a missing implementation, not just a missing test. One medium-risk finding: `/api/category-rules/learn` has no dedicated rate limiter despite REQ-011 Notes claiming it shares `batchRateLimiter` with the transaction-batch endpoint. Both need a decision from Matthias. Docs + test-comment-only change; `typecheck`/`lint`/`npm test` verified clean. |
 | 2026-09-23 | Session 8 | _(pending)_ | ARCH-007/009/016 + TEST-007/009/016 retrofitted for REQ-016 (Paperless import), REQ-007 (Dashboard), REQ-009 (Sankey chart); `// TC-NNN-YY` comments added to all 12 already-covered cases in `paperless.test.ts` (no behavior changes — 125/125 still pass). `Traced by` updated on all three REQs. REQ-016 turned out **fully covered** by existing tests — no gaps. REQ-007/REQ-009 (Dashboard, Sankey) are entirely client-rendered features with **zero E2E coverage beyond "the container renders"** — 15 gaps added to the Test Gap Backlog, two flagged **high** risk though not confirmed bugs: (1) the Bilanz/Sparquote KPI formula has no test verifying its actual output for known input; (2) the Sankey diagram — FinanzFlow's signature visualization — has no test asserting its rendered nodes/links match the underlying data. Unlike Sessions 5–7, no new implementation bug was confirmed this session; this is purely a coverage gap on two features whose underlying server data (the summary endpoint) is already well-tested via TEST-004. Docs + test-comment-only change; `typecheck`/`lint`/`npm test` verified clean. |
+| 2026-09-23 | Session 9 | _(pending)_ | ARCH-010/012/014 + TEST-010/012/014 retrofitted for REQ-010 (Month navigation), REQ-012 (Theme), REQ-014 (Mobile-responsive UI) — **the final retrofit session; all 16 REQs now trace to ARCH + TEST-SPEC**, verified manually per the Session-9 checkpoint. `// TC-NNN-YY` comment added to the one already-covered case in `transactions.test.ts` (no behavior changes — 125/125 still pass). REQ-014's 9 ACs have no test coverage by an **explicit, pre-existing TDD exception** in the REQ itself, not an oversight — logged as one accepted low-risk backlog entry. One 🔴 medium-risk finding **confirmed by direct test, not inferred**: `GET /api/summary/:month` has no month-format validation at all (`GET /api/summary/2026-4` returns `200` with an empty summary, not the `400` AC-010-06 requires) — the sibling `GET /api/transactions?month=` path validates correctly, this endpoint simply never got the same guard. REQ-012 (theme) has zero test coverage, directly testable via Playwright's `colorScheme` emulation. 7 gaps added to the Test Gap Backlog. Docs + test-comment-only change; `typecheck`/`lint`/`npm test` verified clean. |
