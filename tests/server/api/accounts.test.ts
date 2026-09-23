@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import request from "supertest";
 import { createApp } from "../../../server/createApp";
+import type { Account } from "../../../shared/schema";
 
 const { app } = createApp();
 const agent = request(app);
@@ -85,7 +86,7 @@ describe("DELETE /api/accounts/:id", () => {
     expect(del.body.ok).toBe(true);
 
     const list = await agent.get("/api/accounts");
-    const ids = list.body.map((a: any) => a.id);
+    const ids = (list.body as Account[]).map(a => a.id);
     expect(ids).not.toContain(id);
   });
 });

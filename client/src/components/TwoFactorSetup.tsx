@@ -21,7 +21,7 @@ type PendingAction = "setup" | "regen";
 
 function parseApiError(e: unknown, fallback: string): string {
   try {
-    const msg = (e as any)?.message ?? "";
+    const msg = e instanceof Error ? e.message : "";
     const json = JSON.parse(msg.replace(/^\d+:\s*/, ""));
     return json.message ?? fallback;
   } catch {
@@ -146,7 +146,7 @@ export default function TwoFactorSetup() {
       const data = await apiRequest("POST", "/api/auth/2fa/verify-setup", { code }).then(r => r.json());
       setRecoveryCodes(data.recoveryCodes);
       setSetupStep("codes");
-    } catch (e: any) {
+    } catch (e) {
       setError(parseApiError(e, "Ungültiger Code – bitte erneut versuchen."));
       setCode("");
     } finally {

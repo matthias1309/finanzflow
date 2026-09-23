@@ -1,5 +1,5 @@
 import { type Request, type Response, type NextFunction } from "express";
-import { timingSafeEqual, createHash } from "crypto";
+import { timingSafeEqual } from "crypto";
 import rateLimit from "express-rate-limit";
 import { storage } from "./storage";
 

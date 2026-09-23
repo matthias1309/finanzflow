@@ -13,11 +13,12 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import request from "supertest";
 import { authenticator } from "otplib";
+import type { Express } from "express";
 
 const TEST_USER     = "admin";
 const TEST_PASSWORD = "TestPass123!";
 
-let app: any;
+let app: Express;
 
 // Session mit abgeschlossenem Passwort-Login (ohne TOTP, da noch nicht konfiguriert)
 let passwordSession: request.SuperAgentTest;

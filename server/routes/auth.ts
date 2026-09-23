@@ -180,14 +180,6 @@ authRouter.post("/logout", (req, res) => {
   });
 });
 
-// ─── GET /api/auth/test-session ───────────────────────────────────────────────
-
-authRouter.get("/test-session", (req, res) => {
-  req.session.testValue = "test-" + Date.now();
-  console.log("[TEST-SESSION] Set testValue, sessionID:", req.sessionID);
-  res.json({ sessionID: req.sessionID, testValue: req.session.testValue });
-});
-
 // ─── GET /api/auth/status ─────────────────────────────────────────────────────
 
 authRouter.get("/status", (req, res) => {

@@ -73,13 +73,12 @@ export default function UsersPage() {
 
   const deleteMut = useMutation({
     mutationFn: (id: number) => apiRequest("DELETE", `/api/users/${id}`),
-    onSuccess: (_, id) => {
+    onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/users"] });
       setDeleteUser(null);
       toast({ title: "Benutzer gelöscht" });
     },
-    onError: async (_, id) => {
-      const res = await apiRequest("DELETE", `/api/users/${id}`).catch(() => null);
+    onError: () => {
       toast({ title: "Fehler beim Löschen", variant: "destructive" });
       setDeleteUser(null);
     },

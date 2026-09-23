@@ -52,11 +52,11 @@ export default function Transactions() {
 
   const filtered = useMemo(() => filterAccountId === "all" ? transactions : transactions.filter(t => t.accountId === parseInt(filterAccountId)), [transactions, filterAccountId]);
 
-  const defaultVals = { description: "", amount: 0, month: selectedMonth, accountId: accounts[0]?.id ?? 0, categoryId: null as any, type: "expense" as const, transferToAccountId: null as any, importSource: "manual", originalText: null as any, date: null as any };
+  const defaultVals = { description: "", amount: 0, month: selectedMonth, accountId: accounts[0]?.id ?? 0, categoryId: null, type: "expense" as const, transferToAccountId: null, importSource: "manual", originalText: null, date: null };
   const form = useForm<FormData>({ resolver: zodResolver(formSchema as unknown as ZodType<FormData>), defaultValues: defaultVals });
 
   const openNew = () => { setEditTx(null); form.reset({ ...defaultVals, month: selectedMonth, accountId: accounts[0]?.id ?? 0 }); setOpen(true); };
-  const openEdit = (tx: Transaction) => { setEditTx(tx); form.reset({ description: tx.description, amount: tx.amount, month: tx.month, accountId: tx.accountId, categoryId: tx.categoryId as any, type: tx.type as any, transferToAccountId: tx.transferToAccountId as any, importSource: tx.importSource as any, originalText: tx.originalText as any, date: tx.date as any }); setOpen(true); };
+  const openEdit = (tx: Transaction) => { setEditTx(tx); form.reset({ description: tx.description, amount: tx.amount, month: tx.month, accountId: tx.accountId, categoryId: tx.categoryId, type: tx.type as FormData["type"], transferToAccountId: tx.transferToAccountId, importSource: tx.importSource, originalText: tx.originalText, date: tx.date }); setOpen(true); };
 
   const createMut = useMutation({ mutationFn: (d: FormData) => apiRequest("POST", "/api/transactions", d).then(r => r.json()), onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/transactions"] }); qc.invalidateQueries({ queryKey: ["/api/summary"] }); qc.invalidateQueries({ queryKey: ["/api/months"] }); setOpen(false); toast({ title: "Buchung gespeichert" }); } });
   const updateMut = useMutation({ mutationFn: ({ id, data }: { id: number; data: FormData }) => apiRequest("PUT", `/api/transactions/${id}`, data).then(r => r.json()), onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/transactions"] }); qc.invalidateQueries({ queryKey: ["/api/summary"] }); setOpen(false); toast({ title: "Buchung aktualisiert" }); }, onError: (err: Error) => { toast({ title: err.message ?? "Fehler beim Speichern", variant: "destructive" }); } });
@@ -108,7 +108,7 @@ export default function Transactions() {
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-2">
                   <FormField control={form.control} name="type" render={({ field }) => (
                     <FormItem><FormLabel>Typ</FormLabel>
-                      <Select value={field.value} onValueChange={v => { field.onChange(v); form.setValue("categoryId", null as any); }}>
+                      <Select value={field.value} onValueChange={v => { field.onChange(v); form.setValue("categoryId", null); }}>
                         <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
                         <SelectContent>
                           <SelectItem value="income">Einnahme</SelectItem>

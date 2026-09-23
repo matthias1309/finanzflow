@@ -44,12 +44,13 @@ export function createApp() {
 
   registerRoutes(httpServer, app);
 
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-    const status = err.status ?? err.statusCode ?? 500;
+  app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
+    const errObj  = err as { status?: number; statusCode?: number; message?: string };
+    const status  = errObj.status ?? errObj.statusCode ?? 500;
     console.error("Unhandled error:", err);
     if (!res.headersSent) {
       const message = status < 500
-        ? (err.message ?? "Bad Request")
+        ? (errObj.message ?? "Bad Request")
         : "Ein interner Fehler ist aufgetreten.";
       res.status(status).json({ message });
     }
