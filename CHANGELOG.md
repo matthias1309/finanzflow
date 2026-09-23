@@ -8,6 +8,24 @@ Format angelehnt an [Keep a Changelog](https://keepachangelog.com/de/1.0.0/).
 ## [Unreleased]
 
 ### Hinzugefügt
+- **ARCH/TEST-SPEC retrofit for auth, 2FA, user management (migration Session 5)** —
+  `docs/architecture/ARCH-001.md`, `ARCH-013.md`, `ARCH-015.md` and
+  `docs/test-specs/TEST-001.md`, `TEST-013.md`, `TEST-015.md`, retrofitted for REQ-001
+  (Authentication), REQ-013 (2FA/TOTP), and REQ-015 (User management). `// TC-NNN-YY` comments
+  added to the existing `tests/server/api/auth.test.ts` and `users.test.ts` (no behavior changes).
+  Docs-only change, no application behavior affected. Details in `docs/MIGRATION-PLAN.md`.
+
+### Gefunden (nicht behoben — dokumentiert als Migration-Follow-up)
+- **Admin-triggered session invalidation is unimplemented** — REQ-015's AC-015-07, AC-015-09, and
+  AC-015-13 all require that deleting a user, resetting their password, or resetting their TOTP as
+  an admin invalidates that user's active sessions. No code path does this today; a reset/deleted
+  user keeps any already-authenticated session until natural expiry. See
+  `docs/architecture/ARCH-015.md` and the Test Gap Backlog in `docs/MIGRATION-PLAN.md`.
+- **`PATCH /api/users/:id/password` has no ownership check** — the route intentionally has no
+  `requireAdmin` (any user may change their own password), but it also never verifies
+  `req.session.userId === id`. Any authenticated user can currently change any other user's
+  password by calling this endpoint with a different user's ID. See
+  `docs/architecture/ARCH-015.md` and the Test Gap Backlog in `docs/MIGRATION-PLAN.md`.
 - **Requirements migration to `docs/requirements/` (migration Session 4)** — all 16 REQs moved
   from `docs/REQ/REQ-NNN-slug.md` to `docs/requirements/REQ-NNN.md`, translated to English where
   they were still German, and restructured into one `### AC-NNN-YY` heading per acceptance

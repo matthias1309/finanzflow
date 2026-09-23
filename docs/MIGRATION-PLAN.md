@@ -170,7 +170,7 @@ Per REQ in the session:
 
 | Session | Branch | REQs |
 |---|---|---|
-| 5 | `docs/retrofit-auth` | [ ] REQ-001 Authentication · [ ] REQ-013 2FA/TOTP · [ ] REQ-015 User management |
+| 5 | `docs/retrofit-auth` | [x] REQ-001 Authentication · [x] REQ-013 2FA/TOTP · [x] REQ-015 User management |
 | 6 | `docs/retrofit-master-data` | [ ] REQ-002 Accounts · [ ] REQ-003 Categories · [ ] REQ-004 Transactions · [ ] REQ-008 Account visibility |
 | 7 | `docs/retrofit-import` | [ ] REQ-005 PDF import · [ ] REQ-006 Category learning · [ ] REQ-011 Batch import |
 | 8 | `docs/retrofit-paperless-dashboard` | [ ] REQ-016 Paperless import · [ ] REQ-007 Dashboard · [ ] REQ-009 Sankey chart |
@@ -197,7 +197,35 @@ Branch: `docs/migration-acceptance`
 
 _Filled during Sessions 5–9. Format: `TC-NNN-YY — short description — risk (high/med/low)`._
 
-(empty)
+**From Session 5 (auth, 2FA, user management):**
+
+- `TC-001-05` — brute-force limiter (429 after 10 failed attempts) — not testable as `createApp()`
+  is currently configured (`authRateLimiter` is skipped whenever `NODE_ENV=test`) — med
+- `TC-001-06` — session expiry → redirect/401 (only "never logged in" is covered, not "session
+  that has actually expired") — med
+- `TC-001-08` — production start fails fast without `APP_USER`/`APP_PASSWORD_HASH` (module-level
+  `process.exit(1)`, hard to unit-test in-process) — low
+- `TC-013-05` — `GET /api/auth/2fa/status` never re-exposes plaintext recovery codes after the
+  initial setup/regenerate response — med
+- `TC-013-07` — CLI `npm run 2fa:reset -- --user <username>` (argument parsing, missing-`--user`
+  usage message) is not exercised by any test — low
+- `TC-015-12` — no test asserts a non-admin user gets `403` from `requireAdmin`-protected
+  `/api/users/*` routes — **high** (access-control assumption currently unverified)
+- `TC-015-15` — env-sync "existing user's password hash is updated on restart" path (only the
+  create-on-first-start path is covered) — low
+- 🔴 **`TC-015-07` / `TC-015-09` / `TC-015-13` — session invalidation not implemented.** AC-015-07,
+  AC-015-09, and AC-015-13 all require that an admin deleting a user, resetting their password, or
+  resetting their TOTP invalidates that user's active sessions. No code path does this —
+  `server/routes/users.ts` never touches the session store. A reset/deleted user keeps any
+  already-authenticated session until natural expiry (up to `SESSION_MAX_AGE_HOURS`, default 8h).
+  This is a missing *implementation*, not just a missing test — **high risk**, needs a REQ-015 AC
+  fix or explicit re-scoping, not only a new test. See `docs/architecture/ARCH-015.md` Open
+  Questions.
+- 🔴 **Access control on `PATCH /api/users/:id/password` — high**. The route has no `requireAdmin`
+  (by design, so users can change their own password) but also never checks
+  `req.session.userId === id`. Any authenticated user can currently change any other user's
+  password without knowing their old password, by calling this endpoint with another user's `id`.
+  See `docs/architecture/ARCH-015.md` Open Questions.
 
 ## Out of Scope / Follow-ups
 
@@ -224,3 +252,4 @@ _Filled during Sessions 5–9. Format: `TC-NNN-YY — short description — risk
 | 2026-09-23 | Session 2 | [#7](https://github.com/matthias1309/finanzflow/pull/7) | tsc 0 errors (added `target: "ES2020"`, fixed CSP directive typing, removed a dead `/test-session` debug endpoint). ESLint (flat config, `no-explicit-any`=error) + Prettier added; fixed all 43 lint errors / 12 warnings (typed all `any`, fixed a real double-DELETE bug in `Users.tsx` found via unused-var lint). GitHub Actions CI added (`typecheck` → `lint` → `test`). Package renamed `rest-express` → `finanzflow`. `.nvmrc` = 22. Prettier left unapplied to the existing tree (Matthias's call — avoid noise diff). Found pre-existing `npm run build` failure on macOS (`fsevents`, unrelated to this session, Docker build unaffected) — logged as a follow-up, not fixed. |
 | 2026-09-23 | Session 3 | [#8](https://github.com/matthias1309/finanzflow/pull/8) | `.claude/` rules (7 incl. new `architecture.md`), 9 commands, post-edit ESLint hook, clean `settings.json`, `CR-TEMPLATE.md`, slim English root `CLAUDE.md`, gitignored `CLAUDE.local.md`. Old `tests/CLAUDE.md` + `docs/documentation-CLAUDE.md` folded in and deleted. Function limit unified to ~30 lines (Matthias). Found + fixed leaked secret values in `DEPLOYMENT.md`; hardcoded fallback secrets in server code logged as 🔴 follow-up. |
 | 2026-09-23 | Session 4 | _(pending)_ | All 16 REQs moved from `docs/REQ/REQ-NNN-slug.md` to `docs/requirements/REQ-NNN.md`, translated to English (REQ-001/013/014/015/016 were German), restructured into `### AC-NNN-YY` headings (one Gherkin scenario each), and given `Status`/`Created`/`Traced by` headers. New `REQ-INDEX.md`. `ARC42.md` was already at its target path from an earlier session. All stale `docs/REQ/` references removed from `CLAUDE.md`, `v-model.md`, and the `traceability`/`system-map`/`new-requirement` commands. Docs-only change; `typecheck`/`lint` verified clean. |
+| 2026-09-23 | Session 5 | _(pending)_ | ARCH-001/013/015 + TEST-001/013/015 retrofitted for REQ-001 (Authentication), REQ-013 (2FA/TOTP), REQ-015 (User management); `// TC-NNN-YY` comments added to the existing `tests/server/api/auth.test.ts` and `users.test.ts` (no behavior changes — 48/48 still pass). `Traced by` updated on all three REQs. 8 gaps added to the Test Gap Backlog, two flagged 🔴 high-risk and *not* just missing tests: (1) admin-triggered session invalidation (AC-015-07/09/13 — "all active sessions invalidated") is unimplemented, a reset/deleted user's existing session survives until natural expiry; (2) `PATCH /api/users/:id/password` has no ownership check — any authenticated user can change any other user's password by ID, not only their own. Both need a decision from Matthias before Session 10 (or sooner). Docs + test-comment-only change; `typecheck`/`lint`/`npm test` verified clean. |
