@@ -5,7 +5,6 @@ Persönliches Finanz-Dashboard für deutsche Bankkonten (N26, DKB, ING). React-S
 ## Schnellstart (lokale Entwicklung)
 
 ```bash
-cd sankey-finance
 PORT=3000 npm run dev      # Nicht Port 5000 — macOS AirPlay belegt ihn
 npm test                   # Vitest: Unit- + API-Tests
 npm run test:e2e           # Playwright E2E (erfordert laufenden Dev-Server)
@@ -21,8 +20,8 @@ FinanzFlow läuft ausschließlich als Docker-Container auf einem Raspberry Pi. S
 - Backup der Datenbank
 - Troubleshooting
 
-Weitere Details zum Container-Setup: [`sankey-finance/DOCKER.md`](sankey-finance/DOCKER.md).
+Weitere Details zum Container-Setup: [`DOCKER.md`](DOCKER.md).
 
 ## Projektdokumentation
 
-Siehe [`sankey-finance/CLAUDE.md`](sankey-finance/CLAUDE.md) für Projektstruktur, Architektur-Kernregeln und Entwicklungsprozess.
+Siehe [`CLAUDE.md`](CLAUDE.md) für Projektstruktur, Architektur-Kernregeln und Entwicklungsprozess.

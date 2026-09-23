@@ -9,7 +9,7 @@ secrets.env
 *.env
 *.log
 .DS_Store
-documentation/tickets/
+docs/tickets/
 
 # Build & Deployment artifacts
 *.tar.gz

@@ -6,7 +6,8 @@
 
 **1. Code auf Pi synchen:**
 ```bash
-rsync -avp sankey-finance/ admin@dockerhome:/opt/containers/apps/finanzflow/
+rsync -avp --exclude .git --exclude .claude --exclude docs --exclude node_modules --exclude tests \
+  ./ admin@dockerhome:/opt/containers/apps/finanzflow/
 ```
 
 **2. Auf dem Pi: docker-compose.yml erstellen**
@@ -61,7 +62,8 @@ docker-compose logs -f app
 **Workflow mit rsync:**
 ```bash
 # Auf dem Mac: Alles synchen
-rsync -avp sankey-finance/ admin@dockerhome:/opt/containers/apps/finanzflow/
+rsync -avp --exclude .git --exclude .claude --exclude docs --exclude node_modules --exclude tests \
+  ./ admin@dockerhome:/opt/containers/apps/finanzflow/
 
 # Auf dem Pi: Neu bauen
 ssh admin@dockerhome
@@ -78,14 +80,13 @@ docker-compose logs -f app
 
 ```bash
 # Von Pi auf Mac
-scp pi@192.168.178.159:/opt/containers/apps/finanzflow/sankey-finance/data/finance.db ~/backup/finance-$(date +%Y%m%d).db
+scp pi@192.168.178.159:/opt/containers/apps/finanzflow/data/finance.db ~/backup/finance-$(date +%Y%m%d).db
 ```
 
 ## Entwicklung lokal
 
 ### Dev-Server starten
 ```bash
-cd sankey-finance
 PORT=3000 npm run dev
 ```
 
@@ -121,7 +122,7 @@ npm run build
 ```bash
 # SSH in Pi
 ssh pi@192.168.178.159
-cd /opt/containers/apps/finanzflow/sankey-finance
+cd /opt/containers/apps/finanzflow
 
 # DB editieren
 sqlite3 data/finance.db

@@ -36,7 +36,7 @@ docker compose exec app sh
 
 # Datenbank-Volume anschauen
 docker volume ls
-docker volume inspect sankey-finance_finanzflow_data
+docker volume inspect finanzflow_finanzflow_data
 ```
 
 ## Environment-Variablen

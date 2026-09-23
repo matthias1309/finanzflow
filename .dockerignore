@@ -13,7 +13,6 @@ finance.db
 coverage
 .playwright
 tests
-documentation/REQ
-documentation/architecture
+docs
 playwright.config.ts
 vitest.config.ts
