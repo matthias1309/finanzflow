@@ -171,7 +171,7 @@ Per REQ in the session:
 | Session | Branch | REQs |
 |---|---|---|
 | 5 | `docs/retrofit-auth` | [x] REQ-001 Authentication · [x] REQ-013 2FA/TOTP · [x] REQ-015 User management |
-| 6 | `docs/retrofit-master-data` | [ ] REQ-002 Accounts · [ ] REQ-003 Categories · [ ] REQ-004 Transactions · [ ] REQ-008 Account visibility |
+| 6 | `docs/retrofit-master-data` | [x] REQ-002 Accounts · [x] REQ-003 Categories · [x] REQ-004 Transactions · [x] REQ-008 Account visibility |
 | 7 | `docs/retrofit-import` | [ ] REQ-005 PDF import · [ ] REQ-006 Category learning · [ ] REQ-011 Batch import |
 | 8 | `docs/retrofit-paperless-dashboard` | [ ] REQ-016 Paperless import · [ ] REQ-007 Dashboard · [ ] REQ-009 Sankey chart |
 | 9 | `docs/retrofit-ui` | [ ] REQ-010 Month navigation · [ ] REQ-012 Theme · [ ] REQ-014 Mobile responsive |
@@ -227,6 +227,45 @@ _Filled during Sessions 5–9. Format: `TC-NNN-YY — short description — risk
   password without knowing their old password, by calling this endpoint with another user's `id`.
   See `docs/architecture/ARCH-015.md` Open Questions.
 
+**From Session 6 (accounts, categories, transactions, account visibility):**
+
+- `TC-002-02` — invalid IBAN on create is rejected with `400` (happy path only is covered) — low
+- `TC-002-04` — editing an account to clear its IBAN (`PUT` with `iban: null`) — low
+- `TC-003-02` — creating an `income`-type category (only `expense` creation is tested) — low
+- `TC-003-04` — edit dialog pre-fill for the *type* selector and *color* picker (only the name
+  field's pre-fill is asserted in `categories.spec.ts`) — low
+- `TC-003-07` — categories split into income/expense columns with colored headers (UI layout,
+  no E2E coverage) — low
+- `TC-004-01` — Transactions page row rendering (description/amount/category/date) — no
+  `tests/e2e/transactions.spec.ts` exists at all — med
+- `TC-004-03` — `GET /api/transactions?accountId=` filter (implemented, untested) — med
+- `TC-004-05` — creating a `type: "transfer"` transaction via the API (only its downstream summary
+  effect is tested, not the create response itself) — low
+- `TC-004-07` — `PATCH /api/transactions/:id` (category edit) — implemented, **completely
+  untested** — med
+- `TC-004-08` — `DELETE /api/transactions/:id` — implemented, **completely untested** — med
+- `TC-004-10` — invalid `month` in a transaction **create** body (only the `GET` query-param path
+  is tested) — med
+- `TC-008-01`/`TC-008-03` — dashboard KPI-hide test only asserts the opacity class toggles, not
+  the EyeOff/Eye icon or that KPI totals actually recompute (single-account fixture) — low
+- `TC-008-02`, `TC-008-04`, `TC-008-05`, `TC-008-07` — Sankey exclusion, hiding 2+ accounts
+  simultaneously, the "N Konten ausgeblendet" header count, and reload-resets-visibility have
+  **no E2E coverage at all** — low (client-only feature, no data-integrity risk, but TC-008-07 is
+  the regression guard for REQ-008's core "intentionally not persisted" decision)
+- 🔴 **`TC-004-09` — `amount` positivity is not enforced by the server — confirmed by direct test,
+  not just inferred.** `POST /api/transactions` with `amount: -50` returns `201`. Contradicts
+  AC-004-09 and the project-wide `amount`-is-always-positive invariant in `architecture.md`; a
+  negative amount on an `"income"` transaction would silently *subtract* from `totalIncome` in
+  `server/routes/summary.ts` instead of being rejected. **High risk** — this is a missing
+  *implementation* (a `.positive()` refinement on `insertTransactionSchema`'s `amount`), not just
+  a missing test. See `docs/architecture/ARCH-004.md` Open Questions.
+- **`TC-004-06` — "transfer requires a target account" is enforced client-side only.** The server
+  accepts a `type: "transfer"` transaction with `transferToAccountId: null`; `summary.ts` then
+  silently drops its amount from both the source and target account's transfer totals (neither
+  rejected nor visibly wrong — it just vanishes from both balances). **Medium risk** — no
+  data-integrity check currently exists server-side. See `docs/architecture/ARCH-004.md` Open
+  Questions.
+
 ## Out of Scope / Follow-ups
 
 - Dockerfile uses `node:18-alpine` — Node 18 is EOL; upgrade (incl. `better-sqlite3` major) as a separate REQ-less chore after the migration.
@@ -253,3 +292,4 @@ _Filled during Sessions 5–9. Format: `TC-NNN-YY — short description — risk
 | 2026-09-23 | Session 3 | [#8](https://github.com/matthias1309/finanzflow/pull/8) | `.claude/` rules (7 incl. new `architecture.md`), 9 commands, post-edit ESLint hook, clean `settings.json`, `CR-TEMPLATE.md`, slim English root `CLAUDE.md`, gitignored `CLAUDE.local.md`. Old `tests/CLAUDE.md` + `docs/documentation-CLAUDE.md` folded in and deleted. Function limit unified to ~30 lines (Matthias). Found + fixed leaked secret values in `DEPLOYMENT.md`; hardcoded fallback secrets in server code logged as 🔴 follow-up. |
 | 2026-09-23 | Session 4 | _(pending)_ | All 16 REQs moved from `docs/REQ/REQ-NNN-slug.md` to `docs/requirements/REQ-NNN.md`, translated to English (REQ-001/013/014/015/016 were German), restructured into `### AC-NNN-YY` headings (one Gherkin scenario each), and given `Status`/`Created`/`Traced by` headers. New `REQ-INDEX.md`. `ARC42.md` was already at its target path from an earlier session. All stale `docs/REQ/` references removed from `CLAUDE.md`, `v-model.md`, and the `traceability`/`system-map`/`new-requirement` commands. Docs-only change; `typecheck`/`lint` verified clean. |
 | 2026-09-23 | Session 5 | _(pending)_ | ARCH-001/013/015 + TEST-001/013/015 retrofitted for REQ-001 (Authentication), REQ-013 (2FA/TOTP), REQ-015 (User management); `// TC-NNN-YY` comments added to the existing `tests/server/api/auth.test.ts` and `users.test.ts` (no behavior changes — 48/48 still pass). `Traced by` updated on all three REQs. 8 gaps added to the Test Gap Backlog, two flagged 🔴 high-risk and *not* just missing tests: (1) admin-triggered session invalidation (AC-015-07/09/13 — "all active sessions invalidated") is unimplemented, a reset/deleted user's existing session survives until natural expiry; (2) `PATCH /api/users/:id/password` has no ownership check — any authenticated user can change any other user's password by ID, not only their own. Both need a decision from Matthias before Session 10 (or sooner). Docs + test-comment-only change; `typecheck`/`lint`/`npm test` verified clean. |
+| 2026-09-23 | Session 6 | _(pending)_ | ARCH-002/003/004/008 + TEST-002/003/004/008 retrofitted for REQ-002 (Accounts), REQ-003 (Categories), REQ-004 (Transactions), REQ-008 (Dashboard account-visibility toggle, client-only); `// TC-NNN-YY` comments added to `accounts.test.ts`, `categories.test.ts`, `transactions.test.ts`, `summary.test.ts` (no behavior changes — 125/125 still pass). `Traced by` updated on all four REQs. 21 gaps added to the Test Gap Backlog. One 🔴 high-risk finding **confirmed by direct test, not inferred**: `POST /api/transactions` with a negative `amount` returns `201`, not `400` — AC-004-09 and the `amount`-always-positive domain invariant are both violated server-side (a negative amount on an income row would silently subtract from `totalIncome`). One medium-risk finding: "transfer requires a target account" (AC-004-06) is enforced client-side only — the server accepts a transfer with no `transferToAccountId`, and `summary.ts` then silently drops that amount from both accounts' transfer totals. Both need a decision from Matthias. Docs + test-comment-only change; `typecheck`/`lint`/`npm test` verified clean. |
