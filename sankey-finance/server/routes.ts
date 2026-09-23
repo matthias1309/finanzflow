@@ -7,6 +7,7 @@ import { pdfRouter }           from "./routes/pdf";
 import { categoryRulesRouter } from "./routes/categoryRules";
 import { summaryRouter }       from "./routes/summary";
 import { usersRouter }         from "./routes/users";
+import { paperlessRouter }     from "./routes/paperless";
 import { storage }             from "./storage";
 
 export function registerRoutes(_httpServer: Server, app: Express): void {
@@ -17,6 +18,7 @@ export function registerRoutes(_httpServer: Server, app: Express): void {
   app.use("/api/category-rules",  categoryRulesRouter);
   app.use("/api/summary",         summaryRouter);
   app.use("/api/users",           usersRouter);
+  app.use("/api/paperless",       paperlessRouter);
 
   app.get("/api/months", (_req, res) => {
     res.json(storage.getAvailableMonths());

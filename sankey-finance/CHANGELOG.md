@@ -7,7 +7,20 @@ Format angelehnt an [Keep a Changelog](https://keepachangelog.com/de/1.0.0/).
 
 ## [Unreleased]
 
+### Hinzugefügt
+- **Paperless-Kontoauszug-Import (REQ-016)** — Kontoauszüge, die bereits in Paperless-ngx (gleicher Raspberry Pi) archiviert sind, können ohne erneuten manuellen Upload übernommen werden
+  - Zuordnungstabelle Paperless-Tag → Konto (`paperless_account_mappings`), z.B. Tag "Essenskonto" → Konto "Gemeinschaftskonto"
+  - Neuer HTTP-Client `server/paperlessClient.ts` gegen die Paperless-REST-API (Tag-Auflösung + PDF-Download), eigene Fehlerklassen für Config-/Erreichbarkeits-/Auth-/API-Fehler
+  - Dokumente mit Tag `Kontoauszug` werden nach eindeutigem, fehlendem oder mehrdeutigem Konto-Tag klassifiziert (`resolved` / `unmapped` / `ambiguous`)
+  - Wiederverwendung der bestehenden PDF-Parsing-Pipeline (REQ-005) und Kategorie-Vorschläge (REQ-006) — nur die Quelle des PDFs ist neu
+  - Neue Tabelle `paperless_imports` verhindert Doppel-Import bereits übernommener Dokumente
+  - Neue API-Endpunkte unter `/api/paperless`: `GET/POST/PUT/DELETE /mappings`, `GET /documents`, `POST /documents/:id/import`, `POST /documents/:id/confirm`
+  - Neue Seite `/import/paperless`: Zuordnungsverwaltung + Liste offener Dokumente mit Import-Vorschau (gleiches Preview-Pattern wie beim PDF-Upload)
+  - **23 neue Tests**: `tests/server/unit/paperlessClient.test.ts` (gemocktes `fetch`), `tests/server/api/paperless.test.ts` (Supertest, gemockter `paperlessClient`/`pdfParser`)
+  - **REQ-016** `documentation/REQ/REQ-016-paperless-import.md` mit 10 Gherkin-Szenarien
+
 ### Behoben
+- **Auth-Bypass in Tests ausgehebelt** — `server/auth.ts` setzte `APP_PASSWORD_HASH` auf einen Default-Hash sobald die Variable leer war, auch wenn `NODE_ENV=test` den in `tests/server/setup.ts` vorgesehenen Auth-Bypass erzwingen sollte; dadurch schlugen praktisch alle API-Tests mit 401 fehl. Fallback greift jetzt nicht mehr bei `NODE_ENV=test`.
 - **BUG-001/002/003 — SankeyChart refactored (Security + Clean Code)**
   - CSS-Injection-Risiko geschlossen: Farben aus DB werden jetzt durch `safeCssColor()` geleitet bevor sie in SVG-`fill`-Attribute fließen
   - 30+ `(d: any)`-Callbacks durch typisierte Interfaces (`D3LayoutNode`, `D3LayoutLink`) ersetzt — kein `any` mehr in D3-Code

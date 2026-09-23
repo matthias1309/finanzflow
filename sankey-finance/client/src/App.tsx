@@ -9,6 +9,7 @@ import Transactions from "./pages/Transactions";
 import Categories from "./pages/Categories";
 import Accounts from "./pages/Accounts";
 import ImportPDF from "./pages/ImportPDF";
+import ImportPaperless from "./pages/ImportPaperless";
 import Login from "./pages/Login";
 import Users from "./pages/Users";
 import NotFound from "./pages/not-found";
@@ -27,6 +28,7 @@ function App() {
                   <Route path="/" component={Dashboard} />
                   <Route path="/transactions" component={Transactions} />
                   <Route path="/import" component={ImportPDF} />
+                  <Route path="/import/paperless" component={ImportPaperless} />
                   <Route path="/accounts" component={Accounts} />
                   <Route path="/categories" component={Categories} />
                   <Route path="/users" component={Users} />

@@ -117,9 +117,9 @@ Feature: Paperless-Kontoauszug-Import
 - Wiederverwendung: `parsePDF()` aus `server/pdfParser.ts` bleibt unverändert — Paperless liefert nur den PDF-Buffer als zusätzliche Quelle anstelle des Multer-Uploads. Bank-Erkennung, Transaktions-Extraktion, Duplikat-Erkennung innerhalb eines Imports und Kategorie-Vorschläge (REQ-006) gelten identisch.
 - Neuer Endpunkt `server/routes/paperless.ts`:
   - `GET /api/paperless/documents` — offene Dokumente inkl. erkanntem/mehrdeutigem/fehlendem Konto-Tag
-  - `POST /api/paperless/documents/:id/import` — lädt, parsed, liefert Preview (analog zur Response von `POST /api/pdf`)
-  - `POST /api/paperless/documents/:id/confirm` — speichert Transaktionen, legt `paperless_imports`-Eintrag an
-  - `GET /api/paperless/mappings`, `POST /api/paperless/mappings`, `PUT /api/paperless/mappings/:id` — Verwaltung von `paperless_account_mappings`
+  - `POST /api/paperless/documents/:id/import` — lädt, parsed, liefert Preview (identische Response-Form wie `POST /api/import/pdf`)
+  - `POST /api/paperless/documents/:id/confirm` — legt nur den `paperless_imports`-Eintrag an (markiert Dokument als importiert); das eigentliche Speichern der Transaktionen läuft clientseitig über die bestehenden Endpunkte `POST /api/transactions/batch` und `POST /api/category-rules/learn` — keine Duplikation der Speicherlogik aus REQ-005
+  - `GET /api/paperless/mappings`, `POST /api/paperless/mappings`, `PUT /api/paperless/mappings/:id`, `DELETE /api/paperless/mappings/:id` — Verwaltung von `paperless_account_mappings`
 - Die Tag-Auswertung ("Zweit-Tag ≠ Kontoauszug") erfolgt serverseitig anhand der von Paperless zurückgegebenen Tag-Liste pro Dokument, nicht durch String-Matching auf Dateinamen.
 - Kein Auto-Matching per Namensähnlichkeit zwischen Paperless-Tag und Kontoname — die Zuordnung erfolgt ausschließlich explizit über `paperless_account_mappings`, um Fehlzuordnungen bei ähnlich benannten Konten zu vermeiden.
 - Kein automatischer Hintergrund-Sync in dieser Version — der Import wird manuell über die UI angestoßen (siehe Risiko unten für spätere Erweiterung).

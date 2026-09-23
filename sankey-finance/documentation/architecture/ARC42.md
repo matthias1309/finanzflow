@@ -1,7 +1,7 @@
 # FinanzFlow — Software Architecture (Arc42)
 
-**Version:** 1.2  
-**Date:** 2026-05-03  
+**Version:** 1.3  
+**Date:** 2026-09-23  
 **Status:** Current  
 
 ---
@@ -112,6 +112,7 @@ FinanzFlow is a **personal finance dashboard** for managing German bank accounts
 |---|---|---|
 | **User / Browser** | HTTP(S) requests to REST API; renders React SPA | Bidirectional |
 | **Bank PDF (N26 / DKB / ING)** | Uploaded via `POST /api/import/pdf`; parsed server-side | Inbound |
+| **Paperless-ngx (REQ-016)** | Same Raspberry Pi/Docker network. FinanzFlow pulls documents tagged `Kontoauszug` via its REST API (`PAPERLESS_BASE_URL` + token) and downloads the PDF; the existing parser processes it identically to a manual upload | Inbound |
 | **OS `prefers-color-scheme`** | Read once at startup to determine initial theme | Inbound |
 | **Docker / docker-compose** | Starts/stops and restarts the container on the Raspberry Pi | Outbound |
 
@@ -203,6 +204,7 @@ client/src/
 │   ├── Categories.tsx        Category CRUD with edit dialog
 │   ├── Transactions.tsx      Transaction list, filter by month
 │   ├── ImportPDF.tsx         PDF upload, transaction preview, batch confirm
+│   ├── ImportPaperless.tsx   Paperless-Tag→Konto-Zuordnungen, offene Dokumente, Import-Vorschau (REQ-016)
 │   ├── Users.tsx             User management (admin only): create, delete, toggle admin, set password, reset 2FA
 │   ├── Login.tsx             Login form (username + password → TOTP → authenticated)
 │   └── not-found.tsx         404 fallback
@@ -217,6 +219,7 @@ client/src/
 | `queryClient.ts` | Central `apiRequest()` wraps `fetch` with `API_BASE` prefix; `getQueryFn` used as default React Query fetcher |
 | `Dashboard.tsx` | Computes `filteredSummary` (visibility-filtered account data) in a `useMemo`, passes it to `SankeyChart` |
 | `ImportPDF.tsx` | Uploads PDF → receives parsed preview → user confirms → `POST /api/transactions/batch` → `POST /api/category-rules/learn` |
+| `ImportPaperless.tsx` | Manages `paperless_account_mappings`; lists open Paperless documents via `GET /api/paperless/documents`; reuses the same preview → `POST /api/transactions/batch` → `POST /api/category-rules/learn` flow as `ImportPDF.tsx`, then calls `POST /api/paperless/documents/:id/confirm` to mark the document imported |
 | `Users.tsx` | Admin-only page: lists users with admin badge and TOTP status; dialogs for create, set password, delete, 2FA reset |
 | `Layout.tsx` | Renders nav items; adds `/users` link only when `GET /api/auth/me` returns `isAdmin: true`; shows logged-in username |
 
@@ -233,6 +236,7 @@ server/
 ├── db.ts             SQLite connection + PRAGMA foreign_keys + schema migration + admin seeding
 ├── storage.ts        IStorage interface + implementation (Drizzle ORM façade)
 ├── pdfParser.ts      PDF text extraction + bank-specific + generic parsers
+├── paperlessClient.ts HTTP client for Paperless-ngx REST API (REQ-016): tag resolution + PDF download
 ├── static.ts         Production static file serving from dist/public/
 ├── vite.ts           Vite dev server in middleware mode
 └── routes/
@@ -243,7 +247,8 @@ server/
     ├── transactions.ts     GET/POST/PATCH/PUT/DELETE + POST /batch
     ├── summary.ts          GET /api/summary/:month → Sankey data
     ├── categoryRules.ts    GET /api/category-rules + POST /learn
-    └── pdf.ts              POST /api/import/pdf (multer, pdf2json)
+    ├── pdf.ts              POST /api/import/pdf (multer, pdf2json)
+    └── paperless.ts         GET/POST/PUT/DELETE /api/paperless/mappings, GET /documents, POST /documents/:id/import, POST /documents/:id/confirm (REQ-016)
 ```
 
 **Component responsibilities:**
@@ -255,6 +260,7 @@ server/
 | `storage.ts` | Thin Drizzle ORM wrapper — all queries, no business logic |
 | `auth.ts` | `requireAuth`: session guard (bypassed in dev/test). `requireAdmin`: checks `isAdmin` flag in DB for the session's `userId` |
 | `pdfParser.ts` | `parsePDF(buffer)` → detects bank → runs bank-specific parser → deduplicates → returns `ParseResult` |
+| `paperlessClient.ts` | `fetchKontoauszugDocuments()` resolves tag IDs → names and returns documents tagged `Kontoauszug`; `downloadDocument(id)` returns the PDF as a `Buffer`. Throws typed errors (`PaperlessConfigError`/`PaperlessUnreachableError`/`PaperlessAuthError`/`PaperlessApiError`) mapped to HTTP status by `routes/paperless.ts` |
 | `summary.ts` | Aggregates transactions by account and category for a given month; shapes data for the Sankey diagram |
 | `categoryRules.ts` | Learns keyword→category mappings from confirmed imports; applies longest-match rule on suggestion |
 
@@ -294,6 +300,17 @@ server/
                                              │ category_id     │
                                              │ hits            │
                                              └─────────────────┘
+
+┌───────────────────────────────┐   ┌────────────────────────┐
+│ paperless_account_mappings    │   │   paperless_imports     │
+│ (REQ-016)                     │   │   (REQ-016)             │
+│                                │   │                         │
+│ id (PK)                       │   │ id (PK)                 │
+│ paperless_tag (UNIQUE)        │   │ paperless_document_id   │
+│ account_id (FK → accounts)    │   │   (UNIQUE)              │
+└───────────────────────────────┘   │ account_id (FK)         │
+                                     │ imported_at             │
+                                     └────────────────────────┘
 ```
 
 **Schema notes:**
@@ -305,6 +322,7 @@ server/
 - `transactions.transfer_to_account_id` is set only for `type = 'transfer'`; these rows are excluded from income/expense aggregation
 - Foreign key constraints are enforced via `PRAGMA foreign_keys = ON` (set in `db.ts` at startup); referential integrity is guaranteed by the DB engine
 - Schema migration is inline in `db.ts` using `CREATE TABLE IF NOT EXISTS` + `tryExec("ALTER TABLE …")` for additive column migrations — no migration tool needed
+- `paperless_account_mappings.paperless_tag` is unique — one Paperless tag maps to exactly one account; `paperless_imports.paperless_document_id` is unique — prevents re-importing the same Paperless document on a later sync
 
 ---
 
@@ -409,6 +427,34 @@ Browser                     Server                      SQLite
 
 On the next import, `suggestCategory(description)` does a substring scan over all stored keywords. The longest matching keyword wins (more specific beats more general). Ties are broken by `hits` count.
 
+### 6.5 Paperless Import (REQ-016)
+
+```
+Browser                     Server                      Paperless-ngx        SQLite
+  │                           │                            │                    │
+  │── GET /api/paperless/documents ──►│                     │                    │
+  │                           │── GET /api/tags/ ──────────►│                    │
+  │                           │── GET /api/documents/?tags… ►│                   │
+  │                           │   resolveDocument() per doc  │                   │
+  │                           │   (mappingByTag, importedIds)│                   │
+  │◄── [{status, accountId, matchedTag, …}] ─│               │                   │
+  │                           │                            │                    │
+  │ User klickt "Importieren" auf einem Dokument            │                    │
+  │── POST /api/paperless/documents/:id/import ──►│          │                   │
+  │                           │── GET /api/documents/:id/download/ ─►│           │
+  │                           │   parsePDF(buffer)  (identisch zu REQ-005)       │
+  │◄── ParseResult JSON ──────│                            │                    │
+  │                           │                            │                    │
+  │ User reviews & bestätigt  │                            │                    │
+  │── POST /api/transactions/batch ──────────────────────────────────────────►  │
+  │── POST /api/category-rules/learn ────────────────────────────────────────►  │
+  │── POST /api/paperless/documents/:id/confirm ──►│         │                   │
+  │                           │   recordPaperlessImport() ────────────────────► │
+  │◄── { ok: true } ──────────│                            │                    │
+```
+
+Die Klassifizierung in `resolveDocument()` (`server/routes/paperless.ts`) filtert den Tag `Kontoauszug` heraus und wertet die verbleibenden Tags aus: keiner → `unmapped`, genau einer ohne Mapping → `unmapped` (mit `matchedTag` zur Anzeige), genau einer mit Mapping → `resolved`, mehr als einer → `ambiguous`. Bereits importierte Dokumente (`paperless_imports.paperless_document_id`) werden vor der Klassifizierung herausgefiltert.
+
 ---
 
 ## 7. Deployment View
@@ -444,6 +490,8 @@ Developer Machine
 | `NODE_ENV` | `development` | Enables Vite middleware, relaxes CSP, skips auth |
 | `DB_PATH` | `finance.db` | SQLite file path |
 | `APP_PASSWORD_HASH` | — (unset) | Auth bypassed when unset in non-production |
+| `PAPERLESS_BASE_URL` | — (unset, optional) | Paperless-ngx base URL (REQ-016); `/api/paperless/documents` returns `503` when unset |
+| `PAPERLESS_API_TOKEN` | — (unset, optional) | Paperless-ngx API token (REQ-016), server-side only, never sent to the client |
 
 ### 7.2 Production (Raspberry Pi, Docker)
 
@@ -566,6 +614,10 @@ PDF parser regex patterns use bounded quantifiers (`.{1,100}`, `.{1,300}`) inste
 **Rate Limiting on Batch Endpoints**
 
 Both `POST /api/transactions/batch` and `POST /api/category-rules/learn` are limited to 20 requests per IP per 15 minutes.
+
+**Paperless API Token Handling (REQ-016)**
+
+`PAPERLESS_API_TOKEN` is read server-side only (`server/paperlessClient.ts`) and sent as an `Authorization: Token …` header to the Paperless-ngx instance. It is never included in any response sent to the browser. Errors from Paperless (auth failure, unreachable, unexpected status) are mapped to typed error classes and surfaced to the client as sanitized messages (`Paperless-Zugriff nicht autorisiert`, `Paperless ist nicht erreichbar`, …) — the raw Paperless response body is never forwarded.
 
 ### 8.2 Error Handling
 
@@ -750,6 +802,21 @@ Chart colors (Sankey diagram) are passed as props from the theme-aware parent co
 
 ---
 
+### ADR-009 — Paperless-ngx as a second PDF source (REQ-016)
+
+**Context:** Users running Paperless-ngx on the same Raspberry Pi already archive their bank statements there, tagged `Kontoauszug` plus a per-account tag (e.g. `Essenskonto`). Re-downloading and manually re-uploading the same PDF into FinanzFlow is redundant.
+
+**Decision:** Add `server/paperlessClient.ts` as a thin HTTP client against the Paperless-ngx REST API. It only resolves which documents exist and downloads their PDF bytes — the existing `parsePDF()` pipeline (ADR-003) and category-suggestion pipeline (REQ-006) are reused unchanged; Paperless is purely an alternative PDF source, not a new import pipeline. Which FinanzFlow account a Paperless tag belongs to is stored explicitly in `paperless_account_mappings` (no name-similarity auto-matching, to avoid misassigning similarly named accounts). A `paperless_imports` table records which Paperless document IDs have already been taken over, preventing duplicate imports on repeated syncs.
+
+**Consequences:**
+- ✅ Zero duplication of parsing/dedup/category-learning logic — only the PDF source changed
+- ✅ Explicit tag→account mapping avoids silent misassignment between similarly named accounts
+- ✅ Sync is manual (user-triggered via the UI) — no background job, no error handling required outside a request/response cycle
+- ⚠️ `paperlessClient.ts` fetches tags and documents with a single `page_size=200` request each (no pagination) — acceptable for a personal household setup, but would silently miss results if the tag or document count exceeds 200 (see Risk 5, Chapter 11)
+- ⚠️ Requires network reachability from the FinanzFlow container to Paperless-ngx (same Docker network on the Pi) and a valid `PAPERLESS_API_TOKEN`
+
+---
+
 ### ADR-006 — esbuild CJS bundle for production server
 
 **Context:** The server is written in ESM TypeScript. The Raspberry Pi Docker image runs Node.js 18 (alpine). `better-sqlite3` and `pdf2json` are native CJS modules.
@@ -859,6 +926,17 @@ Previously: browsers cached Basic Auth credentials with no explicit logout mecha
 
 ---
 
+### Risk 5 — Paperless API pagination assumption (REQ-016)
+
+**Likelihood:** Low (household-scale Paperless instance)  
+**Impact:** Medium — missed documents would silently not appear in the import list
+
+**Mitigation:** `paperlessClient.ts` fetches tags and Kontoauszug-tagged documents with `page_size=200` and reads only the first page. If a Paperless instance accumulates more than 200 tags or more than 200 open (not-yet-imported) Kontoauszug documents, results beyond the first page are silently omitted.
+
+**Accepted debt:** No pagination handling (`next` cursor) implemented — the target use case (a household's bank statements) stays well under this limit for the foreseeable future. Revisit if the open-documents count approaches 200.
+
+---
+
 ### Technical Debt
 
 | Item | Description | Effort |
@@ -897,3 +975,5 @@ Previously: browsers cached Basic Auth credentials with no explicit logout mecha
 | **PDF2JSON** | A Node.js library that extracts raw text from PDF files. Used for bank statement parsing. |
 | **category rule** | A learned keyword→category mapping. Stored in `category_rules` table. Applied automatically on the next PDF import to pre-suggest categories. |
 | **transfer** | A transaction of `type = "transfer"` that moves money between two own accounts. Shown as a horizontal band in the Sankey diagram; excluded from income/expense totals. |
+| **Paperless-ngx** | A self-hosted document management system. FinanzFlow (REQ-016) reads bank statement PDFs tagged `Kontoauszug` from it via its REST API instead of requiring a manual upload. |
+| **Paperless-Tag-Mapping** | A row in `paperless_account_mappings` associating a Paperless-ngx tag (e.g. `Essenskonto`) with a FinanzFlow account. Configured explicitly by the user — no automatic name matching. |

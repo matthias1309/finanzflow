@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { BarChart3, List, Tag, TrendingUp, Sun, Moon, Upload, Landmark, LogOut, Menu, X, Users } from "lucide-react";
+import { BarChart3, List, Tag, TrendingUp, Sun, Moon, Upload, Download, Landmark, LogOut, Menu, X, Users } from "lucide-react";
 import { useTheme } from "@/context/ThemeContext";
 import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
@@ -11,6 +11,7 @@ const baseNavItems = [
   { href: "/", label: "Dashboard", icon: BarChart3 },
   { href: "/transactions", label: "Buchungen", icon: List },
   { href: "/import", label: "PDF importieren", icon: Upload },
+  { href: "/import/paperless", label: "Aus Paperless", icon: Download },
   { href: "/accounts", label: "Konten", icon: Landmark },
   { href: "/categories", label: "Kategorien", icon: Tag },
 ];
