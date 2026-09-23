@@ -82,7 +82,7 @@ tests/
   server/api/           # Vitest + Supertest API tests
   e2e/                  # Playwright specs
 docs/
-  REQ/                  # requirements (legacy layout → docs/requirements/ in migration Session 4)
+  requirements/         # REQ-XXX.md requirements + REQ-INDEX.md
   architecture/ARC42.md # system-level architecture (arc42) incl. ADRs
   code-reviews/         # CR-XXX review documents + CR-TEMPLATE.md
   MIGRATION-PLAN.md     # template migration: checklist, decisions, session log

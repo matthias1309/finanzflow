@@ -14,7 +14,7 @@ Do NOT rely on regex alone — explicit `REQ-XXX` cross-references in the files 
 The real relationships live in shared modules, shared database tables, and the Background/Notes
 sections. You must read and interpret, not just grep.
 
-1. Scan `docs/requirements/REQ-*.md` (while the migration is running, also `docs/REQ/`) and
+1. Scan `docs/requirements/REQ-*.md` and
    `docs/architecture/ARCH-*.md`. Read `docs/requirements/REQ-INDEX.md` for the canonical
    numbering and any **intentional numbering gaps**. Use `docs/architecture/ARC42.md` chapter 5
    (Building Block View) to map features to modules and tables.

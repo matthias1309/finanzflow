@@ -8,6 +8,11 @@ Format angelehnt an [Keep a Changelog](https://keepachangelog.com/de/1.0.0/).
 ## [Unreleased]
 
 ### Hinzugefügt
+- **Requirements migration to `docs/requirements/` (migration Session 4)** — all 16 REQs moved
+  from `docs/REQ/REQ-NNN-slug.md` to `docs/requirements/REQ-NNN.md`, translated to English where
+  they were still German, and restructured into one `### AC-NNN-YY` heading per acceptance
+  criterion. New `docs/requirements/REQ-INDEX.md`. Docs-only change, no application behavior
+  affected. Details in `docs/MIGRATION-PLAN.md`.
 - **Claude Code template infrastructure (migration Session 3)** — `.claude/rules/` (coding-style, architecture, testing-practices, git-workflow, v-model, security, learnings), `.claude/commands/` (`/new-requirement`, `/new-arch`, `/new-test-spec`, `/traceability`, `/test-coverage`, `/system-map`, `/capture-learning`, `/summarize-pr`, `/todo-check`), a post-edit ESLint hook, a cleaned-up `.claude/settings.json` permission allow/deny list, and `docs/code-reviews/CR-TEMPLATE.md` (incl. the former pre-commit Clean Code Review). The root `CLAUDE.md` is now a slim English overview; `tests/CLAUDE.md` and `docs/documentation-CLAUDE.md` were folded into the rules and removed. Function length limit unified to ~30 lines. Details in `docs/MIGRATION-PLAN.md`.
 - **Quality-Baseline für Claude-Code-Migration (Session 2)** — `tsc --noEmit` läuft fehlerfrei, ESLint (typescript-eslint, `no-explicit-any` als Error) + Prettier eingerichtet, GitHub-Actions-CI (`typecheck` → `lint` → `test`), Paket auf `finanzflow` umbenannt, `.nvmrc` dokumentiert die lokal funktionierende Node-Version. Details in `docs/MIGRATION-PLAN.md` (Session-2-Log).
 - **Paperless-Kontoauszug-Import (REQ-016)** — Kontoauszüge, die bereits in Paperless-ngx (gleicher Raspberry Pi) archiviert sind, können ohne erneuten manuellen Upload übernommen werden

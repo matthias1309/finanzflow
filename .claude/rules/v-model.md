@@ -2,10 +2,10 @@
 
 Every feature follows the V-Model sequence. Claude must never skip or reorder steps.
 
-> **Migration in progress** (see `docs/MIGRATION-PLAN.md`): until Session 4 the legacy
-> requirements still live in `docs/REQ/REQ-NNN-slug.md` with one `Feature:` block each; ARCH and
-> TEST-SPEC documents are retrofitted in Sessions 5–9. During the migration no new features are
-> started.
+> **Migration in progress** (see `docs/MIGRATION-PLAN.md`): all 16 requirements now live in
+> `docs/requirements/REQ-NNN.md` with `### AC-NNN-YY` headings (migrated in Session 4). ARCH and
+> TEST-SPEC documents are retrofitted in Sessions 5–9 — until then, `Traced by` on each REQ reads
+> `_(pending ARCH and TEST)_`. During the migration no new features are started.
 
 ## Sequence (strictly enforced)
 
@@ -59,7 +59,7 @@ number** (REQ-017 → ARCH-017 → TEST-017 → TC-017-YY), so the whole chain s
 
 - One `### AC-XXX-YY: <name>` heading per acceptance criterion, each with exactly one Gherkin scenario
 - `## Notes` holds implementation details, edge cases, constraints; update it when the feature changes
-- Index of all REQs: `docs/requirements/REQ-INDEX.md` (from Session 4 on; until then `docs/REQ/README.md`)
+- Index of all REQs: `docs/requirements/REQ-INDEX.md`
 
 ### Gherkin Rules
 

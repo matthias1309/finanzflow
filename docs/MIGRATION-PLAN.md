@@ -136,15 +136,29 @@ placeholders. The same values are still **hardcoded as fallbacks** in `server/au
 Matthias's untracked `.claude/settings.local.json` also contains these values in old `export …`
 permission entries — clean up locally.
 
-### Session 4 — Requirements migration
+### Session 4 — Requirements migration ✅ done
 Branch: `docs/migrate-requirements`
-- [ ] `docs/REQ/REQ-NNN-slug.md` → `docs/requirements/REQ-NNN.md` (16 files)
-- [ ] Translate to English (REQ-016 and any German prose); keep quoted UI labels in German
-- [ ] Add header: `Status: approved` (shipped features), `Created`, `Traced by: _(pending ARCH and TEST)_`
-- [ ] Split each `Feature:` block into `### AC-NNN-YY: <name>` headings with one Gherkin scenario each
-- [ ] Create `docs/requirements/REQ-INDEX.md` (replaces `REQ/README.md`), list numbering gaps (none expected)
-- [ ] Move `ARC42.md` → `docs/architecture/ARC42.md`, fix all links (CLAUDE.md, rules, ARC42, CHANGELOG)
-- [ ] Commit messages from now on: `… — REQ-XXX`
+- [x] `docs/REQ/REQ-NNN-slug.md` → `docs/requirements/REQ-NNN.md` (16 files)
+- [x] Translate to English (REQ-001, REQ-013, REQ-014, REQ-015, REQ-016 were fully or partially
+      German; REQ-002–012 were already English); kept real German UI labels/error messages quoted
+      verbatim (e.g. `"Neue Kategorie"`, `"Ungültiger Code"`)
+- [x] Add header: `Status: approved` (all 16 are shipped features), `Created` (from
+      `git log --diff-filter=A` on each legacy file), `Traced by: _(pending ARCH and TEST)_`
+- [x] Split each `Feature:` block into `### AC-NNN-YY: <name>` headings with one Gherkin scenario
+      each — inlined the shared `Background:` steps from REQ-001 and REQ-015 into every scenario
+      that needs them, since the new template has no shared-background construct
+- [x] Create `docs/requirements/REQ-INDEX.md` (replaces `REQ/README.md`), no numbering gaps
+- [x] `ARC42.md` was already at `docs/architecture/ARC42.md` from an earlier session; no move needed,
+      links verified
+- [x] Fixed all links: `docs/README.md`, `.claude/rules/v-model.md` (index path + migration note),
+      `CLAUDE.md` (project structure), `.claude/commands/{traceability,system-map,new-requirement}.md`
+      (dropped the now-obsolete `docs/REQ/` fallback since the folder is deleted)
+- [x] `typecheck` and `lint` verified clean (docs-only change, no code touched)
+
+**Note:** REQ-014 had no `User Story` section in the legacy file (only a German "Ziel" paragraph) —
+added a standard User Story matching its stated goal. Its Gherkin blocks were grouped by UI area
+(Navigation/Dashboard/Buchungen/Alle Seiten) rather than one-scenario-per-AC; split into 9
+individual ACs, translated section labels into English AC names.
 
 ### Sessions 5–9 — ARCH + TEST-SPEC retrofit (1:1 per REQ)
 Per REQ in the session:
@@ -209,3 +223,4 @@ _Filled during Sessions 5–9. Format: `TC-NNN-YY — short description — risk
 | 2026-09-23 | Session 1 | [#6](https://github.com/matthias1309/finanzflow/pull/6) | Repo flattened to root (`git mv` from `sankey-finance/`), `documentation/` → `docs/`, `DEPLOYMENT.md`/`DOCKER.md`/`.dockerignore` paths fixed. Verified: `npm install`, `docker build .`, `npm test` (125/125), `tsc --noEmit` (same 6 pre-existing baseline errors, none new). Pi redeploy with the new layout is still open — manual, Matthias. |
 | 2026-09-23 | Session 2 | [#7](https://github.com/matthias1309/finanzflow/pull/7) | tsc 0 errors (added `target: "ES2020"`, fixed CSP directive typing, removed a dead `/test-session` debug endpoint). ESLint (flat config, `no-explicit-any`=error) + Prettier added; fixed all 43 lint errors / 12 warnings (typed all `any`, fixed a real double-DELETE bug in `Users.tsx` found via unused-var lint). GitHub Actions CI added (`typecheck` → `lint` → `test`). Package renamed `rest-express` → `finanzflow`. `.nvmrc` = 22. Prettier left unapplied to the existing tree (Matthias's call — avoid noise diff). Found pre-existing `npm run build` failure on macOS (`fsevents`, unrelated to this session, Docker build unaffected) — logged as a follow-up, not fixed. |
 | 2026-09-23 | Session 3 | [#8](https://github.com/matthias1309/finanzflow/pull/8) | `.claude/` rules (7 incl. new `architecture.md`), 9 commands, post-edit ESLint hook, clean `settings.json`, `CR-TEMPLATE.md`, slim English root `CLAUDE.md`, gitignored `CLAUDE.local.md`. Old `tests/CLAUDE.md` + `docs/documentation-CLAUDE.md` folded in and deleted. Function limit unified to ~30 lines (Matthias). Found + fixed leaked secret values in `DEPLOYMENT.md`; hardcoded fallback secrets in server code logged as 🔴 follow-up. |
+| 2026-09-23 | Session 4 | _(pending)_ | All 16 REQs moved from `docs/REQ/REQ-NNN-slug.md` to `docs/requirements/REQ-NNN.md`, translated to English (REQ-001/013/014/015/016 were German), restructured into `### AC-NNN-YY` headings (one Gherkin scenario each), and given `Status`/`Created`/`Traced by` headers. New `REQ-INDEX.md`. `ARC42.md` was already at its target path from an earlier session. All stale `docs/REQ/` references removed from `CLAUDE.md`, `v-model.md`, and the `traceability`/`system-map`/`new-requirement` commands. Docs-only change; `typecheck`/`lint` verified clean. |
