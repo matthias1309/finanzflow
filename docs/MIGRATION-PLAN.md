@@ -1,0 +1,154 @@
+# Migration Plan — FinanzFlow → Claude Code Template
+
+**Created:** 2026-09-23
+**Template:** https://github.com/matthias1309/template
+**Status:** in progress — see checklist below
+
+This file is the single source of truth for the migration. **Every migration session starts by
+reading this file** and ends by updating the checklist and the session log at the bottom.
+
+---
+
+## Goal
+
+Bring FinanzFlow onto the V-Model development template (REQ → ARCH → TEST-SPEC → TDD →
+Implementation → Code Review) with full traceability, a green quality baseline, and the standard
+`.claude/` setup — without changing application behavior.
+
+## Decisions (2026-09-23)
+
+| # | Decision | Consequence |
+|---|---|---|
+| D1 | **All repository content in English** | CLAUDE.md, rules, REQs, commit messages translated. German stays only where it is a real UI label / error message quoted in Gherkin (e.g. `"Importieren"`). |
+| D2 | **Flatten `sankey-finance/` into the repo root** | `CLAUDE.md`, `docs/`, `.claude/` all at root as the template expects. Deployment (`rsync` to the Pi) must be adapted. |
+| D3 | **ARCH + TEST-SPEC retrofitted 1:1 per REQ** | 16 ARCH + 16 TEST-SPEC documents. |
+| D4 | **Retrofit IDs mirror the REQ number** | REQ-005 → ARCH-005 → TEST-005 → TC-005-YY. New features continue with the same alignment (REQ-017 → ARCH-017 …). |
+| D5 | **ARC42 is kept** as the system-level architecture document (`docs/architecture/ARC42.md`) | ARCH-XXX documents hold feature-level design and link to ARC42 sections instead of duplicating them. ADRs stay in ARC42 chapter 9. |
+| D6 | **Retrofit sessions document test gaps, they do not write new tests** | Gaps are collected in the "Test Gap Backlog" below and closed in Session 10. |
+| D7 | **No CR documents for already-shipped features** | CR-XXX is required for all work from Session 11 on. |
+
+## Template deviations (intentional)
+
+Things taken from the template but adapted, because the template itself is inconsistent or
+does not fit this project. Consider back-porting fixes to the template repo.
+
+- `settings.json`: no pinned `model` (template pins the outdated `claude-sonnet-4-5`).
+- `mcp.json`: not copied (template only contains placeholder servers).
+- Hooks: post-edit hook actually runs `eslint`/`prettier` on the edited file instead of only
+  printing a hint; the pre-tool-use logging hook is dropped (no value).
+- `testing-practices.md`: tests stay in the `tests/` tree (not co-located next to sources).
+- Function length: unify on one limit (template says ~30, old CLAUDE.md says 20) — decide in Session 3.
+- `system-map.md`: remove the "Project_Buddy" leftovers and the reference to an undefined
+  "V-Model step 0 Impact Analysis" (or add that step to `v-model.md`).
+
+---
+
+## Session Checklist
+
+Each session = one branch = one PR. Do not start a session before the previous PR is merged.
+From Session 2 on, **CI must be green** before merge.
+
+### Session 0 — Remove leaked secrets 🔴 urgent
+Branch: `fix/remove-committed-secrets`
+- [ ] Delete `sankey-finance/secrets.env` from the repo, add `secrets.env` / `*.env` pattern to `.gitignore`
+- [ ] Decide whether to purge it from git history (`git filter-repo`) — repo is **public**
+- [ ] **Manual (Matthias, on the Pi):** rotate `SESSION_SECRET`, `TOTP_ENCRYPTION_KEY`, admin password
+      (→ new `APP_PASSWORD_HASH`). Rotating the TOTP key invalidates stored 2FA secrets →
+      re-enroll 2FA (`npm run 2fa:reset`).
+- [ ] Note the incident in `.claude/rules/learnings.md` (created in Session 3 — note it here until then)
+
+### Session 1 — Flatten repository layout
+Branch: `chore/flatten-repo-root`
+- [ ] `git mv sankey-finance/* .` (incl. dotfiles), merge the two `.gitignore` files, root `README.md` absorbs the old one
+- [ ] Rename `documentation/` → `docs/` (content migration happens in Session 4; here only the move)
+- [ ] Adapt `DEPLOYMENT.md`: `rsync` from repo root with `--exclude` for `.git`, `.claude`, `docs`, `node_modules`, `tests`; fix backup/troubleshooting paths
+- [ ] Verify `docker build .` works locally from the new root
+- [ ] **Manual:** first deploy to the Pi with the new layout (data volume / `.env` paths unchanged on the Pi)
+
+### Session 2 — Quality baseline green
+Branch: `chore/quality-baseline`
+- [ ] Make tests runnable locally (`better-sqlite3` native binding missing → `npm rebuild better-sqlite3`; document Node version in `.nvmrc`)
+- [ ] Fix the 6 `tsc` errors (`server/securityHeaders.ts`, `server/storage.ts`, …); add `typecheck` script
+- [ ] Add ESLint (typescript-eslint, `no-explicit-any` = error) + Prettier; `lint`, `lint:fix`, `format` scripts — **confirm new devDependencies with Matthias first**
+- [ ] GitHub Actions CI: install → typecheck → lint → `npm test` (E2E optional/nightly)
+- [ ] Rename package `rest-express` → `finanzflow`
+- [ ] Baseline numbers recorded in the session log (tests passing, lint findings fixed/suppressed)
+
+### Session 3 — Claude Code infrastructure
+Branch: `chore/claude-template-setup`
+- [ ] Copy + adapt `.claude/rules/` (coding-style, testing-practices, git-workflow, v-model, security, learnings)
+- [ ] Move project-specific content out of the old CLAUDE.md files into rules:
+      shared-schema / storage-façade / `safeCssColor` → `coding-style.md` (or new `architecture.md`);
+      security middleware table → `security.md`; "Common pitfalls" table → `learnings.md`;
+      `tests/CLAUDE.md` (isolation, `data-testid` scheme) → `testing-practices.md`;
+      `documentation/CLAUDE.md` (Gherkin rules, ARC42 update table, ADR format) → `v-model.md`
+- [ ] Copy + adapt `.claude/commands/` (new-requirement, new-arch, new-test-spec, traceability, test-coverage, system-map, capture-learning, summarize-pr, todo-check); paths → `docs/…`
+- [ ] New root `CLAUDE.md` (English, slim, template structure) — delete `tests/CLAUDE.md` and `docs/CLAUDE.md`
+- [ ] `settings.json`: clean permission allowlist (replace the ad-hoc curl/docker entries), deny list, hooks
+- [ ] Hooks: post-edit lint on `.ts/.tsx`; make scripts executable
+- [ ] `CLAUDE.local.md` (gitignored) with local notes (port 3000, AirPlay, Pi host)
+- [ ] Keep the pre-commit Clean Code Review from the old CLAUDE.md → fold into `docs/code-reviews/CR-TEMPLATE.md` + git-workflow rule
+- [ ] Keep `CHANGELOG.md` workflow (template has none) → add to `git-workflow.md`
+
+### Session 4 — Requirements migration
+Branch: `docs/migrate-requirements`
+- [ ] `docs/REQ/REQ-NNN-slug.md` → `docs/requirements/REQ-NNN.md` (16 files)
+- [ ] Translate to English (REQ-016 and any German prose); keep quoted UI labels in German
+- [ ] Add header: `Status: approved` (shipped features), `Created`, `Traced by: _(pending ARCH and TEST)_`
+- [ ] Split each `Feature:` block into `### AC-NNN-YY: <name>` headings with one Gherkin scenario each
+- [ ] Create `docs/requirements/REQ-INDEX.md` (replaces `REQ/README.md`), list numbering gaps (none expected)
+- [ ] Move `ARC42.md` → `docs/architecture/ARC42.md`, fix all links (CLAUDE.md, rules, ARC42, CHANGELOG)
+- [ ] Commit messages from now on: `… — REQ-XXX`
+
+### Sessions 5–9 — ARCH + TEST-SPEC retrofit (1:1 per REQ)
+Per REQ in the session:
+1. `ARCH-NNN.md` — derived from code + the matching ARC42 sections (link, don't copy); `Traces: REQ-NNN`
+2. `TEST-NNN.md` — one TC per AC; `File:` points to the existing test, or `❌ missing` if none
+3. Add `// TC-NNN-YY` comments to the existing tests that verify an AC (no behavior changes)
+4. Update `Traced by` in REQ and `Verified by` in ARCH
+5. Append every `❌ missing` TC to the Test Gap Backlog below
+
+| Session | Branch | REQs |
+|---|---|---|
+| 5 | `docs/retrofit-auth` | [ ] REQ-001 Authentication · [ ] REQ-013 2FA/TOTP · [ ] REQ-015 User management |
+| 6 | `docs/retrofit-master-data` | [ ] REQ-002 Accounts · [ ] REQ-003 Categories · [ ] REQ-004 Transactions · [ ] REQ-008 Account visibility |
+| 7 | `docs/retrofit-import` | [ ] REQ-005 PDF import · [ ] REQ-006 Category learning · [ ] REQ-011 Batch import |
+| 8 | `docs/retrofit-paperless-dashboard` | [ ] REQ-016 Paperless import · [ ] REQ-007 Dashboard · [ ] REQ-009 Sankey chart |
+| 9 | `docs/retrofit-ui` | [ ] REQ-010 Month navigation · [ ] REQ-012 Theme · [ ] REQ-014 Mobile responsive |
+
+After Session 9: run `/traceability` → every REQ must show ARCH + TEST-SPEC ✅.
+
+### Session 10 — Close test gaps
+Branch: `test/close-retrofit-gaps`
+- [ ] Prioritize the Test Gap Backlog (security + import first); write missing tests with TC comments
+- [ ] Add `@vitest/coverage-v8`, coverage report in CI, threshold 80 % on `server/` business logic (confirm dependency)
+- [ ] Remaining low-value gaps: mark as `accepted` with reason in the TEST-SPEC
+
+### Session 11 — Acceptance & handover
+Branch: `docs/migration-acceptance`
+- [ ] `/traceability`, `/test-coverage`, `/system-map` → commit `docs/SYSTEM-MAP.md`
+- [ ] First `CR-001` for the migration itself (using the template)
+- [ ] `/capture-learning` for insights from the migration; back-port template fixes (see "Template deviations")
+- [ ] Mark this plan `completed`
+
+---
+
+## Test Gap Backlog
+
+_Filled during Sessions 5–9. Format: `TC-NNN-YY — short description — risk (high/med/low)`._
+
+(empty)
+
+## Out of Scope / Follow-ups
+
+- Dockerfile uses `node:18-alpine` — Node 18 is EOL; upgrade (incl. `better-sqlite3` major) as a separate REQ-less chore after the migration.
+- Unused shadcn/ui components and dependencies (`refactor-clean`) — separate cleanup PR.
+- Automatic Paperless sync (see REQ-016 notes) — would be the first feature through the full V-Model.
+
+---
+
+## Session Log
+
+| Date | Session | PR | Notes |
+|---|---|---|---|
+| 2026-09-23 | Planning | — | Assessment done, decisions D1–D7 recorded. Baseline: 6 tsc errors, 7/9 Vitest files fail locally (missing `better-sqlite3` binding), no CI, no lint. |
