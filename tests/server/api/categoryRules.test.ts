@@ -111,13 +111,13 @@ describe("POST /api/category-rules/learn", () => {
     expect(res.body.learned).toBe(500);
   });
 
-  // Regression test — Test Gap Backlog (Session 7): AC-006-08/AC-011-06 require that invalid
-  // entries in a learn-batch are skipped, not that the whole batch fails. `learnBatchSchema`
-  // validates the entire array with one `safeParse`, so a single invalid entry (negative
-  // `categoryId`) currently rejects the whole request with 400 and saves nothing, including the
-  // otherwise-valid entries. `POST /api/transactions/batch` already has the correct per-item
-  // pattern one file over. Documents the CURRENT behavior; flip once `/learn` adopts the same
-  // per-item filter (see docs/architecture/ARCH-011.md Open Questions).
+  // Regression test — Test Gap Backlog (Session 7, TC-006-08 / TC-011-06): AC-006-08/AC-011-06
+  // require that invalid entries in a learn-batch are skipped, not that the whole batch fails.
+  // `learnBatchSchema` validates the entire array with one `safeParse`, so a single invalid entry
+  // (negative `categoryId`) currently rejects the whole request with 400 and saves nothing,
+  // including the otherwise-valid entries. `POST /api/transactions/batch` already has the correct
+  // per-item pattern one file over. Documents the CURRENT behavior; flip once `/learn` adopts the
+  // same per-item filter (see docs/architecture/ARCH-011.md Open Questions).
   it("known issue: one invalid entry currently fails the entire learn-batch instead of being skipped", async () => {
     const categoryId = await expenseCategoryId();
     const res = await agent.post("/api/category-rules/learn").send([

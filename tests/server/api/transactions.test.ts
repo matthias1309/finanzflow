@@ -99,10 +99,10 @@ describe("POST /api/transactions", () => {
     expect(res.body.transferToAccountId).toBe(targetAccountId);
   });
 
-  // Regression test — Test Gap Backlog (Session 6): AC-004-09 requires the server to reject a
-  // negative `amount`, but no `.positive()` refinement exists on `insertTransactionSchema`.
-  // This documents the CURRENT (incorrect) behavior; flip the expected status to 400 once the
-  // schema is fixed (see docs/architecture/ARCH-004.md Open Questions).
+  // Regression test — Test Gap Backlog (Session 6, TC-004-09): AC-004-09 requires the server to
+  // reject a negative `amount`, but no `.positive()` refinement exists on
+  // `insertTransactionSchema`. This documents the CURRENT (incorrect) behavior; flip the expected
+  // status to 400 once the schema is fixed (see docs/architecture/ARCH-004.md Open Questions).
   it("known issue: currently accepts a negative amount instead of rejecting it (AC-004-09)", async () => {
     const res = await agent.post("/api/transactions").send({
       month: "2026-04",
@@ -115,9 +115,9 @@ describe("POST /api/transactions", () => {
     expect(res.status).toBe(201);
   });
 
-  // Regression test — Test Gap Backlog (Session 6): AC-004-06 requires a transfer to specify a
-  // target account, but the server accepts `transferToAccountId: null` and `summary.ts` then
-  // silently drops the amount from both accounts' totals. Documents the CURRENT behavior; flip
+  // Regression test — Test Gap Backlog (Session 6, TC-004-06): AC-004-06 requires a transfer to
+  // specify a target account, but the server accepts `transferToAccountId: null` and `summary.ts`
+  // then silently drops the amount from both accounts' totals. Documents the CURRENT behavior; flip
   // to 400 once the schema/route validates this (see docs/architecture/ARCH-004.md Open Questions).
   it("known issue: currently accepts a transfer with no transferToAccountId (AC-004-06)", async () => {
     const res = await agent.post("/api/transactions").send({

@@ -109,10 +109,11 @@ describe("GET /api/summary/:month — Bilanz-Berechnung", () => {
   });
 });
 
-// Regression test — Test Gap Backlog (Session 9): AC-010-06 requires GET /api/summary/:month
-// to reject an invalid month format with 400, but no such validation exists on this route (the
-// sibling GET /api/transactions?month= path does validate). Documents the CURRENT behavior;
-// flip to 400 once the route gets the same guard (see docs/architecture/ARCH-010.md Open Questions).
+// Regression test — Test Gap Backlog (Session 9, TC-010-06): AC-010-06 requires GET
+// /api/summary/:month to reject an invalid month format with 400, but no such validation exists on
+// this route (the sibling GET /api/transactions?month= path does validate). Documents the CURRENT
+// behavior; flip to 400 once the route gets the same guard (see docs/architecture/ARCH-010.md Open
+// Questions).
 describe("GET /api/summary/:month — Monatsformat-Validierung", () => {
   it("known issue: currently returns 200 with an empty summary for an invalid month (AC-010-06)", async () => {
     const res = await request(app).get("/api/summary/2026-4");

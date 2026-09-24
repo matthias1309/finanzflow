@@ -44,6 +44,7 @@ test("Dashboard loads and shows the month selector", async ({ page }) => {
   await expect(page.getByTestId("select-month")).toBeVisible();
 });
 
+// TC-008-06 (implicit: no opacity assertion on first load)
 test("Account KPI card appears after seeding data", async ({ page }) => {
   const { accountId } = await seedData(page);
   await page.reload();
@@ -53,6 +54,7 @@ test("Account KPI card appears after seeding data", async ({ page }) => {
   await expect(kpi.getByText("Dashboard Konto")).toBeVisible();
 });
 
+// TC-008-01 / TC-008-03 (partial: opacity toggle only, no icon or KPI-total assertions)
 test("Clicking an account KPI card toggles visibility", async ({ page }) => {
   const { accountId } = await seedData(page);
   await page.reload();

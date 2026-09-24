@@ -24,6 +24,7 @@ Claude reads this file every session and factors the entries into suggestions an
 | `._` files in tar.gz | macOS `tar` writes metadata | `COPYFILE_DISABLE=1 tar …` |
 | `ERR_REQUIRE_ESM` on start | `@noble/hashes` or `@scure/base` v2 in the lockfile | Check `overrides` in `package.json`; do not upgrade `otplib` to v13 |
 | `better-sqlite3` native binding missing | No prebuilt binary for very new Node majors | Use the Node version from `.nvmrc` (22) and a fresh `npm install` |
+| Random 401/404 in API tests on macOS, only in the full suite | supertest `request(app)` ephemeral-port collision between parallel Vitest processes (`::` vs `127.0.0.1`) | Open follow-up: one server per test file bound to `127.0.0.1` (CR-005 finding 3a) |
 | `npm run build` fails locally on macOS | esbuild tries to bundle the optional `fsevents` `.node` binary | Pre-existing; Docker (Linux) build unaffected — see migration plan follow-ups |
 
 ---
@@ -47,3 +48,38 @@ fallback secrets from server code is tracked as a follow-up in `docs/MIGRATION-P
 **Learning:** An unused-variable warning in `Users.tsx` revealed a redundant second `DELETE` request
 in an error handler. Earlier, a "tests always fail" symptom hid a login bug (SHA-256 vs. bcrypt).
 **Action:** Treat lint and test failures as signals, not noise — investigate before silencing.
+
+## 2026-09-24 — Reading code against Gherkin ACs finds real bugs
+**Context:** ARCH/TEST-SPEC retrofit (migration Sessions 5–10) for 16 already-shipped REQs.
+**Learning:** Writing an ARCH by walking the code against every AC — and running a throwaway test
+when an AC looked doubtful — confirmed about ten implementation bugs the existing tests never
+touched (negative amounts accepted, learn-batch all-or-nothing, no ownership check on password
+change, production fail-fast never firing, …). The tests only covered what the code did, not
+what the REQ promised.
+**Action:** When touching an existing feature, verify its ACs against the code, not just the
+tests. A doubtful AC gets a quick direct test before it is documented as "covered".
+
+## 2026-09-24 — Pin confirmed bugs with `known issue:` regression tests
+**Context:** Session 10 wrote tests for confirmed bugs without fixing them (explicit decision).
+**Learning:** A test named `it("known issue: …")` that asserts the current, wrong behavior, with a
+comment naming the TC ID, the violated AC, and the ARCH Open Question, keeps the bug visible and
+fails loudly when behavior changes. But a plain TC-comment grep then counts the bug as ✅ covered.
+**Action:** Use this pattern only when a fix is deliberately deferred. When fixing, flip the
+assertion to the AC's expected behavior and drop the `known issue:` prefix in the same PR.
+`/test-coverage` reports these as 🔴, not ✅.
+
+## 2026-09-24 — Fallback defaults must not run before fail-fast checks
+**Context:** TC-001-08 regression test (Session 10), `server/auth.ts`.
+**Learning:** The production "missing `APP_PASSWORD_HASH` → exit" check was dead code: a fallback
+block gated on `NODE_ENV !== "test"` filled in hardcoded secrets first, so production started
+fail-open with publicly known values. Code inspection had flagged the fallbacks; only a direct test
+showed the check never fires.
+**Action:** Validate required production config before any defaulting runs, and gate dev
+fallbacks on an explicit dev signal, never on "not test". Every fail-fast path gets a test.
+
+## 2026-09-24 — Code-level traceability starts after the migration
+**Context:** `/traceability` in Session 11 found zero implementation commits referencing a REQ.
+**Learning:** Pre-migration commits never referenced REQs, and the migration itself only touched
+docs and tests, so for all 16 REQs the code files come from the ARCH documents (⚠️), not git.
+**Action:** Every fix/feature commit from now on carries `— REQ-XXX`; the ARCH file lists are the
+fallback until a REQ has its first such commit.

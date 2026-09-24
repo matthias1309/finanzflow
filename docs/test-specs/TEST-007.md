@@ -16,6 +16,8 @@ All ACs are E2E/UI-rendering concerns (client-only feature, ARCH-007); the under
 **Type:** e2e
 **File:** ❌ missing
 
+**Status: accepted (Session 11).** Client-rendered Dashboard behavior with no server-side data-integrity risk — the `/api/summary/:month` data it renders is covered by TEST-004 and TC-007-03. Session 10 missed marking this TC; accepted under the same rule applied to TEST-008/TEST-009. Left as an E2E follow-up.
+
 **Notes:** `tests/e2e/dashboard.spec.ts` → `Dashboard loads and shows the month selector` only
 asserts the selector is visible, not that it defaults to the *current* month. See Test Gap
 Backlog.
@@ -27,6 +29,8 @@ Backlog.
 **Maps to:** AC-007-02
 **Type:** e2e
 **File:** ❌ missing
+
+**Status: accepted (Session 11).** Client-rendered Dashboard behavior with no server-side data-integrity risk — the `/api/summary/:month` data it renders is covered by TEST-004 and TC-007-03. Session 10 missed marking this TC; accepted under the same rule applied to TEST-008/TEST-009. Left as an E2E follow-up.
 
 **Notes:** No test changes the month selector and asserts KPI values change accordingly. See Test
 Gap Backlog.
@@ -59,6 +63,8 @@ concern. Left as a follow-up.
 **Type:** e2e
 **File:** ❌ missing
 
+**Status: accepted (Session 11).** Client-rendered Dashboard behavior with no server-side data-integrity risk — the `/api/summary/:month` data it renders is covered by TEST-004 and TC-007-03. Session 10 missed marking this TC; accepted under the same rule applied to TEST-008/TEST-009. Left as an E2E follow-up.
+
 **Notes:** No test creates expense > income for a month and asserts the Bilanz card's color class.
 See Test Gap Backlog.
 
@@ -69,6 +75,8 @@ See Test Gap Backlog.
 **Maps to:** AC-007-05
 **Type:** e2e
 **File:** ❌ missing
+
+**Status: accepted (Session 11).** Client-rendered Dashboard behavior with no server-side data-integrity risk — the `/api/summary/:month` data it renders is covered by TEST-004 and TC-007-03. Session 10 missed marking this TC; accepted under the same rule applied to TEST-008/TEST-009. Left as an E2E follow-up.
 
 **Notes:** `Account KPI card appears after seeding data` (dashboard.spec.ts) asserts one account's
 card is visible with its name — does not assert income/expenses/balance are shown per card, and
@@ -82,6 +90,8 @@ only tests a single-account scenario, not "three accounts → three cards." See 
 **Type:** e2e
 **File:** ❌ missing
 
+**Status: accepted (Session 11).** Client-rendered Dashboard behavior with no server-side data-integrity risk — the `/api/summary/:month` data it renders is covered by TEST-004 and TC-007-03. Session 10 missed marking this TC; accepted under the same rule applied to TEST-008/TEST-009. Left as an E2E follow-up.
+
 **Notes:** No test selects a month with no transactions and asserts `0,00 €`/`0.0%` on every KPI
 card plus an empty Sankey chart. See Test Gap Backlog.
 
@@ -93,6 +103,8 @@ card plus an empty Sankey chart. See Test Gap Backlog.
 **Type:** e2e
 **File:** ❌ missing
 
+**Status: accepted (Session 11).** Client-rendered Dashboard behavior with no server-side data-integrity risk — the `/api/summary/:month` data it renders is covered by TEST-004 and TC-007-03. Session 10 missed marking this TC; accepted under the same rule applied to TEST-008/TEST-009. Left as an E2E follow-up.
+
 **Notes:** No test exercises the zero-accounts state (all existing dashboard tests seed at least
 one account via `seedData()`). See Test Gap Backlog.
 
@@ -103,6 +115,8 @@ one account via `seedData()`). See Test Gap Backlog.
 **Maps to:** AC-007-08
 **Type:** e2e
 **File:** ❌ missing
+
+**Status: accepted (Session 11).** Client-rendered Dashboard behavior with no server-side data-integrity risk — the `/api/summary/:month` data it renders is covered by TEST-004 and TC-007-03. Session 10 missed marking this TC; accepted under the same rule applied to TEST-008/TEST-009. Left as an E2E follow-up.
 
 **Notes:** No test asserts skeleton elements are present before data resolves (would need to
 intercept/delay the `/api/summary/:month` response). See Test Gap Backlog (**low** — cosmetic,

@@ -2,10 +2,9 @@
 
 Every feature follows the V-Model sequence. Claude must never skip or reorder steps.
 
-> **Migration in progress** (see `docs/MIGRATION-PLAN.md`): all 16 requirements now live in
-> `docs/requirements/REQ-NNN.md` with `### AC-NNN-YY` headings (migrated in Session 4). ARCH and
-> TEST-SPEC documents are retrofitted in Sessions 5–9 — until then, `Traced by` on each REQ reads
-> `_(pending ARCH and TEST)_`. During the migration no new features are started.
+> **Migration completed** (2026-09-24, `docs/MIGRATION-PLAN.md`, review `CR-005`): all 16 REQs
+> trace to ARCH + TEST-SPEC. Their implementation predates REQ-tagged commits, so code-level
+> traceability for them comes from the file lists in each ARCH until the first `— REQ-XXX` commit.
 
 ## Sequence (strictly enforced)
 
