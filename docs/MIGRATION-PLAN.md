@@ -204,8 +204,9 @@ Branch: `docs/migration-acceptance`
       comments; `/test-coverage` now handles multi-ID comments and reports known issues as 🔴
 - [x] `/capture-learning` for insights from the migration → 4 entries in `.claude/rules/learnings.md`;
       `known issue:` test convention added to `testing-practices.md`
-- [x] Back-port template fixes → list prepared below ("Template back-port"); applying it is a
-      separate PR in the template repo (not done from this repo)
+- [x] Back-port template fixes → list below ("Template back-port"), applied in
+      [matthias1309/template#7](https://github.com/matthias1309/template/pull/7) (item 7 dropped:
+      the template already uses ~30 lines everywhere)
 - [x] Mark this plan `completed`
 
 ### Template back-port
