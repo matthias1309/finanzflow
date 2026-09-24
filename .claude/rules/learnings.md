@@ -77,6 +77,21 @@ showed the check never fires.
 **Action:** Validate required production config before any defaulting runs, and gate dev
 fallbacks on an explicit dev signal, never on "not test". Every fail-fast path gets a test.
 
+## 2026-09-24 — Removing a leaked secret's file is not removing the secret
+**Context:** GitGuardian flagged a high-entropy secret in the repo on 2026-09-24, a full day after
+the Session 0 fix (PR #5) that "removed" the leaked secrets. Investigation found the fix only
+untracked `secrets.env` — the same `SESSION_SECRET`/`TOTP_ENCRYPTION_KEY` hex values were still
+hardcoded as source-code fallbacks in `server/auth.ts`, `server/env-init.ts`, and
+`server/env-defaults.ts` (already logged as a 🔴 follow-up but not yet fixed, CR-006).
+**Learning:** A leaked secret can hide in more than one place — the tracked file, docs, *and* any
+code that hardcodes the same value as a "convenience default". Grep for the actual value across
+the whole tree, not just the file it was first found in. A 🔴 follow-up left open for a day is long
+enough for an external scanner to find it first.
+**Action:** When a secret leak is found, grep the leaked value itself (not just the filename)
+across the repo before considering the incident closed. Dev-convenience fallbacks for real secret
+material (signing/encryption keys) should be generated at runtime, never a fixed literal — only a
+non-secret convenience value (like a known dev login password) is safe to hardcode.
+
 ## 2026-09-24 — Code-level traceability starts after the migration
 **Context:** `/traceability` in Session 11 found zero implementation commits referencing a REQ.
 **Learning:** Pre-migration commits never referenced REQs, and the migration itself only touched

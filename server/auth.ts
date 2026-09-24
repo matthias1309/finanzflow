@@ -17,29 +17,15 @@ export const authRateLimiter = rateLimit({
 
 // ─── Fail-Secure: Server verweigert Start bei fehlenden Pflicht-Variablen ────
 
-// Set defaults if not provided (for Docker dev mode). Nicht in NODE_ENV=test setzen —
-// sonst hebelt der Default-Hash den in tests/server/setup.ts vorgesehenen Auth-Bypass aus
-// (requireAuth prüft nur, ob APP_PASSWORD_HASH truthy ist).
-// Login vergleicht ausschließlich per bcrypt (routes/auth.ts) — der Hash muss bcrypt sein,
-// kein SHA256 (password = "admin", passend zum Default in server/env-defaults.ts).
-if (!process.env.APP_PASSWORD_HASH && process.env.NODE_ENV !== "test") {
-  process.env.APP_PASSWORD_HASH = "$2b$10$DH7oCC0ctrDJwrYmubVtM.g8Be/vAxm2X0WwpnaxKHc6GZqup2Nv6";
-}
-if (!process.env.SESSION_SECRET || process.env.SESSION_SECRET.length < 32) {
-  process.env.SESSION_SECRET = "b8c4d2e1f7a9c5b3e8d2f1a6c9e4b7d0";
-}
-if (!process.env.TOTP_ENCRYPTION_KEY || process.env.TOTP_ENCRYPTION_KEY.length !== 64) {
-  process.env.TOTP_ENCRYPTION_KEY = "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1";
-}
-if (!process.env.APP_USER) {
-  process.env.APP_USER = "admin";
-}
+// Defaults for local development come exclusively from server/env-defaults.ts (imported first by
+// server/index.ts). This module only reads and validates — it never sets a fallback value itself,
+// so there is nothing here for a real production start to silently fall back to (AC-001-08).
 
 const PASSWORD_HASH = process.env.APP_PASSWORD_HASH ?? "";
 
-// Validation only for real production (not Docker dev mode)
-// Docker containers use defaults set above
-if (process.env.NODE_ENV === "production" && process.env.DOCKER_DEPLOY !== "true") {
+// Validation applies to every production start, including Docker — a missing/invalid secret must
+// never be masked by a deployment-mode exception (see DEPLOYMENT.md for how to set these).
+if (process.env.NODE_ENV === "production") {
   const fatal = (msg: string) => { console.error(`[FATAL] ${msg}`); process.exit(1); };
 
   if (!PASSWORD_HASH) {

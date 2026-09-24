@@ -55,10 +55,9 @@ re-specified here.
 On every server start, `server/db.ts` upserts a user row for `APP_USER` with
 `passwordHash = APP_PASSWORD_HASH` and `isAdmin = 1` — creating it if absent (AC-015-14) or
 updating the password hash if the username already exists (AC-015-15), leaving `isAdmin` at `1`
-either way. `server/env-init.ts` supplies Docker-dev-mode defaults for `APP_PASSWORD_HASH` /
-`SESSION_SECRET` / `TOTP_ENCRYPTION_KEY` / `APP_USER` / `APP_ORIGIN` before this runs, so the sync
-always has a value to work with outside strict production (ARCH-001 covers the production
-fail-fast path).
+either way. `server/env-defaults.ts` supplies local-development defaults for `APP_PASSWORD_HASH` /
+`APP_USER` / `APP_ORIGIN` before this runs, so the sync always has a value to work with outside
+strict production (ARCH-001 covers the production fail-fast path).
 
 **New-user TOTP onboarding (AC-015-16)**
 
