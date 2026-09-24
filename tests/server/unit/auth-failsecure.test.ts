@@ -1,8 +1,8 @@
 /**
  * TC-001-08 — the fail-secure checks in server/auth.ts run at module top-level, guarded by
- * `NODE_ENV === "production" && DOCKER_DEPLOY !== "true"`. `vi.resetModules()` plus a fresh
- * dynamic import forces that top-level code to run again under a controlled environment, with
- * `process.exit` mocked so the test process itself survives.
+ * `NODE_ENV === "production"`. `vi.resetModules()` plus a fresh dynamic import forces that
+ * top-level code to run again under a controlled environment, with `process.exit` mocked so the
+ * test process itself survives.
  */
 import { it, expect, vi, beforeEach, afterEach } from "vitest";
 
@@ -16,28 +16,41 @@ afterEach(() => {
   process.env = { ...ORIGINAL_ENV };
 });
 
-// Regression test — Test Gap Backlog (Session 5, TC-001-08). Investigated in Session 10: the
-// intended fail-fast check never fires. `server/auth.ts` sets a hardcoded fallback
-// APP_PASSWORD_HASH for ANY `NODE_ENV !== "test"` (comment: "for Docker dev mode"), before the
-// production fatal-check even runs — so a production start with no APP_PASSWORD_HASH silently
-// gets the known fallback hash instead of exiting. Same root cause as the "Hardcoded fallback
-// secrets" follow-up already tracked in docs/MIGRATION-PLAN.md ("Out of Scope / Follow-ups").
-// Documents the CURRENT behavior; once the fallback is gated to actual Docker dev mode (not just
-// "not NODE_ENV=test"), this test should be rewritten to assert `process.exit(1)`.
-it("known issue: production start with no APP_PASSWORD_HASH does not fail — it silently falls back to a hardcoded hash (AC-001-08)", async () => {
+// Fixed — Session 12 (GitGuardian alert on the hardcoded fallback secrets). `server/auth.ts` no
+// longer sets any fallback values itself (that is now env-defaults.ts's job, gated to
+// NODE_ENV=development only), and the `DOCKER_DEPLOY !== "true"` exception was removed — AC-001-08
+// never carved out a Docker exception. A production start with no APP_PASSWORD_HASH now always
+// exits, regardless of DOCKER_DEPLOY.
+it("production start with no APP_PASSWORD_HASH fails fast, even with DOCKER_DEPLOY=true (AC-001-08)", async () => {
   process.env.NODE_ENV            = "production";
-  process.env.DOCKER_DEPLOY       = "false";
+  process.env.DOCKER_DEPLOY       = "true";
   delete process.env.APP_PASSWORD_HASH;
-  process.env.SESSION_SECRET      = "b8c4d2e1f7a9c5b3e8d2f1a6c9e4b7d0b8c4d2e1f7a9c5b3e8d2f1a6c9e4b7d0";
-  process.env.TOTP_ENCRYPTION_KEY = "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2";
+  process.env.SESSION_SECRET      = "f3e6d9c2b5a8f1e4d7c0b3a6f9e2d5c8b1a4f7e0d3c6b9a2f5e8d1c4b7a0f3e6";
+  process.env.TOTP_ENCRYPTION_KEY = "a1c9e4f27b0d3856f9e1a4c7b2d5e8f01c4a7d0e3b6f9c2a5d8e1f4b7a0c3d6e";
 
   const exitSpy = vi.spyOn(process, "exit").mockImplementation(() => {
     throw new Error("process.exit called");
   });
 
-  await expect(import("../../../server/auth")).resolves.toBeDefined();
-  expect(exitSpy).not.toHaveBeenCalled();
-  expect(process.env.APP_PASSWORD_HASH).toBeTruthy();
+  await expect(import("../../../server/auth")).rejects.toThrow("process.exit called");
+  expect(exitSpy).toHaveBeenCalledWith(1);
+
+  exitSpy.mockRestore();
+});
+
+it("production start with a too-short SESSION_SECRET fails fast (AC-001-08)", async () => {
+  process.env.NODE_ENV            = "production";
+  process.env.DOCKER_DEPLOY       = "false";
+  process.env.APP_PASSWORD_HASH   = "$2b$10$abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWX";
+  process.env.SESSION_SECRET      = "too-short";
+  process.env.TOTP_ENCRYPTION_KEY = "a1c9e4f27b0d3856f9e1a4c7b2d5e8f01c4a7d0e3b6f9c2a5d8e1f4b7a0c3d6e";
+
+  const exitSpy = vi.spyOn(process, "exit").mockImplementation(() => {
+    throw new Error("process.exit called");
+  });
+
+  await expect(import("../../../server/auth")).rejects.toThrow("process.exit called");
+  expect(exitSpy).toHaveBeenCalledWith(1);
 
   exitSpy.mockRestore();
 });
@@ -46,8 +59,8 @@ it("starts normally in production when all required env vars are set", async () 
   process.env.NODE_ENV            = "production";
   process.env.DOCKER_DEPLOY       = "false";
   process.env.APP_PASSWORD_HASH   = "$2b$10$abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWX";
-  process.env.SESSION_SECRET      = "b8c4d2e1f7a9c5b3e8d2f1a6c9e4b7d0b8c4d2e1f7a9c5b3e8d2f1a6c9e4b7d0";
-  process.env.TOTP_ENCRYPTION_KEY = "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2";
+  process.env.SESSION_SECRET      = "f3e6d9c2b5a8f1e4d7c0b3a6f9e2d5c8b1a4f7e0d3c6b9a2f5e8d1c4b7a0f3e6";
+  process.env.TOTP_ENCRYPTION_KEY = "a1c9e4f27b0d3856f9e1a4c7b2d5e8f01c4a7d0e3b6f9c2a5d8e1f4b7a0c3d6e";
 
   const exitSpy = vi.spyOn(process, "exit").mockImplementation(() => {
     throw new Error("process.exit called");

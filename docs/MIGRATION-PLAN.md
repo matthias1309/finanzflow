@@ -435,15 +435,19 @@ files, see checklist above) — meets the configured CI threshold.
 - Unused shadcn/ui components and dependencies (`refactor-clean`) — separate cleanup PR.
 - Automatic Paperless sync (see REQ-016 notes) — would be the first feature through the full V-Model.
 - `npm run build` fails locally on macOS (`fsevents` .node binary, see Session 2 log) — pre-existing, Docker build unaffected.
-- 🔴 **Hardcoded fallback secrets** in `server/auth.ts`, `server/env-init.ts`, `server/env-defaults.ts`
-  (the leaked `SESSION_SECRET` / `TOTP_ENCRYPTION_KEY` values and default password hashes). If production
-  env vars are missing, the app silently runs with publicly known secrets (fail-open). Should fail fast in
-  production instead — needs a REQ-001 AC + tests; do right after the migration or as a hotfix.
-  **Confirmed by a direct test in Session 10** (`tests/server/unit/auth-failsecure.test.ts`, TC-001-08):
-  the production fatal-check in `server/auth.ts` never actually fires, because the fallback-setting
-  block above it runs for any `NODE_ENV !== "test"` (not gated to genuine Docker dev mode) and fills
-  in `APP_PASSWORD_HASH`/`SESSION_SECRET`/`TOTP_ENCRYPTION_KEY` before the check can see them missing.
-  Raise priority — this is a live fail-open path, not a theoretical one.
+- ✅ **Hardcoded fallback secrets** — fixed Session 12 (GitGuardian alert on the leaked
+  `SESSION_SECRET`/`TOTP_ENCRYPTION_KEY` hex values, still present in `server/auth.ts` /
+  `server/env-init.ts` / `server/env-defaults.ts` despite the Session 0 `secrets.env` removal).
+  `server/env-init.ts` deleted (dead code, not imported anywhere). `server/env-defaults.ts` now
+  only sets secret fallbacks for `NODE_ENV === "development"`, generated at process start
+  (`crypto.randomBytes`) instead of fixed literals. `server/auth.ts` no longer sets any fallback
+  itself, and the `DOCKER_DEPLOY !== "true"` exception on the production fail-fast check was
+  removed (AC-001-08 never carved out a Docker exception) — a production start with a missing or
+  invalid secret now always exits, Docker or not. See `CR-006.md`. Existing
+  `known issue:` regression test in `tests/server/unit/auth-failsecure.test.ts` flipped to assert
+  `process.exit(1)`; added `tests/server/unit/env-defaults.test.ts` for the new gating.
+  **Rotate the Pi's production `SESSION_SECRET`/`TOTP_ENCRYPTION_KEY`/`APP_PASSWORD_HASH` anyway**
+  — they were exposed in git history regardless of this fix (manual, Matthias, see Session 0 note).
 - 🔴 **`PATCH /api/users/:id/password` has no ownership check** (confirmed by a Session 5 finding,
   regression-tested in Session 10, `tests/server/api/users.test.ts`) — any authenticated non-admin
   user can change any other user's password by ID. Needs a REQ-015 AC fix (verify

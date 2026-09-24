@@ -61,12 +61,14 @@ short-circuits to `next()`/`{ step: "done" }` (AC-001-09). This is intentional (
 
 **Fail-secure startup**
 
-At module load, if `NODE_ENV === "production"` and `DOCKER_DEPLOY !== "true"`, `server/auth.ts`
-validates `APP_PASSWORD_HASH`, `SESSION_SECRET` (≥32 chars) and `TOTP_ENCRYPTION_KEY` (64 hex
-chars) are present; any missing/invalid value calls `process.exit(1)` with an actionable message
-(AC-001-08). Docker dev mode (`DOCKER_DEPLOY=true`) instead falls back to hardcoded defaults —
-see the 🔴 follow-up in `docs/MIGRATION-PLAN.md` ("Out of Scope / Follow-ups") about these
-defaults being the previously-leaked secret values.
+At module load, if `NODE_ENV === "production"` (Docker or not), `server/auth.ts` validates
+`APP_PASSWORD_HASH`, `SESSION_SECRET` (≥32 chars) and `TOTP_ENCRYPTION_KEY` (64 hex chars) are
+present; any missing/invalid value calls `process.exit(1)` with an actionable message (AC-001-08).
+`server/auth.ts` never sets a fallback value itself — defaults exist only in
+`server/env-defaults.ts`, gated to `NODE_ENV === "development"`, and are generated at process
+start (`crypto.randomBytes`) rather than fixed literals, so there is no longer a shared secret
+value in the repository for a misconfigured production start to fall back to (fixed Session 12,
+GitGuardian alert; previously tracked as a 🔴 follow-up in `docs/MIGRATION-PLAN.md`).
 
 **Session configuration**
 
@@ -92,9 +94,6 @@ non-persistent) as documented in ARC42 §8.1.
 
 - TOTP setup, verification, and recovery-code lifecycle — [ARCH-013](ARCH-013.md).
 - User creation/deletion, admin role management, password reset by an admin — [ARCH-015](ARCH-015.md).
-- Removing the hardcoded fallback secrets in `server/auth.ts` / `server/env-init.ts` /
-  `server/env-defaults.ts` — tracked as a 🔴 follow-up in `docs/MIGRATION-PLAN.md`, not part of
-  this retrofit (D6: retrofit sessions document gaps, they do not change behavior).
 
 ## Open Questions
 

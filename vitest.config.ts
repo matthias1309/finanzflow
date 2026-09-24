@@ -23,8 +23,6 @@ export default defineConfig({
         "server/createApp.ts",
         "server/db.ts",
         "server/index.ts",
-        "server/env-defaults.ts",
-        "server/env-init.ts",
         "server/static.ts",
         "server/vite.ts",
       ],
