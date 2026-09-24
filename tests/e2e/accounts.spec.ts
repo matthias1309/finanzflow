@@ -6,6 +6,7 @@ test.beforeEach(async ({ page }) => {
   await page.waitForURL(/konten/i);
 });
 
+// TC-002-07 (partial: name visible, bank badge and color dot not asserted)
 test("creates a new account", async ({ page }) => {
   await page.getByTestId("button-add-account").click();
 

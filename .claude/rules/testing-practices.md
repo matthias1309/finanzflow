@@ -56,6 +56,9 @@ it("should create an account when the payload is valid", async () => {
 - Test cases describe expected behavior, not implementation:
   `it("should return 404 when the account does not exist")`
 - Tests that verify an acceptance criterion carry the TC ID as a comment: `// TC-XXX-YY`
+- A test that pins a **confirmed, not yet fixed bug** is named `it("known issue: …")`, asserts the
+  current behavior, and its comment names the TC ID, the violated AC, and the ARCH Open Question.
+  The fix PR flips the assertion and removes the prefix.
 
 ## Vitest Isolation
 
