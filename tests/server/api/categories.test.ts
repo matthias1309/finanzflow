@@ -1,10 +1,14 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterAll } from "vitest";
 import request from "supertest";
 import { createApp } from "../../../server/createApp";
 import type { Category } from "../../../shared/schema";
+import { listenOnLoopback } from "../loopbackServer";
 
-const { app } = createApp();
-const agent = request(app);
+const server = await listenOnLoopback(createApp().app);
+afterAll(() => {
+  server.close();
+});
+const agent = request(server);
 
 const NEW_CAT = { name: "Testkategorie", type: "expense", color: "#437a22" };
 

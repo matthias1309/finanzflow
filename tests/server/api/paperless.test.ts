@@ -1,7 +1,8 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterAll } from "vitest";
 import request from "supertest";
 import type { PaperlessAccountMapping } from "../../../shared/schema";
 import type { OpenDocument } from "../../../server/routes/paperless";
+import { listenOnLoopback } from "../loopbackServer";
 
 const fetchKontoauszugDocuments = vi.fn();
 const downloadDocument = vi.fn();
@@ -24,8 +25,11 @@ const { PaperlessConfigError, PaperlessUnreachableError, PaperlessAuthError } = 
 );
 const { createApp } = await import("../../../server/createApp");
 
-const { app } = createApp();
-const agent = request(app);
+const server = await listenOnLoopback(createApp().app);
+afterAll(() => {
+  server.close();
+});
+const agent = request(server);
 
 const PARSED_TX = {
   date: "2026-04-01", month: "2026-04", description: "Rewe", amount: 42.5,

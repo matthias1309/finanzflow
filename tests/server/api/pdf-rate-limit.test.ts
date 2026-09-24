@@ -3,8 +3,9 @@
  * gets its own `createApp()` / process, see vitest.config.ts `pool: "forks"`) and isn't consumed
  * by the other PDF-import tests in `pdf.test.ts`.
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterAll } from "vitest";
 import request from "supertest";
+import { listenOnLoopback } from "../loopbackServer";
 
 const parsePDF = vi.fn();
 
@@ -16,8 +17,11 @@ vi.mock("../../../server/pdfParser", async () => {
 });
 
 const { createApp } = await import("../../../server/createApp");
-const { app } = createApp();
-const agent = request(app);
+const server = await listenOnLoopback(createApp().app);
+afterAll(() => {
+  server.close();
+});
+const agent = request(server);
 
 const MINIMAL_PDF = Buffer.from("%PDF-1.4\n%%EOF");
 

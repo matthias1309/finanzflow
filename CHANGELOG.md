@@ -8,6 +8,11 @@ Format angelehnt an [Keep a Changelog](https://keepachangelog.com/de/1.0.0/).
 ## [Unreleased]
 
 ### Fixed
+- **Flaky API tests on macOS** — about one full `npm test` run in 5–7 failed with a random 401/404
+  because supertest's per-request servers (`request(app)`, bound to `::`) could share an ephemeral
+  port with a parallel test process bound to `127.0.0.1`, so requests reached the wrong test
+  file's app. All API test files now use one server per file bound to `127.0.0.1`
+  (`tests/server/loopbackServer.ts`). 30/30 consecutive runs green.
 - **Removed hardcoded fallback secrets** (`SESSION_SECRET`, `TOTP_ENCRYPTION_KEY`,
   `APP_PASSWORD_HASH`) that were still committed to the repo despite the Session 0 `secrets.env`
   removal, flagged by GitGuardian on 2026-09-24 — REQ-001 (AC-001-08). Deleted the unused

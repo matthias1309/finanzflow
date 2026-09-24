@@ -10,15 +10,17 @@
  * Test-Reihenfolge ist bewusst: Erst TOTP-Setup, dann TOTP-Login-Tests.
  * Die DB ist :memory: pro Testdatei — Zustand wird zwischen describes geteilt.
  */
-import { describe, it, expect, beforeAll } from "vitest";
+import type { Server } from "http";
+
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import request from "supertest";
 import { authenticator } from "otplib";
-import type { Express } from "express";
+import { listenOnLoopback } from "../loopbackServer";
 
 const TEST_USER = "admin";
 const TEST_PASSWORD = "TestPass123!";
 
-let app: Express;
+let server: Server;
 
 // Session mit abgeschlossenem Passwort-Login (ohne TOTP, da noch nicht konfiguriert)
 let passwordSession: request.SuperAgentTest;
@@ -34,6 +36,10 @@ let initialRecoveryCodes: string[];
 
 // ─── Setup ───────────────────────────────────────────────────────────────────
 
+afterAll(() => {
+  server.close();
+});
+
 beforeAll(async () => {
   const bcrypt = await import("bcryptjs");
 
@@ -44,10 +50,10 @@ beforeAll(async () => {
   process.env.APP_ORIGIN = "http://localhost:3000";
 
   const { createApp } = await import("../../../server/createApp");
-  ({ app } = createApp());
+  server = await listenOnLoopback(createApp().app);
 
   // Vor TOTP-Setup: Password-Login liefert step=done → Session ist authenticated
-  passwordSession = request.agent(app);
+  passwordSession = request.agent(server);
   const loginRes = await passwordSession
     .post("/api/auth/login")
     .send({ username: TEST_USER, password: TEST_PASSWORD });
@@ -74,7 +80,7 @@ async function loginWithTotp(
   totpSecret: string,
   windowOffset: -1 | 0 | 1 = 0,
 ): Promise<request.SuperAgentTest> {
-  const sessionAgent = request.agent(app);
+  const sessionAgent = request.agent(server);
   await sessionAgent.post("/api/auth/login").send({ username: TEST_USER, password: TEST_PASSWORD });
   const code = totpCodeAt(totpSecret, windowOffset);
   await sessionAgent.post("/api/auth/totp").send({ code });
@@ -101,7 +107,7 @@ async function resetAndReactivate2fa(): Promise<string> {
 describe("Session enforcement", () => {
   // TC-001-06 (partial — "never logged in", not "session expired")
   it("rejects unauthenticated requests to protected routes with 401", async () => {
-    const res = await request(app).get("/api/accounts");
+    const res = await request(server).get("/api/accounts");
     expect(res.status).toBe(401);
   });
 });
@@ -111,25 +117,25 @@ describe("Session enforcement", () => {
 describe("POST /api/auth/login", () => {
   // TC-001-02
   it("returns 401 when password is wrong", async () => {
-    const res = await request(app)
+    const res = await request(server)
       .post("/api/auth/login")
       .send({ username: TEST_USER, password: "wrongpassword" });
     expect(res.status).toBe(401);
   });
 
   it("returns 400 when body is missing username", async () => {
-    const res = await request(app).post("/api/auth/login").send({ password: TEST_PASSWORD });
+    const res = await request(server).post("/api/auth/login").send({ password: TEST_PASSWORD });
     expect(res.status).toBe(400);
   });
 
   it("returns 400 when body is missing password", async () => {
-    const res = await request(app).post("/api/auth/login").send({ username: TEST_USER });
+    const res = await request(server).post("/api/auth/login").send({ username: TEST_USER });
     expect(res.status).toBe(400);
   });
 
   // TC-013-01, TC-015-16
   it("returns 200 and step=done when credentials are correct and 2FA is not configured", async () => {
-    const agent = request.agent(app);
+    const agent = request.agent(server);
     const res = await agent
       .post("/api/auth/login")
       .send({ username: TEST_USER, password: TEST_PASSWORD });
@@ -143,7 +149,7 @@ describe("POST /api/auth/login", () => {
 describe("POST /api/auth/logout", () => {
   // TC-001-07 (partial)
   it("returns 200", async () => {
-    const res = await request(app).post("/api/auth/logout");
+    const res = await request(server).post("/api/auth/logout");
     expect(res.status).toBe(200);
   });
 });
@@ -152,7 +158,7 @@ describe("POST /api/auth/logout", () => {
 
 describe("GET /api/auth/2fa/status", () => {
   it("returns configured=false when 2FA has not been set up", async () => {
-    const res = await request(app).get("/api/auth/2fa/status");
+    const res = await request(server).get("/api/auth/2fa/status");
     expect(res.status).toBe(200);
     expect(res.body.configured).toBe(false);
   });
@@ -205,7 +211,7 @@ describe("POST /api/auth/2fa/setup", () => {
 describe("POST /api/auth/login (after 2FA is configured)", () => {
   // TC-001-01 (partial — password step)
   it("returns 200 and step=totp when credentials are correct", async () => {
-    const agent = request.agent(app);
+    const agent = request.agent(server);
     const res = await agent
       .post("/api/auth/login")
       .send({ username: TEST_USER, password: TEST_PASSWORD });
@@ -218,7 +224,7 @@ describe("POST /api/auth/login (after 2FA is configured)", () => {
 
 describe("GET /api/auth/2fa/status after setup", () => {
   it("returns configured=true and recoveryCodesRemaining=8 after setup", async () => {
-    const res = await request(app).get("/api/auth/2fa/status");
+    const res = await request(server).get("/api/auth/2fa/status");
     expect(res.status).toBe(200);
     expect(res.body.configured).toBe(true);
     expect(res.body.recoveryCodesRemaining).toBe(8);
@@ -226,7 +232,7 @@ describe("GET /api/auth/2fa/status after setup", () => {
 
   // TC-013-05
   it("never re-exposes plaintext recovery codes", async () => {
-    const res = await request(app).get("/api/auth/2fa/status");
+    const res = await request(server).get("/api/auth/2fa/status");
     expect(res.body).not.toHaveProperty("recoveryCodes");
   });
 });
@@ -235,13 +241,13 @@ describe("GET /api/auth/2fa/status after setup", () => {
 
 describe("POST /api/auth/totp", () => {
   it("returns 401 when called without a pending login session", async () => {
-    const res = await request(app).post("/api/auth/totp").send({ code: "000000" });
+    const res = await request(server).post("/api/auth/totp").send({ code: "000000" });
     expect(res.status).toBe(401);
   });
 
   // TC-001-03
   it("returns 401 when TOTP code is wrong", async () => {
-    const agent = request.agent(app);
+    const agent = request.agent(server);
     await agent.post("/api/auth/login").send({ username: TEST_USER, password: TEST_PASSWORD });
     const res = await agent.post("/api/auth/totp").send({ code: "000000" });
     expect(res.status).toBe(401);
@@ -261,7 +267,7 @@ describe("Recovery codes", () => {
 
   // TC-001-04
   it("accepts a valid recovery code in place of TOTP", async () => {
-    const agent = request.agent(app);
+    const agent = request.agent(server);
     await agent.post("/api/auth/login").send({ username: TEST_USER, password: TEST_PASSWORD });
     const res = await agent.post("/api/auth/totp").send({ code: recoveryCode });
     expect(res.status).toBe(200);
@@ -269,14 +275,14 @@ describe("Recovery codes", () => {
 
   // TC-001-04 (single-use)
   it("rejects the same recovery code a second time (single-use)", async () => {
-    const agent = request.agent(app);
+    const agent = request.agent(server);
     await agent.post("/api/auth/login").send({ username: TEST_USER, password: TEST_PASSWORD });
     const res = await agent.post("/api/auth/totp").send({ code: recoveryCode });
     expect(res.status).toBe(401);
   });
 
   it("decrements recoveryCodesRemaining after a code is used", async () => {
-    const res = await request(app).get("/api/auth/2fa/status");
+    const res = await request(server).get("/api/auth/2fa/status");
     expect(res.body.recoveryCodesRemaining).toBe(7);
   });
 });
@@ -308,7 +314,7 @@ describe("POST /api/auth/2fa/regenerate-recovery", () => {
     // Regenerate again — old codes should now be invalid
     await passwordSession.post("/api/auth/2fa/regenerate-recovery");
 
-    const agent = request.agent(app);
+    const agent = request.agent(server);
     await agent.post("/api/auth/login").send({ username: TEST_USER, password: TEST_PASSWORD });
     const res = await agent.post("/api/auth/totp").send({ code: oldCode });
     expect(res.status).toBe(401);
@@ -345,20 +351,20 @@ describe("Full login flow (password → TOTP → authenticated session)", () => 
   });
 
   it("rejects a TOTP code that was already used in the same 30-second window (replay protection)", async () => {
-    const agent1 = request.agent(app);
+    const agent1 = request.agent(server);
     await agent1.post("/api/auth/login").send({ username: TEST_USER, password: TEST_PASSWORD });
     const code = totpCodeAt(totpSecret, 1);
     await agent1.post("/api/auth/totp").send({ code });
 
     // Same code used again in a fresh login
-    const agent2 = request.agent(app);
+    const agent2 = request.agent(server);
     await agent2.post("/api/auth/login").send({ username: TEST_USER, password: TEST_PASSWORD });
     const res = await agent2.post("/api/auth/totp").send({ code });
     expect(res.status).toBe(401);
   });
 
   it("rejects requests with pendingTotp session (password done, TOTP not yet verified)", async () => {
-    const agent = request.agent(app);
+    const agent = request.agent(server);
     await agent.post("/api/auth/login").send({ username: TEST_USER, password: TEST_PASSWORD });
     const res = await agent.get("/api/accounts");
     expect(res.status).toBe(401);

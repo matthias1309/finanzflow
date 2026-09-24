@@ -24,7 +24,7 @@ Claude reads this file every session and factors the entries into suggestions an
 | `._` files in tar.gz | macOS `tar` writes metadata | `COPYFILE_DISABLE=1 tar …` |
 | `ERR_REQUIRE_ESM` on start | `@noble/hashes` or `@scure/base` v2 in the lockfile | Check `overrides` in `package.json`; do not upgrade `otplib` to v13 |
 | `better-sqlite3` native binding missing | No prebuilt binary for very new Node majors | Use the Node version from `.nvmrc` (22) and a fresh `npm install` |
-| Random 401/404 in API tests on macOS, only in the full suite | supertest `request(app)` ephemeral-port collision between parallel Vitest processes (`::` vs `127.0.0.1`) | Open follow-up: one server per test file bound to `127.0.0.1` (CR-005 finding 3a) |
+| Random 401/404 in API tests on macOS, only in the full suite | supertest `request(app)` ephemeral-port collision between parallel Vitest processes (`::` vs `127.0.0.1`) | Fixed: API tests use `listenOnLoopback()` (`tests/server/loopbackServer.ts`) — never `request(app)` |
 | `npm run build` fails locally on macOS | esbuild tries to bundle the optional `fsevents` `.node` binary | Pre-existing; Docker (Linux) build unaffected — see migration plan follow-ups |
 
 ---
