@@ -4,9 +4,10 @@
  * der Vorschlag selbst wird über `POST /api/import/pdf` (mit gemocktem `parsePDF`) sichtbar
  * gemacht, wie er im echten Import-Flow verwendet wird.
  */
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterAll } from "vitest";
 import request from "supertest";
 import type { Category, CategoryRule } from "../../../shared/schema";
+import { listenOnLoopback } from "../loopbackServer";
 
 const parsePDF = vi.fn();
 
@@ -18,8 +19,11 @@ vi.mock("../../../server/pdfParser", async () => {
 });
 
 const { createApp } = await import("../../../server/createApp");
-const { app } = createApp();
-const agent = request(app);
+const server = await listenOnLoopback(createApp().app);
+afterAll(() => {
+  server.close();
+});
+const agent = request(server);
 
 const MINIMAL_PDF = Buffer.from("%PDF-1.4\n%%EOF");
 

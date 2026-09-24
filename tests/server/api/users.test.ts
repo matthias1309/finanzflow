@@ -6,24 +6,30 @@
  * Login-Flow. Dadurch ist Auth für die GANZE Datei aktiv (requireAuth prüft nur
  * global, ob APP_PASSWORD_HASH gesetzt ist — kein Umschalten pro Testblock
  * möglich). Alle admin-geschützten Endpunkte laufen deshalb über eine echte,
- * eingeloggte adminSession statt über ein unauthentifiziertes request(app).
+ * eingeloggte adminSession statt über ein unauthentifiziertes request(server).
  *
  * Dynamic import nach env-Setup wie in auth.test.ts — db.ts und createApp.ts
  * lesen APP_USER/APP_PASSWORD_HASH beim Modul-Load für den Seed-User.
  */
-import { describe, it, expect, beforeAll } from "vitest";
+import type { Server } from "http";
+
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import request from "supertest";
-import type { Express } from "express";
 import type { PublicUser } from "../../../shared/schema";
+import { listenOnLoopback } from "../loopbackServer";
 
 const SEED_USER = "admin";
 const SEED_PASS = "AdminPass123!";
 
-let app: Express;
+let server: Server;
 let adminSession: request.SuperAgentTest;
 let adminId: number;
 
 // ─── Setup ────────────────────────────────────────────────────────────────────
+
+afterAll(() => {
+  server.close();
+});
 
 beforeAll(async () => {
   const bcrypt = await import("bcryptjs");
@@ -35,10 +41,10 @@ beforeAll(async () => {
   process.env.APP_ORIGIN = "http://localhost:3000";
 
   const { createApp } = await import("../../../server/createApp");
-  ({ app } = createApp());
+  server = await listenOnLoopback(createApp().app);
 
   // TOTP ist für den frisch geseedeten Admin noch nicht konfiguriert → step=done
-  adminSession = request.agent(app);
+  adminSession = request.agent(server);
   const loginRes = await adminSession
     .post("/api/auth/login")
     .send({ username: SEED_USER, password: SEED_PASS });
@@ -272,7 +278,7 @@ describe("Access control for non-admin users", () => {
 
   beforeAll(async () => {
     await adminSession.post("/api/users").send({ username: "lisa2", password: "Password123!" });
-    lisaSession = request.agent(app);
+    lisaSession = request.agent(server);
     const loginRes = await lisaSession
       .post("/api/auth/login")
       .send({ username: "lisa2", password: "Password123!" });
@@ -326,7 +332,7 @@ describe("Seeding: ENV-Sync beim Serverstart", () => {
   // TC-015-14 (password hash)
   it("seed-Admin hat den korrekten Passwort-Hash aus APP_PASSWORD_HASH", async () => {
     // Bewusst ein frischer, unauthentifizierter Client — testet den Login selbst.
-    const res = await request(app).post("/api/auth/login").send({
+    const res = await request(server).post("/api/auth/login").send({
       username: SEED_USER,
       password: SEED_PASS,
     });

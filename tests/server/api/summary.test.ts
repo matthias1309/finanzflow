@@ -1,9 +1,13 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterAll } from "vitest";
 import request from "supertest";
 import { createApp } from "../../../server/createApp";
+import { listenOnLoopback } from "../loopbackServer";
 
-const { app } = createApp();
-const agent = request(app);
+const server = await listenOnLoopback(createApp().app);
+afterAll(() => {
+  server.close();
+});
+const agent = request(server);
 
 async function createAccount(name: string): Promise<number> {
   const res = await agent.post("/api/accounts").send({
@@ -116,7 +120,7 @@ describe("GET /api/summary/:month — Bilanz-Berechnung", () => {
 // Questions).
 describe("GET /api/summary/:month — Monatsformat-Validierung", () => {
   it("known issue: currently returns 200 with an empty summary for an invalid month (AC-010-06)", async () => {
-    const res = await request(app).get("/api/summary/2026-4");
+    const res = await request(server).get("/api/summary/2026-4");
     expect(res.status).toBe(200);
     expect(res.body.totalIncome).toBe(0);
     expect(res.body.totalExpenses).toBe(0);

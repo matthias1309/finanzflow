@@ -1,10 +1,14 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterAll } from "vitest";
 import request from "supertest";
 import { createApp } from "../../../server/createApp";
 import type { Account } from "../../../shared/schema";
+import { listenOnLoopback } from "../loopbackServer";
 
-const { app } = createApp();
-const agent = request(app);
+const server = await listenOnLoopback(createApp().app);
+afterAll(() => {
+  server.close();
+});
+const agent = request(server);
 
 const NEW_ACC = { name: "Test Girokonto", bank: "ING", color: "#01696f", type: "checking", iban: null };
 

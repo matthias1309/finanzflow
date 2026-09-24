@@ -3,12 +3,16 @@
  * consumed by the other tests in `transactions.test.ts` (same reasoning as
  * `pdf-rate-limit.test.ts`).
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterAll } from "vitest";
 import request from "supertest";
 import { createApp } from "../../../server/createApp";
+import { listenOnLoopback } from "../loopbackServer";
 
-const { app } = createApp();
-const agent = request(app);
+const server = await listenOnLoopback(createApp().app);
+afterAll(() => {
+  server.close();
+});
+const agent = request(server);
 
 async function createAccount(): Promise<number> {
   const res = await agent.post("/api/accounts").send({

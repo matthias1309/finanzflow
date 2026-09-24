@@ -82,12 +82,22 @@ logged-in agent there.
 ## API Tests
 
 ```typescript
+import { afterAll } from "vitest";
 import request from "supertest";
 import { createApp } from "../../../server/createApp";
+import { listenOnLoopback } from "../loopbackServer";
 
-const { app } = createApp(); // no listen() — Supertest binds itself
-const agent = request(app);
+const server = await listenOnLoopback(createApp().app);
+afterAll(() => {
+  server.close();
+});
+const agent = request(server);
 ```
+
+Never pass the Express app itself to supertest (`request(app)`): it then starts a new server per
+request on an ephemeral port bound to `::`, and on macOS a parallel test process can grab the same
+port on `127.0.0.1` — the request lands in the wrong test file's app (random 401/404).
+`listenOnLoopback()` binds one server per file to `127.0.0.1`, which rules that out.
 
 Call `createApp()` once per test file (not in `beforeEach` — that would create a new app
 instance with a new DB). Create dependent records in `beforeEach` via the API.

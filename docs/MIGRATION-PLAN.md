@@ -456,6 +456,8 @@ files, see checklist above) — meets the configured CI threshold.
   `request(app)` servers on ephemeral ports can collide across the parallel Vitest processes
   (`::` vs. `127.0.0.1` binding), so a request occasionally reaches another test file's app
   (random 401/404). Fix: one server per test file, bound explicitly to `127.0.0.1`.
+  → **Fixed** on branch `test/fix-supertest-port-collision` (`tests/server/loopbackServer.ts`);
+  30/30 consecutive full-suite runs green.
 - `CHANGELOG.md` history is German — translate or leave as historical record (new entries are English).
 - Existing codebase (122 files) is not yet Prettier-formatted — `prettier --write .` deferred to avoid a large noise diff; do as its own PR.
 
