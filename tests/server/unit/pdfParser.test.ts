@@ -233,3 +233,74 @@ describe("parseGeneric", () => {
     expect(parseGeneric("Kontoauszug\nSeite 1 von 3")).toHaveLength(0);
   });
 });
+
+describe("counterparty IBAN extraction", () => {
+  // TC-017-18
+  // Given an N26 statement text with an "IBAN: DE02 1203 0000 0000 2020 51" line in the block of a booking
+  // When the statement is parsed
+  // Then the booking has the counterpartyIban "DE02120300000000202051"
+  // And a booking without an IBAN line has the counterpartyIban null
+  it("should capture the IBAN line of a booking as its normalized counterpartyIban", () => {
+    // Arrange
+    const text = [
+      "Rewe Markt GmbH  14.09.2026  -45,50€",
+      "Umbuchung Tagesgeld",
+      "IBAN: DE02 1203 0000 0000 2020 51  BIC: BYLADEM1001",
+      "Belastungen",
+      "Max Mustermann  15.09.2026  -500,00€",
+    ].join("\n");
+
+    // Act
+    const [withoutIban, withIban] = parseN26(text);
+
+    // Assert
+    expect(withoutIban.counterpartyIban).toBeNull();
+    expect(withIban.counterpartyIban).toBe("DE02120300000000202051");
+  });
+
+  // TC-017-19
+  // Given a DKB statement text with an "IBAN DE02120300000000202051" line directly above a booking
+  // When the statement is parsed
+  // Then the booking has the counterpartyIban "DE02120300000000202051"
+  // And its description is unchanged
+  it("should capture the IBAN line above a DKB booking as its counterpartyIban", () => {
+    // Arrange
+    const text = ["Umbuchung", "IBAN DE02120300000000202051", "15.09.26  Max Mustermann  -500.00"].join("\n");
+
+    // Act
+    const [tx] = parseDKB(text);
+
+    // Assert
+    expect(tx.counterpartyIban).toBe("DE02120300000000202051");
+    expect(tx.description).toBe("Max Mustermann – Umbuchung");
+  });
+
+  // TC-017-20
+  // Given a statement line "IBAN: XX" or a line longer than the length limit
+  // When the IBAN is extracted
+  // Then the counterpartyIban is null
+  it("should return null for text that is not a valid IBAN", () => {
+    // Arrange
+    const text = ["IBAN: XX", "Max Mustermann  15.09.2026  -500,00€"].join("\n");
+
+    // Act
+    const [tx] = parseN26(text);
+
+    // Assert
+    expect(tx.counterpartyIban).toBeNull();
+  });
+
+  // TC-017-20
+  it("should return null for an IBAN line longer than the length limit", () => {
+    // Arrange
+    const text = [`IBAN: DE02120300000000202051 ${"x".repeat(100)}`, "Max Mustermann  15.09.2026  -500,00€"].join(
+      "\n"
+    );
+
+    // Act
+    const [tx] = parseN26(text);
+
+    // Assert
+    expect(tx.counterpartyIban).toBeNull();
+  });
+});
