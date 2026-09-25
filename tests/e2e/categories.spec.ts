@@ -1,6 +1,8 @@
 import { test, expect } from "@playwright/test";
+import { loginAsDevAdmin } from "./authHelpers";
 
 test.beforeEach(async ({ page }) => {
+  await loginAsDevAdmin(page);
   await page.goto("/");
   await page.getByRole("link", { name: /Kategorien/i }).click();
   await page.waitForURL(/kategorien/i);

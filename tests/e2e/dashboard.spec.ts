@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import type { Category } from "@shared/schema";
+import { loginAsDevAdmin } from "./authHelpers";
 
 // ─── Helper: seed an account + transaction via the API ───────────────────────
 async function seedData(page: Page) {
@@ -13,7 +14,7 @@ async function seedData(page: Page) {
   // Get a category ID
   const catRes = await base.get("/api/categories");
   const cats = await catRes.json();
-  const incomeCat = (cats as Category[]).find(c => c.type === "income");
+  const incomeCat = (cats as Category[]).find((c) => c.type === "income");
 
   // Create a transaction for the current month so the account shows up
   const today = new Date();
@@ -35,6 +36,7 @@ async function seedData(page: Page) {
 }
 
 test.beforeEach(async ({ page }) => {
+  await loginAsDevAdmin(page);
   await page.goto("/");
   // Navigate to dashboard (should be default, but ensure)
   await page.waitForURL(/\//);

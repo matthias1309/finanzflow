@@ -8,6 +8,17 @@ Format angelehnt an [Keep a Changelog](https://keepachangelog.com/de/1.0.0/).
 ## [Unreleased]
 
 ### Fixed
+- **`npm run test:e2e` was broken locally** — `server/env-defaults.ts` now sets a dev-mode
+  `APP_PASSWORD_HASH` default whenever `NODE_ENV=development`, but Playwright's `webServer` also
+  runs with `NODE_ENV=development` (`npm run dev`), so every E2E test that called the API without
+  logging in first got `401 Nicht angemeldet`. `tests/e2e/dashboard.spec.ts`,
+  `accounts.spec.ts`, and `categories.spec.ts` now log in as the fixed dev admin user via a new
+  `tests/e2e/authHelpers.ts` before touching the app. Also fixed a second, unrelated bug this
+  surfaced: `tests/e2e/globalSetup.ts` deleted the E2E SQLite file *after* Playwright's
+  `webServer` had already opened it (`webServer` starts before `globalSetup`), breaking every DB
+  write for the rest of the run with `SQLITE_READONLY_DBMOVED` on any non-reused server start
+  (e.g. CI). The deletion now happens in the `webServer` command itself, before the server
+  starts; `globalSetup.ts` is removed as it had no other purpose.
 - **Admin password reset by the seed user did not survive a restart** (REQ-015, AC-015-15) — the
   ENV-sync in `server/db.ts` unconditionally overwrote the `APP_USER` row's password hash with
   `APP_PASSWORD_HASH` on every server start, silently reverting any password set for that user via
