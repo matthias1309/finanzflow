@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import SankeyChart from "@/components/SankeyChart";
+import ChartErrorBoundary from "@/components/ChartErrorBoundary";
 import TwoFactorSetup from "@/components/TwoFactorSetup";
 import { TrendingUp, TrendingDown, Wallet, PiggyBank, Landmark, Eye, EyeOff } from "lucide-react";
 import type { Account } from "@shared/schema";
@@ -201,12 +202,14 @@ export default function Dashboard() {
                 {[1, 2, 3].map(i => <Skeleton key={i} className="h-4 w-full" />)}
               </div>
             ) : (
-              <SankeyChart
-                accountSummaries={filteredSummary?.accountSummaries ?? {}}
-                accounts={filteredSummary?.accounts ?? []}
-                totalIncome={filteredSummary?.totalIncome ?? 0}
-                totalExpenses={filteredSummary?.totalExpenses ?? 0}
-              />
+              <ChartErrorBoundary key={selectedMonth}>
+                <SankeyChart
+                  accountSummaries={filteredSummary?.accountSummaries ?? {}}
+                  accounts={filteredSummary?.accounts ?? []}
+                  totalIncome={filteredSummary?.totalIncome ?? 0}
+                  totalExpenses={filteredSummary?.totalExpenses ?? 0}
+                />
+              </ChartErrorBoundary>
             )}
           </CardContent>
         </Card>

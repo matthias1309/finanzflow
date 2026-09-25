@@ -44,7 +44,7 @@ but the *client* renders the "target account" selector only when `type === "tran
 requires a selection before submit (AC-004-06's validation is enforced client-side; the server
 schema does not reject a `transfer` row with `transferToAccountId` unset — see Open Questions).
 
-**Transfer accounting (AC-004-11, AC-004-12)**
+**Transfer accounting (AC-004-11, AC-004-12, AC-004-13)**
 
 `buildAccountSummaries` in `server/routes/summary.ts` (not `transactions.ts` itself) is where
 transfer semantics actually happen:
@@ -53,9 +53,24 @@ transfer semantics actually happen:
    account (`continue` before the income/expense branch) — it never appears as an expense on the
    source account's summary (AC-004-11: "the displayed balance of Girokonto is 0 €").
 2. Its `Math.abs(amount)` is added to the source account's `transfersOut[transferToAccountId]`.
-3. A second pass copies every account's `transfersOut` entries into the *target* account's
-   `transfersIn` total — so multiple transfers from the same or different source accounts to one
-   target are summed (AC-004-12).
+3. **Netting pass (AC-004-13):** after all transactions are aggregated, every account pair is
+   checked for opposing `transfersOut` entries (A→B and B→A both present). The smaller of the two
+   is subtracted from both, leaving only the net amount on the side that transferred more; the
+   losing side's entry is deleted entirely if it nets to zero. This runs once per unordered pair
+   (each pair is only netted from one direction) before the `transfersIn` pass, so `transfersIn`
+   is always computed from already-netted `transfersOut` data.
+4. A final pass copies every account's (now netted) `transfersOut` entries into the *target*
+   account's `transfersIn` total — so multiple transfers from the same or different source
+   accounts to one target are summed (AC-004-12).
+
+Netting exists because the Sankey diagram (REQ-009, ARCH-009) lays out account nodes with
+`d3-sankey`, which requires a directed acyclic graph. Two accounts that both hold a `transfer` to
+each other in the same month (a routine sweep between a checking and a savings account, e.g. two
+opposing `transfersOut` entries between the same account pair) form a 2-node cycle that the layout
+algorithm cannot lay out and throws on (see ARCH-009 Open Questions, previously reported as the
+Dashboard going blank). Netting at the aggregation layer removes the cycle at its source instead
+of teaching the chart to special-case it, and also better reflects reality: two transfers of 1000€
+and 700€ in opposite directions between the same accounts are, net, a single 300€ movement.
 
 ## Key Decisions
 
@@ -73,6 +88,13 @@ transfer semantics actually happen:
   `.partial()` schema (only supplied fields overwrite), `PUT` uses the full schema; both exist
   because the UI's category-edit flow only wants to touch `categoryId` (`PATCH`), while a full
   edit form submits the whole record (`PUT`).
+- **Netting only handles the 2-account reciprocal case, not general N-account cycles** (YAGNI) —
+  a longer cycle (A→B→C→A across three accounts) is not netted and could in principle still throw
+  in the Sankey layout. Given FinanzFlow's target audience (one household, few accounts, REQ-009's
+  Notes), the reciprocal two-account case covers the reported and realistic scenario; a general
+  cycle-detection/breaking algorithm was judged unnecessary complexity for a case that hasn't
+  occurred. AC-009-08's chart-level error boundary is the safety net for the remaining, unhandled
+  cycle shapes.
 
 ## Out of Scope
 
