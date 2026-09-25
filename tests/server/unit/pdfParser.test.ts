@@ -5,6 +5,7 @@ import {
   detectBank,
   parseN26,
   parseDKB,
+  parseTradeRepublic,
   parseGeneric,
 } from "../../../server/pdfParser";
 
@@ -84,6 +85,14 @@ describe("detectBank", () => {
     expect(detectBank("ingddeff")).toBe("ING");
   });
 
+  it("detects Trade Republic by name", () => {
+    expect(detectBank("Trade Republic Bank GmbH")).toBe("Trade Republic");
+  });
+
+  it("detects Trade Republic by BIC", () => {
+    expect(detectBank("BIC TRBKDEBBXXX")).toBe("Trade Republic");
+  });
+
   it("returns Sonstige for unknown content", () => {
     expect(detectBank("Sparkasse Musterstadt Kontoauszug")).toBe("Sonstige");
   });
@@ -151,6 +160,51 @@ describe("parseDKB", () => {
   it("ignores footer lines (bank address/imprint)", () => {
     const text = "Taubenstraße 7-9, 10117 Berlin";
     expect(parseDKB(text)).toHaveLength(0);
+  });
+});
+
+// TC-005-11 (Trade Republic parser)
+describe("parseTradeRepublic", () => {
+  it("parses a dividend payout as income with an abbreviated German month", () => {
+    const text =
+      "28 Aug. 2026    Ertrag  Cash Dividend for ISIN US0389231087         3,72 €                            20.590,85 €";
+    const [tx] = parseTradeRepublic(text);
+    expect(tx).toMatchObject({
+      date: "2026-08-28",
+      month: "2026-08",
+      description: "Cash Dividend for ISIN US0389231087",
+      amount: 3.72,
+      type: "income",
+    });
+  });
+
+  it("parses an interest payment as income", () => {
+    const text =
+      "01 Aug. 2026    Zinsen  Interest payment                        39,08 €                           20.531,66 €";
+    const [tx] = parseTradeRepublic(text);
+    expect(tx).toMatchObject({ date: "2026-08-01", month: "2026-08", amount: 39.08, type: "income" });
+  });
+
+  it("parses a withdrawal as an expense", () => {
+    const text =
+      "05 Sep. 2026    Auszahlung  Auszahlung an Referenzkonto             100,00 €                          20.490,85 €";
+    const [tx] = parseTradeRepublic(text);
+    expect(tx).toMatchObject({ amount: 100, type: "expense" });
+  });
+
+  it("ignores GELDMARKTFONDS purchase rows (numeric-only description, no letters)", () => {
+    const text = "20 Aug. 2026      Kauf                                                37,91  1,00 €             37,91 €";
+    expect(parseTradeRepublic(text)).toHaveLength(0);
+  });
+
+  it("ignores the column header line", () => {
+    const text =
+      "DATUM            TYP     BESCHREIBUNG                                    ZAHLUNGSEINGANG       ZAHLUNGSAUSGANG                 SALDO";
+    expect(parseTradeRepublic(text)).toHaveLength(0);
+  });
+
+  it("returns an empty array for text with no matching lines", () => {
+    expect(parseTradeRepublic("TRANSAKTIONSÜBERSICHT\nSeite 1 von 2")).toHaveLength(0);
   });
 });
 

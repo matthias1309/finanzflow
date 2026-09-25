@@ -3,7 +3,7 @@
 **Status:** approved
 **Created:** 2026-09-23
 **Traces:** ARCH-005
-**Verifies:** REQ-005 (AC-005-01 … AC-005-10)
+**Verifies:** REQ-005 (AC-005-01 … AC-005-11)
 
 Session 10 closed most gaps at two levels: `tests/server/unit/pdfParser.test.ts` now exercises
 `parseN26`/`parseDKB`/`parseGeneric` directly with synthetic text fixtures (these three functions
@@ -136,6 +136,22 @@ what gets sent to `/learn` — see ARCH-006 "Learning trigger and override."
 
 **Status: accepted (Session 10).** Client-only state-tracking, no server-side risk. Left as an E2E
 follow-up.
+
+---
+
+### TC-005-11 — Upload and preview a Trade Republic PDF
+
+**Maps to:** AC-005-11
+**Type:** unit
+**File:** `tests/server/unit/pdfParser.test.ts`
+
+**Notes:** `parseTradeRepublic` unit-tested directly against synthetic text fixtures derived from
+a real "Kontoauszug" statement: dividend/interest income (abbreviated German month date), a
+withdrawal expense, the column-header line, and — the key regression case — a
+`GELDMARKTFONDS` purchase-table row that must **not** be imported (bare `STK` number, no text
+description). `detectBank` gets two matching cases (name, BIC). No dedicated API-level test was
+added, following the same reasoning as TC-005-01/02: the route-level dispatch is a 3-line `if` in
+`parsePDF`, already exercised by the mocked API tests regardless of which bank branch fires.
 
 ---
 
