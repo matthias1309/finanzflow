@@ -8,6 +8,16 @@ Format angelehnt an [Keep a Changelog](https://keepachangelog.com/de/1.0.0/).
 ## [Unreleased]
 
 ### Fixed
+- **Reciprocal transfers between the same two accounts crashed the Dashboard to a blank page**
+  (REQ-004 AC-004-13, REQ-009 AC-009-08) — two accounts each transferring to the other in the same
+  month produced two opposing `transfersOut` entries between the same account pair, which the
+  Sankey diagram's `d3-sankey` layout cannot render (it requires a directed acyclic graph) and
+  threw an uncaught `Error("circular link")`, unmounting the whole React app. `GET
+  /api/summary/:month` now nets opposing transfers between the same two accounts to a single flow
+  in the net direction before returning the summary. As defense in depth for any other chart
+  rendering error (e.g. a longer transfer cycle across three or more accounts, which pairwise
+  netting doesn't cover), the Sankey chart is now wrapped in `ChartErrorBoundary`, so a chart
+  failure shows a fallback message instead of taking down the rest of the Dashboard.
 - **Admin password reset by the seed user did not survive a restart** (REQ-015, AC-015-15) — the
   ENV-sync in `server/db.ts` unconditionally overwrote the `APP_USER` row's password hash with
   `APP_PASSWORD_HASH` on every server start, silently reverting any password set for that user via

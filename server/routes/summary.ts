@@ -101,6 +101,8 @@ function buildAccountSummaries(
     }
   }
 
+  netOpposingTransfers(summaries);
+
   for (const summary of Object.values(summaries)) {
     for (const [toAccId, amount] of Object.entries(summary.transfersOut)) {
       const target = summaries[parseInt(toAccId)];
@@ -109,6 +111,54 @@ function buildAccountSummaries(
   }
 
   return summaries;
+}
+
+/**
+ * Nets opposing transfers between the same two accounts (AC-004-13) down to a single flow in the
+ * net direction, so a household sweeping money back and forth in the same month doesn't leave the
+ * Sankey diagram (REQ-009) with a 2-node cycle — d3-sankey requires a directed acyclic graph.
+ * Only handles the reciprocal two-account case, not longer cycles (see ARCH-004 Key Decisions).
+ */
+function netOpposingTransfers(summaries: Record<number, AccountSummary>): void {
+  const accountIds = Object.keys(summaries).map(Number).sort((a, b) => a - b);
+
+  for (const accountId of accountIds) {
+    for (const [otherIdStr, outgoing] of Object.entries(summaries[accountId].transfersOut)) {
+      const otherId = parseInt(otherIdStr);
+      if (otherId <= accountId) continue; // each unordered pair is netted once
+
+      const incoming = summaries[otherId]?.transfersOut[accountId];
+      if (!incoming) continue;
+
+      netTransferPair({
+        a: summaries[accountId], b: summaries[otherId],
+        aId: accountId, bId: otherId,
+        aToB: outgoing, bToA: incoming,
+      });
+    }
+  }
+}
+
+interface TransferPair {
+  readonly a: AccountSummary;
+  readonly b: AccountSummary;
+  readonly aId: number;
+  readonly bId: number;
+  readonly aToB: number;
+  readonly bToA: number;
+}
+
+function netTransferPair({ a, b, aId, bId, aToB, bToA }: TransferPair): void {
+  if (aToB > bToA) {
+    a.transfersOut[bId] = aToB - bToA;
+    delete b.transfersOut[aId];
+  } else if (bToA > aToB) {
+    b.transfersOut[aId] = bToA - aToB;
+    delete a.transfersOut[bId];
+  } else {
+    delete a.transfersOut[bId];
+    delete b.transfersOut[aId];
+  }
 }
 
 function addToCategory(

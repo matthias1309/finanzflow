@@ -85,6 +85,76 @@ describe("GET /api/summary/:month — Überträge", () => {
   });
 });
 
+describe("GET /api/summary/:month — Gegenläufige Überträge (AC-004-13)", () => {
+  let tagesgeldId: number;
+  let hauptkontoId: number;
+
+  beforeEach(async () => {
+    tagesgeldId  = await createAccount("Tagesgeldkonto");
+    hauptkontoId = await createAccount("Hauptkonto");
+  });
+
+  // TC-004-13
+  it("saldiert gegenläufige Überträge zwischen denselben zwei Konten", async () => {
+    await agent.post("/api/transactions").send({
+      month: "2026-04",
+      description: "Umbuchung",
+      amount: 1000,
+      accountId: tagesgeldId,
+      type: "transfer",
+      transferToAccountId: hauptkontoId,
+    });
+    await agent.post("/api/transactions").send({
+      month: "2026-04",
+      description: "Umbuchung zurück",
+      amount: 700,
+      accountId: hauptkontoId,
+      type: "transfer",
+      transferToAccountId: tagesgeldId,
+    });
+
+    const res = await agent.get("/api/summary/2026-04");
+    expect(res.status).toBe(200);
+
+    const tagesgeld  = res.body.accountSummaries[tagesgeldId];
+    const hauptkonto = res.body.accountSummaries[hauptkontoId];
+
+    expect(tagesgeld.transfersOut[hauptkontoId]).toBe(300);
+    expect(hauptkonto.transfersOut[tagesgeldId]).toBeUndefined();
+    expect(hauptkonto.transfersIn).toBe(300);
+    expect(tagesgeld.transfersIn).toBe(0);
+  });
+
+  // TC-004-13 (equal amounts net to zero on both sides)
+  it("saldiert gleich hohe gegenläufige Überträge vollständig zu null", async () => {
+    await agent.post("/api/transactions").send({
+      month: "2026-04",
+      description: "Umbuchung",
+      amount: 500,
+      accountId: tagesgeldId,
+      type: "transfer",
+      transferToAccountId: hauptkontoId,
+    });
+    await agent.post("/api/transactions").send({
+      month: "2026-04",
+      description: "Umbuchung zurück",
+      amount: 500,
+      accountId: hauptkontoId,
+      type: "transfer",
+      transferToAccountId: tagesgeldId,
+    });
+
+    const res = await agent.get("/api/summary/2026-04");
+    const tagesgeld  = res.body.accountSummaries[tagesgeldId];
+    const hauptkonto = res.body.accountSummaries[hauptkontoId];
+
+    expect(tagesgeld.transfersOut[hauptkontoId]).toBeUndefined();
+    expect(hauptkonto.transfersOut[tagesgeldId]).toBeUndefined();
+    expect(tagesgeld.transfersIn).toBe(0);
+    expect(hauptkonto.transfersIn).toBe(0);
+  });
+});
+
 describe("GET /api/summary/:month — Bilanz-Berechnung", () => {
   // TC-007-03 (high risk per Test Gap Backlog — Bilanz/Sparquote formula had no direct assertion)
   it("berechnet totalIncome und totalExpenses korrekt für bekannte Eingabedaten", async () => {
