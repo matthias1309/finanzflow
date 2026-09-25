@@ -200,10 +200,25 @@ describe("Paperless import — transfer detection", () => {
   // Then the preview row is marked as a transfer to "DKB Giro"
   it("should pass the counterparty IBAN from a Paperless document through to transfer detection", async () => {
     // Arrange
+    const dkbIban = "DE02120300000000202051";
+    const n26Id = await createAccount("N26");
+    const dkb = await agent.post("/api/accounts").send({
+      name: "DKB Giro", bank: "DKB", color: "#01696f", type: "checking", iban: dkbIban,
+    });
+    downloadDocument.mockResolvedValue(Buffer.from("%PDF-1.4"));
+    parsePDF.mockResolvedValue({
+      bank: "N26", transactions: [{ ...PARSED_TX, counterpartyIban: dkbIban }], rawText: "", errors: [],
+    });
 
     // Act
+    const preview = await agent.post("/api/paperless/documents/11/import");
+    const [tx] = preview.body.transactions;
+    const detection = await agent.post("/api/transfers/detect").send({
+      rows: [{ accountId: n26Id, date: tx.date, amount: tx.amount, type: tx.type, counterpartyIban: tx.counterpartyIban }],
+    });
 
     // Assert
-    throw new Error("not implemented");
+    expect(tx.counterpartyIban).toBe(dkbIban);
+    expect(detection.body.suggestions[0]).toMatchObject({ kind: "transfer", targetAccountId: dkb.body.id });
   });
 });

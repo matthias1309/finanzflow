@@ -1,6 +1,6 @@
 # TEST-017 — Transfer Detection in the Import Preview
 
-**Status:** draft
+**Status:** approved
 **Created:** 2026-09-25
 **Traces:** ARCH-017
 **Verifies:** REQ-017 (AC-017-01 … AC-017-17)

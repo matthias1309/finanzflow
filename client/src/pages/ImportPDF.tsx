@@ -10,6 +10,18 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Upload, FileText, CheckCircle2, AlertCircle, Loader2, X, Sparkles } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { TransferCell } from "@/components/TransferCell";
+import {
+  INITIAL_TRANSFER_STATE,
+  deleteReplacedIncomes,
+  replacedIncomeWarning,
+  toDetectionRow,
+  transferPayloadFields,
+  useTransferDetection,
+  withSkip,
+  withTransferTarget,
+  type TransferState,
+} from "@/lib/transferDetection";
 
 import { API_BASE } from "@/lib/config";
 
@@ -20,6 +32,7 @@ interface ParsedTx {
   amount: number;
   originalText: string;
   type: "income" | "expense";
+  counterpartyIban: string | null;
   suggestedCategoryId: number | null; // vom Backend vorgeschlagen
 }
 
@@ -30,7 +43,7 @@ interface ParseResult {
   errors: string[];
 }
 
-interface ImportRow extends ParsedTx {
+interface ImportRow extends ParsedTx, TransferState {
   categoryId: number | null;
   accountId: number | null;
   skip: boolean;
@@ -75,10 +88,13 @@ export default function ImportPDF() {
         accountId: defaultAccountId,
         skip: false,
         autoCategory: tx.suggestedCategoryId != null,
+        ...INITIAL_TRANSFER_STATE,
       })));
     },
     onError: (e: Error) => toast({ title: "Fehler", description: e.message, variant: "destructive" }),
   });
+
+  useTransferDetection(rows.map(row => toDetectionRow(row, row.accountId)), setRows);
 
   const handleFile = useCallback((file: File) => {
     if (!file.name.endsWith(".pdf")) {
@@ -106,6 +122,10 @@ export default function ImportPDF() {
     }));
   };
 
+  const updateRowWith = (idx: number, change: (row: ImportRow) => ImportRow) => {
+    setRows(prev => prev.map((r, i) => (i === idx ? change(r) : r)));
+  };
+
   const setAllAccount = (accId: number) => {
     setRows(prev => prev.map(r => ({ ...r, accountId: accId })));
   };
@@ -124,10 +144,9 @@ export default function ImportPDF() {
         amount: Math.abs(r.amount),
         accountId: r.accountId!,
         categoryId: r.categoryId ?? null,
-        type: r.type,
+        ...transferPayloadFields(r),
         importSource: "pdf",
         originalText: r.originalText,
-        transferToAccountId: null,
       }));
       await apiRequest("POST", "/api/transactions/batch", payload);
 
@@ -138,6 +157,9 @@ export default function ImportPDF() {
       if (toLearn.length > 0) {
         await apiRequest("POST", "/api/category-rules/learn", toLearn);
       }
+
+      // 3. Gespeicherte Einnahmen entfernen, die eine importierte Umbuchung ersetzt
+      const undeletedIncomes = await deleteReplacedIncomes(toImport);
 
       qc.invalidateQueries({ queryKey: ["/api/transactions"] });
       qc.invalidateQueries({ queryKey: ["/api/months"] });
@@ -151,6 +173,10 @@ export default function ImportPDF() {
           ? `${autoCount} Kategorien wurden automatisch erkannt`
           : undefined,
       });
+      // Only one toast is visible at a time — the warning must come last to stay on screen.
+      if (undeletedIncomes.length > 0) {
+        toast({ title: replacedIncomeWarning(undeletedIncomes), variant: "destructive" });
+      }
     } catch (e) {
       const message = e instanceof Error ? e.message : "Unbekannter Fehler";
       toast({ title: "Import fehlgeschlagen", description: message, variant: "destructive" });
@@ -302,6 +328,7 @@ export default function ImportPDF() {
                       <th className="px-4 py-2.5 text-left text-xs text-muted-foreground uppercase tracking-wide font-medium">Beschreibung</th>
                       <th className="px-4 py-2.5 text-left text-xs text-muted-foreground uppercase tracking-wide font-medium">Konto</th>
                       <th className="px-4 py-2.5 text-left text-xs text-muted-foreground uppercase tracking-wide font-medium">Kategorie</th>
+                      <th className="px-4 py-2.5 text-left text-xs text-muted-foreground uppercase tracking-wide font-medium">Umbuchung</th>
                       <th className="px-4 py-2.5 text-right text-xs text-muted-foreground uppercase tracking-wide font-medium">Betrag</th>
                       <th className="w-8 px-4 py-2.5" />
                     </tr>
@@ -315,7 +342,7 @@ export default function ImportPDF() {
                         {/* Skip checkbox */}
                         <td className="px-4 py-2">
                           <input type="checkbox" checked={!row.skip}
-                            onChange={e => updateRow(idx, { skip: !e.target.checked })}
+                            onChange={e => updateRowWith(idx, r => withSkip(r, !e.target.checked))}
                             className="accent-primary w-3.5 h-3.5"
                           />
                         </td>
@@ -391,6 +418,17 @@ export default function ImportPDF() {
                               </Tooltip>
                             )}
                           </div>
+                        </td>
+
+                        {/* Transfer */}
+                        <td className="px-3 py-2">
+                          <TransferCell
+                            rowIndex={idx}
+                            row={row}
+                            accountId={row.accountId}
+                            accounts={accounts}
+                            onTargetChange={target => updateRowWith(idx, r => withTransferTarget(r, target))}
+                          />
                         </td>
 
                         {/* Amount */}

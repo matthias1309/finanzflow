@@ -52,6 +52,16 @@ Format angelehnt an [Keep a Changelog](https://keepachangelog.com/de/1.0.0/).
   exposed in git history regardless of this fix.
 
 ### Added
+- **Automatic transfer detection in the import preview** — REQ-017. A debit whose counterparty
+  IBAN belongs to another own account is pre-filled as "Umbuchung" with that target account. The
+  matching credit on the target statement is marked "Gegenbuchung von <Konto>" and excluded by
+  default, so a transfer is no longer counted as both expense and income. Without an IBAN, a
+  unique stored counterpart (same amount to the cent, at most 3 days apart) is suggested instead.
+  If the counter-booking is already stored as an income, the preview shows "Ersetzt Einnahme vom
+  <Datum>" and the import deletes that income after saving the transfer. Every suggestion can be
+  overridden ("Keine Umbuchung"). Applies to PDF upload and Paperless import. New read-only
+  endpoint `POST /api/transfers/detect`; the N26 and DKB parsers now return the counterparty IBAN
+  (`counterpartyIban`, never stored or logged). No database schema change.
 - **Trade Republic PDF import** — `server/pdfParser.ts` now recognizes Trade Republic
   "Kontoauszug" statements (`detectBank` via `trade republic`/`traderepublic`/`trbkdebb`) and
   parses the cash-movement table (dividends, interest, withdrawals) with a dedicated

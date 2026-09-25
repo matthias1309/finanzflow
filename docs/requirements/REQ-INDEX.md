@@ -25,7 +25,7 @@ and Notes.
 | [REQ-014](REQ-014.md) | Mobile-Responsive UI               | UI/UX       | approved |
 | [REQ-015](REQ-015.md) | Multi-User Management              | Security    | approved |
 | [REQ-016](REQ-016.md) | Paperless Bank Statement Import    | Import      | approved |
-| [REQ-017](REQ-017.md) | Automatic Transfer Detection       | Import      | draft |
+| [REQ-017](REQ-017.md) | Automatic Transfer Detection       | Import      | approved |
 
 No numbering gaps.
 

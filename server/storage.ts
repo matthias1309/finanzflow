@@ -1,4 +1,4 @@
-import { eq, and } from "drizzle-orm";
+import { eq, and, gte, lte } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { db } from "./db";
 import {
@@ -53,6 +53,8 @@ export interface IStorage {
   deleteCategory(id: number): void;
   // Transactions
   getTransactions(month?: string, accountId?: number): Transaction[];
+  /** Transactions whose ISO booking date lies in [fromDate, toDate]; undated rows are excluded */
+  getTransactionsBetweenDates(fromDate: string, toDate: string): Transaction[];
   createTransaction(data: InsertTransaction): Transaction;
   createTransactions(data: InsertTransaction[]): Transaction[];
   updateTransaction(id: number, data: Partial<InsertTransaction>): Transaction | undefined;
@@ -205,6 +207,12 @@ export const storage: IStorage = {
     if (conditions.length === 2) return query.where(and(conditions[0], conditions[1])).all();
     if (conditions.length === 1) return query.where(conditions[0]).all();
     return query.all();
+  },
+
+  getTransactionsBetweenDates(fromDate, toDate) {
+    return db.select().from(transactions)
+      .where(and(gte(transactions.date, fromDate), lte(transactions.date, toDate)))
+      .all();
   },
 
   createTransaction(data)  { return db.insert(transactions).values(data).returning().get(); },

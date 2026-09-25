@@ -198,7 +198,7 @@ client/src/
 ├── lib/
 │   ├── config.ts             API_BASE resolution, safeCssColor()
 │   ├── queryClient.ts        QueryClient factory, apiRequest() helper
-│   └── transferDetection.ts  fetchTransferSuggestions(), applyTransferSuggestion() (REQ-017)
+│   └── transferDetection.ts  useTransferDetection() hook, row updates, deleteReplacedIncomes() (REQ-017)
 ├── pages/
 │   ├── Dashboard.tsx         KPI cards, account visibility toggle, Sankey chart
 │   ├── Accounts.tsx          Account CRUD (create, edit, delete)

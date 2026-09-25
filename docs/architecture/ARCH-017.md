@@ -1,6 +1,6 @@
 # ARCH-017 — Transfer Detection in the Import Preview
 
-**Status:** draft
+**Status:** approved
 **Created:** 2026-09-25
 **Traces:** REQ-017
 **Verified by:** TEST-017
@@ -30,7 +30,7 @@ the save path ([ARCH-011](ARCH-011.md)) stays unchanged. System context: `ARC42.
 | `transfersRouter` | `server/routes/transfers.ts` | `POST /api/transfers/detect`: validates the request with Zod, loads accounts and candidate transactions through `storage`, calls `detectTransfers` |
 | `getTransactionsBetweenDates` | `server/storage.ts` | New `IStorage` method `(fromDate, toDate) → Transaction[]` that filters on the ISO `date` column |
 | `detectTransfersRequestSchema`, `TransferSuggestion` | `shared/schema.ts` | Request validation and response types, shared by server and client |
-| `transferDetection` helpers | `client/src/lib/transferDetection.ts` | `fetchTransferSuggestions(rows)` and the pure `applyTransferSuggestion(row, suggestion)` |
+| `transferDetection` helpers | `client/src/lib/transferDetection.ts` | `useTransferDetection(detectionRows, setRows)` hook (re-runs detection whenever a row's account or booking changes), the pure `applyTransferSuggestion` / `withTransferTarget` / `withSkip` row updates, `transferPayloadFields`, and `deleteReplacedIncomes` |
 | `TransferCell` | `client/src/components/TransferCell.tsx` | Preview cell that shows the marker and the target-account select. Used by both import pages |
 
 **API contract: `POST /api/transfers/detect`**

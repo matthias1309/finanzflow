@@ -127,8 +127,15 @@ export type PaperlessImport = typeof paperlessImports.$inferSelect;
 /** Hex-Farbe: #rrggbb oder #rgb */
 const hexColorSchema = z.string().regex(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/, "Ungültiges Farbformat (erwartet #rrggbb)");
 
-/** IBAN: 2 Buchstaben + 2 Ziffern + bis zu 30 alphanumerische Zeichen, Leerzeichen erlaubt */
-const ibanSchema = z.string().regex(/^[A-Z]{2}\d{2}[A-Z0-9]{4,30}$/, "Ungültige IBAN").nullable().optional();
+/** IBAN in normalized form: 2 letters + 2 digits + 4–30 alphanumerics, no spaces, upper case */
+export const IBAN_PATTERN = /^[A-Z]{2}\d{2}[A-Z0-9]{4,30}$/;
+
+/** Removes whitespace and upper-cases, so "de02 1203 …" and "DE021203…" compare equal. */
+export function normalizeIban(raw: string): string {
+  return raw.replace(/\s+/g, "").toUpperCase();
+}
+
+const ibanSchema = z.string().regex(IBAN_PATTERN, "Ungültige IBAN").nullable().optional();
 
 /** Erlaubte Konto-Typen */
 const accountTypeSchema = z.enum(["checking", "savings", "rental", "investment", "cash", "other"]);
@@ -163,3 +170,47 @@ export type Category = typeof categories.$inferSelect;
 
 export type InsertTransaction = z.infer<typeof insertTransactionSchema>;
 export type Transaction = typeof transactions.$inferSelect;
+
+// ─── Transfer detection (REQ-017) ────────────────────────────
+export const MAX_TRANSFER_DETECTION_ROWS = 500;
+/** Longest IBAN (34) plus the spaces of the printed 4-character grouping */
+const MAX_COUNTERPARTY_IBAN_LENGTH = 42;
+
+export const transferDetectionRowSchema = z.object({
+  accountId:        z.number().int().positive().nullable(),
+  date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Ungültiges Datum")
+    .refine(date => !Number.isNaN(Date.parse(date)), "Ungültiges Datum")
+    .nullable(),
+  amount:           z.number().positive(),
+  type:             z.enum(["income", "expense"]),
+  counterpartyIban: z.string().max(MAX_COUNTERPARTY_IBAN_LENGTH).nullable(),
+});
+
+export const detectTransfersRequestSchema = z.object({
+  rows: z.array(transferDetectionRowSchema).min(1).max(MAX_TRANSFER_DETECTION_ROWS),
+});
+
+export type TransferDetectionRow = z.infer<typeof transferDetectionRowSchema>;
+
+export type TransferDetectionBasis = "iban" | "match";
+
+export interface ReplacedTransaction {
+  readonly id: number;
+  readonly date: string;
+}
+
+export type TransferSuggestion =
+  | { readonly kind: "none" }
+  | {
+      readonly kind: "transfer";
+      readonly targetAccountId: number;
+      readonly basis: TransferDetectionBasis;
+      readonly replacesTransaction: ReplacedTransaction | null;
+    }
+  | {
+      readonly kind: "counterBooking";
+      readonly sourceAccountId: number;
+      readonly basis: TransferDetectionBasis;
+    };
