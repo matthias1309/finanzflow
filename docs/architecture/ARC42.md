@@ -114,7 +114,7 @@ FinanzFlow is a **personal finance dashboard** for managing German bank accounts
 | **Bank PDF (N26 / DKB / Trade Republic / ING)** | Uploaded via `POST /api/import/pdf`; parsed server-side | Inbound |
 | **Paperless-ngx (REQ-016)** | Same Raspberry Pi/Docker network. FinanzFlow pulls documents tagged `Kontoauszug` via its REST API (`PAPERLESS_BASE_URL` + token) and downloads the PDF; the existing parser processes it identically to a manual upload | Inbound |
 | **OS `prefers-color-scheme`** | Read once at startup to determine initial theme | Inbound |
-| **Docker / docker-compose** | Starts/stops and restarts the container on the Raspberry Pi | Outbound |
+| **Docker / Docker Compose** | Starts/stops and restarts the container on the Raspberry Pi | Outbound |
 
 ### 3.2 Technical Context
 
@@ -544,14 +544,14 @@ Docker container (node:18-alpine)
   └── finance.db (SQLite, on bind-mounted /data volume)
 
 Host: Raspberry Pi
-  │  docker-compose manages container lifecycle (restart: unless-stopped)
+  │  Docker Compose manages container lifecycle (restart: unless-stopped)
   │  Volumes: ./data → /data (DB), ./certs → /app/certs (HTTPS cert/key)
 ```
 
 **Build pipeline:**
 
 ```
-docker-compose build
+docker compose build
   │
   ├── Vite builds client
   │   → dist/public/ (HTML, JS bundles, CSS, assets)
@@ -1043,7 +1043,7 @@ Previously: browsers cached Basic Auth credentials with no explicit logout mecha
 | **esbuild** | A fast JavaScript/TypeScript bundler. Used to compile the Express server to a single CJS file for production. |
 | **Vite** | A frontend build tool and dev server. Used in middleware mode during development so the Express server handles both API and SPA requests. |
 | **tsx** | A TypeScript executor that runs `.ts` files directly via Node.js (used in development). |
-| **docker-compose** | Defines and runs the FinanzFlow container on the Raspberry Pi, including restart policy and volume mounts. |
+| **Docker Compose** | Defines and runs the FinanzFlow container on the Raspberry Pi, including restart policy and volume mounts. |
 | **YYYY-MM** | The month string format used throughout FinanzFlow for grouping transactions (e.g. `"2026-04"`). |
 | **PDF2JSON** | A Node.js library that extracts raw text from PDF files. Used for bank statement parsing. |
 | **category rule** | A learned keyword→category mapping. Stored in `category_rules` table. Applied automatically on the next PDF import to pre-suggest categories. |

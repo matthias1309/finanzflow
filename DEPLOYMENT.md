@@ -52,9 +52,9 @@ mkdir -p data
 
 **6. Docker Image bauen und starten**
 ```bash
-docker-compose build
-docker-compose up -d
-docker-compose logs -f app
+docker compose build
+docker compose up -d
+docker compose logs -f app
 ```
 
 ### Updates (nach Code-Änderungen)
@@ -68,10 +68,10 @@ rsync -avp --exclude .git --exclude .claude --exclude docs --exclude node_module
 # Auf dem Pi: Neu bauen
 ssh admin@dockerhome
 cd /opt/containers/apps/finanzflow
-docker-compose down
-docker-compose build --no-cache
-docker-compose up -d
-docker-compose logs -f app
+docker compose down
+docker compose build --no-cache
+docker compose up -d
+docker compose logs -f app
 ```
 
 **Wichtig:** `docker-compose.yml`, `.env`, `certs/` und `data/` bleiben auf dem Pi (nicht in Git)
@@ -116,7 +116,7 @@ npm run build
 ### Weiße Seite im Browser
 - Browser-Cache leeren (F12 → Application → Clear Storage)
 - HTTPS-Zertifikat akzeptieren (falls neue Zertifikate)
-- Logs prüfen: `docker-compose logs app`
+- Logs prüfen: `docker compose logs app`
 
 ### 2FA-Loop beim Login
 ```bash
@@ -130,11 +130,11 @@ UPDATE users SET totp_enabled = 0 WHERE username='admin';
 .quit
 
 # Neu starten
-docker-compose restart app
+docker compose restart app
 ```
 
 ### Container startet nicht
 ```bash
-docker-compose logs app
+docker compose logs app
 # Häufig: Fehlende Zertifikate oder falsche .env
 ```

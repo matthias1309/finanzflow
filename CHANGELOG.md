@@ -7,6 +7,11 @@ Format angelehnt an [Keep a Changelog](https://keepachangelog.com/de/1.0.0/).
 
 ## [Unreleased]
 
+### Changed
+- **Deployment docs use Docker Compose v2** — `DEPLOYMENT.md` and ARC42 (ch. 3, 7, 12) now use
+  `docker compose …` instead of the standalone `docker-compose` v1 binary, which is no longer
+  installed on the Raspberry Pi.
+
 ### Fixed
 - **`npm run test:e2e` was broken locally** — `server/env-defaults.ts` now sets a dev-mode
   `APP_PASSWORD_HASH` default whenever `NODE_ENV=development`, but Playwright's `webServer` also
