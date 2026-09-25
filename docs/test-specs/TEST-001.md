@@ -103,17 +103,26 @@ And the used recovery code is permanently invalid
 
 **Maps to:** AC-001-05
 **Type:** integration
-**File:** ❌ missing
+**File:** `tests/server/api/auth-rate-limit.test.ts`
 
-**Notes:** `authRateLimiter` is explicitly disabled in `NODE_ENV=test`
-(`server/auth.ts`: `skip: () => process.env.NODE_ENV === "test"`), so it cannot be exercised
-through `createApp()` as tests currently configure it. No test in `tests/server/api/auth.test.ts`
-or elsewhere asserts the 429 behavior.
+```gherkin
+Given the app runs in production mode
+When the same IP sends 10 failed login attempts within 15 minutes
+Then the 11th attempt returns status 429
+And the error message contains "Zu viele Login-Versuche"
+```
 
-**Status: accepted (Session 10).** Not testable without changing the test-env skip condition
-(which itself risks masking other tests that rely on the bypass) — would need a dedicated
-`createApp()` call that overrides the skip, similar to `pdf-rate-limit.test.ts`'s isolated-file
-pattern. Left as a follow-up.
+**Notes:** `authRateLimiter` skips itself in `NODE_ENV=test`, so the dedicated file (isolated
+process, own limiter counter) switches `NODE_ENV` to `"development"` after importing
+`createApp()` — the skip condition is evaluated per request — and enables auth with a real bcrypt
+hash. Three cases, each from its own client IP via `X-Forwarded-For`: the 11th failed attempt is
+`429`; the 10th is still a normal `401` (catches double counting); failed requests to other
+endpoints do not consume the login budget.
+
+**Closed (E2E fix, 2026-09-25).** Writing this test confirmed a real bug: `authRateLimiter` was
+also mounted globally in `server/createApp.ts`, so any failed request counted as a login attempt,
+failed logins counted twice, and a hit limit answered `429` for the whole app including the SPA
+shell. It now only guards `POST /api/auth/login`, matching ARCH-001.
 
 ---
 
