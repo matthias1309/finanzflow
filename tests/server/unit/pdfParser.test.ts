@@ -233,3 +233,46 @@ describe("parseGeneric", () => {
     expect(parseGeneric("Kontoauszug\nSeite 1 von 3")).toHaveLength(0);
   });
 });
+
+describe("counterparty IBAN extraction", () => {
+  // TC-017-18
+  // Given an N26 statement text with an "IBAN: DE02 1203 0000 0000 2020 51" line in the block of a booking
+  // When the statement is parsed
+  // Then the booking has the counterpartyIban "DE02120300000000202051"
+  // And a booking without an IBAN line has the counterpartyIban null
+  it("should capture the IBAN line of a booking as its normalized counterpartyIban", async () => {
+    // Arrange
+
+    // Act
+
+    // Assert
+    throw new Error("not implemented");
+  });
+
+  // TC-017-19
+  // Given a DKB statement text with an "IBAN DE02120300000000202051" line directly above a booking
+  // When the statement is parsed
+  // Then the booking has the counterpartyIban "DE02120300000000202051"
+  // And its description is unchanged
+  it("should capture the IBAN line above a DKB booking as its counterpartyIban", async () => {
+    // Arrange
+
+    // Act
+
+    // Assert
+    throw new Error("not implemented");
+  });
+
+  // TC-017-20
+  // Given a statement line "IBAN: XX" or a line longer than the length limit
+  // When the IBAN is extracted
+  // Then the counterpartyIban is null
+  it("should return null for text that is not a valid IBAN", async () => {
+    // Arrange
+
+    // Act
+
+    // Assert
+    throw new Error("not implemented");
+  });
+});

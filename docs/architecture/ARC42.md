@@ -482,9 +482,10 @@ Browser                          Server                               SQLite
   │  counterBooking → skip = true ("Gegenbuchung von …")                │
   │                                │                                    │
   │── POST /api/transactions/batch (unchanged, see 6.3) ───────────────►│
+  │── DELETE /api/transactions/:id  (per replaced income, after save) ─►│
 ```
 
-Detection writes nothing. Rows the user has edited by hand are not re-evaluated. Counterparty
+Detection writes nothing; the only deletion is a replaced stored income ("Ersetzt Einnahme vom …"), sent by the client after the batch save succeeded. Rows the user has edited by hand are not re-evaluated. Counterparty
 IBANs are never logged or persisted.
 
 ---
@@ -876,13 +877,14 @@ only `isAdmin = 1` continues to be (re-)enforced.
 
 **Context:** A transfer between own accounts appears on both statements (debit on the source, credit on the target). Imported naively, the credit is counted as income although the model already represents the target side through the source row's `transferToAccountId`. The parse endpoints do not know which account a statement belongs to — the user picks it in the preview, per row, and may change it.
 
-**Decision:** Add a read-only `POST /api/transfers/detect` that takes the preview rows (with their selected account and the parser's counterparty IBAN) and returns one suggestion per row, computed by a pure `detectTransfers()` function: counterparty IBAN of another own account first, else a unique same-amount opposite-direction stored transaction within ±3 days. The client re-runs it on every account change and never overrides manual edits. Counter-bookings are skipped by default, not stored. Counterparty IBANs stay transient.
+**Decision:** Add a read-only `POST /api/transfers/detect` that takes the preview rows (with their selected account and the parser's counterparty IBAN) and returns one suggestion per row, computed by a pure `detectTransfers()` function: counterparty IBAN of another own account first, else a unique same-amount opposite-direction stored transaction within ±3 days. The client re-runs it on every account change and never overrides manual edits. Counter-bookings are skipped by default, not stored. If the counter-booking of a detected outgoing transfer is already stored as an income, the client deletes it after the batch save. Counterparty IBANs stay transient.
 
 **Consequences:**
 - ✅ `parsePDF()` stays DB-free (ADR-003); the save path (`POST /api/transactions/batch`) and the data model stay unchanged — no schema migration
 - ✅ All matching rules are unit-testable in one pure function shared by the PDF and Paperless import
 - ✅ Fail-safe: ambiguity yields no suggestion; every suggestion is visible and overridable before saving
 - ⚠️ One extra request per account change in the preview
+- ⚠️ Saving the transfer and deleting a replaced stored income are two requests, not atomic — a failed delete leaves the double count and is reported to the user
 - ⚠️ If the source statement is never imported, skipping the counter-booking leaves the target account without that inflow
 - ⚠️ Counterparty-IBAN detection only works for parsers that extract it (N26, DKB at first)
 

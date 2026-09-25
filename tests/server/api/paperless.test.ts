@@ -191,3 +191,19 @@ describe("POST /api/paperless/documents/:id/confirm", () => {
     expect(res.body.ok).toBe(true);
   });
 });
+
+describe("Paperless import — transfer detection", () => {
+  // TC-017-13
+  // Given own accounts "N26" and "DKB Giro" with IBANs exist
+  // And a Paperless document for "N26" contains a debit whose counterparty IBAN is the IBAN of "DKB Giro"
+  // When the user loads the document into the Paperless import preview
+  // Then the preview row is marked as a transfer to "DKB Giro"
+  it("should pass the counterparty IBAN from a Paperless document through to transfer detection", async () => {
+    // Arrange
+
+    // Act
+
+    // Assert
+    throw new Error("not implemented");
+  });
+});

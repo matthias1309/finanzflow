@@ -3,14 +3,16 @@
 **Status:** draft
 **Created:** 2026-09-25
 **Traces:** REQ-017
-**Verified by:** _(pending TEST-SPEC)_
+**Verified by:** TEST-017
 
 ## Summary
 
 Pre-fills the import preview ([ARCH-005](ARCH-005.md), [ARCH-016](ARCH-016.md)) with transfer
 suggestions: a debit to another own account becomes `type = "transfer"` with
 `transferToAccountId`, and a credit from another own account is marked as a *counter-booking*
-and is excluded from the import by default, so it is not counted twice (REQ-004 AC-004-11). Detection is a
+and is excluded from the import by default, so it is not counted twice (REQ-004 AC-004-11). If
+the counter-booking of a detected outgoing transfer is **already stored** as an income, the
+preview shows it and the import deletes it after the transfer is saved. Detection is a
 stateless, read-only server step. It runs after parsing and again whenever the account
 selection in the preview changes. Nothing is persisted until the user clicks "Importieren", and
 the save path ([ARCH-011](ARCH-011.md)) stays unchanged. System context: `ARC42.md` §5.2, §5.3,
@@ -48,7 +50,8 @@ Response 200 { suggestions: TransferSuggestion[] }   // same length and order as
 
 TransferSuggestion =
     { kind: "none" }
-  | { kind: "transfer",      targetAccountId: number, basis: "iban" | "match" }
+  | { kind: "transfer",      targetAccountId: number, basis: "iban" | "match",
+      replacesTransaction: { id: number, date: string } | null }
   | { kind: "counterBooking", sourceAccountId: number, basis: "iban" | "match" }
 
 400  invalid body (Zod safeParse, flattened error), same shape as the other routes
@@ -75,11 +78,17 @@ For each row, in this order. The first rule that applies decides.
      `transferToAccountId = row.accountId` → `counterBooking` from the candidate's account
      (AC-017-07).
    - Row is an `expense` → candidates with `type = "income"` → `transfer` to the candidate's
-     account (AC-017-08).
+     account, with `replacesTransaction` = that candidate (AC-017-08).
    - Exactly one candidate → suggestion with basis `match`. Zero or several → `none`
      (AC-017-09, AC-017-10).
-4. **Claim check.** If two rows in the same request matched the same stored candidate, all of
-   them fall back to `none`. The ambiguity rule applies across rows as well.
+4. **Replaced income for IBAN transfers.** For a `transfer` with basis `iban`, the rule-3 window
+   and amount check is run against stored `income` rows **on the target account only**. Exactly
+   one → `replacesTransaction` = that row; otherwise `null`. The transfer itself is still
+   suggested (AC-017-16).
+5. **Claim check.** If two rows in the same request claim the same stored transaction (as match
+   candidate or as `replacesTransaction`), all of them lose the claim: a match-basis row falls back
+   to `none`, an IBAN-basis row keeps its transfer with `replacesTransaction: null`. The ambiguity
+   rule applies across rows as well.
 
 **Candidate query**
 
@@ -108,7 +117,8 @@ parse result ──► rows (type from parser, transferHint = none, isAutoTransf
    POST /api/transfers/detect (all rows)
             ▼
    applyTransferSuggestion(row, suggestion), only for rows with isAutoTransfer = true:
-     transfer        → type "transfer", transferToAccountId = target, marker "Umbuchung"
+     transfer        → type "transfer", transferToAccountId = target, marker "Umbuchung",
+                       replacesTransaction → hint "Ersetzt Einnahme vom <TT.MM.JJJJ>"
      counterBooking  → skip = true, marker "Gegenbuchung"
      none            → type = parsed type, transferToAccountId = null, skip unchanged
 ```
@@ -121,7 +131,16 @@ parse result ──► rows (type from parser, transferHint = none, isAutoTransf
 - The batch payload sends `type` and `transferToAccountId` from the row instead of the hard-coded
   `transferToAccountId: null`. `POST /api/transactions/batch` already accepts `type: "transfer"`
   (AC-017-02). Category learning is unchanged.
-- `data-testid`: `transfer-marker-{idx}`, `select-transfer-target-{idx}`.
+- **Replacing a stored income (AC-017-14, 15, 17).** `replacesTransaction` only applies while the
+  row is still a transfer to the suggested target. Choosing another target or `Keine Umbuchung`
+  drops it (AC-017-15). After the batch request succeeds, the client sends
+  `DELETE /api/transactions/:id` for each replaced income of an imported row, **after** the save
+  and never before, so a failed batch never loses data. A failed delete shows the toast
+  `Einnahme vom <TT.MM.JJJJ> konnte nicht entfernt werden`. The transfer stays saved; the user
+  removes the income by hand. `DELETE` is idempotent (`{ ok: true }` for an unknown id), so an
+  income deleted in the meantime is not an error.
+- `data-testid`: `transfer-marker-{idx}`, `select-transfer-target-{idx}`,
+  `transfer-replaces-{idx}`.
 
 ## Key Decisions
 
@@ -145,6 +164,12 @@ parse result ──► rows (type from parser, transferHint = none, isAutoTransf
   settle within 1–2 business days. Three calendar days covers a weekend. Amounts are never
   rounded or fuzzy-matched: fees would make the two sides differ, and then they are not a pure
   transfer.
+- **Replace a redundant stored income by deleting it, client-side, after the save** (was Open
+  Question 1; decided option b over "hint only" and "no suggestion"). A hint alone leaves the
+  double count in the data. Not suggesting would miss the most common case: the target statement
+  was imported first. The existing `DELETE` endpoint is reused rather than extending the batch
+  contract. Trade-off: the two requests are not atomic. The failure mode is the same double
+  count as today, and it is reported (AC-017-17).
 - **Counter-bookings are skipped, not stored with a link.** The existing model shows the target
   side through the source row's `transferToAccountId` (summary `transfersIn`). A second row
   would need a new column and changes to the summary code. Trade-off: if the source statement is
@@ -153,11 +178,10 @@ parse result ──► rows (type from parser, transferHint = none, isAutoTransf
 
 ## Out of Scope
 
-- Converting or deleting stored transactions. Detection only changes the rows being imported
-  (see Open Question 1 for the AC-017-08 consequence).
-- Matching a new credit against a stored **expense** on another account (a transfer imported
-  earlier as a plain expense). The stored row is already wrong; fixing it is part of Open
-  Question 1.
+- Changing stored transactions other than deleting a replaced income. In particular: matching
+  a new credit against a stored **expense** on another account (a transfer imported earlier as a
+  plain expense) and converting that expense into a transfer.
+- Undo for a deleted replaced income.
 - Validating `transferToAccountId` in the batch endpoint (does the account exist, is it not the
   row's own account). This is pre-existing REQ-004 behavior, unchanged here.
 - Cross-import duplicate detection (the same statement imported twice). Not covered by
@@ -166,12 +190,8 @@ parse result ──► rows (type from parser, transferHint = none, isAutoTransf
 
 ## Open Questions
 
-1. **Stored redundant income after AC-017-08.** When a debit matches an income that is already
-   stored on the target account, that income is the counter-booking and double-counts once the
-   transfer is imported. Options: (a) show a hint only; (b) delete the matched income after the
-   batch import (`DELETE /api/transactions/:id`, response then carries `matchedTransactionId`);
-   (c) do not suggest at all. **Recommendation: (b)**, shown in the row as
-   `Ersetzt Einnahme vom <Datum>`. This needs a new AC in REQ-017 before the TEST-SPEC.
+1. ~~Stored redundant income after AC-017-08~~: decided 2026-09-25, option b (delete after
+   save), see Key Decisions and AC-017-14 … 17.
 2. **Where do ING, Trade Republic and the generic parser show counterparty IBANs?** This must be
    checked against a real, anonymized statement per bank. Until then those parsers return `null`.
 3. **Parser fixtures.** The existing N26 and DKB fixture texts in
