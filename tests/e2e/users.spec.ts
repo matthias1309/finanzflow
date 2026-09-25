@@ -14,7 +14,7 @@ import { totp } from "otplib";
 // ─── Hilfsfunktion: vollständiger Login ──────────────────────────────────────
 
 async function loginAsAdmin(page: Page) {
-  const password   = process.env.E2E_PASSWORD    ?? "";
+  const password = process.env.E2E_PASSWORD ?? "";
   const totpSecret = process.env.E2E_TOTP_SECRET ?? "";
 
   if (!password || !totpSecret) {
@@ -36,11 +36,14 @@ async function loginAsAdmin(page: Page) {
 
 test.describe("Zugangskontrolle /users", () => {
   test("nicht eingeloggter Nutzer wird zur Login-Seite weitergeleitet", async ({ page }) => {
-    await page.goto("/users");
-    await expect(page).toHaveURL(/\/login/);
+    // Hash-Routing: die Seite ist "/#/users", nicht "/users"
+    await page.goto("/#/users");
+    await expect(page).toHaveURL(/\/#\/login$/);
   });
 
-  test.skip("normaler Benutzer wird vom /users-Aufruf zum Dashboard weitergeleitet", async ({ page }) => {
+  test.skip("normaler Benutzer wird vom /users-Aufruf zum Dashboard weitergeleitet", async ({
+    page,
+  }) => {
     // Benötigt eingeloggten Non-Admin-User.
     // Wird nach Implementierung mit entsprechendem Test-Setup aktiviert.
     await expect(page).toHaveURL(/\//);
@@ -52,7 +55,7 @@ test.describe("Zugangskontrolle /users", () => {
 
 test.describe("User-Verwaltungsseite", () => {
   test("Admin sieht die User-Liste mit mindestens einem Eintrag", async ({ page }) => {
-    if (!await loginAsAdmin(page)) return;
+    if (!(await loginAsAdmin(page))) return;
 
     await page.goto("/users");
     await expect(page.getByTestId("users-list")).toBeVisible();
@@ -60,7 +63,7 @@ test.describe("User-Verwaltungsseite", () => {
   });
 
   test("Admin-Eintrag zeigt Username, Admin-Badge und TOTP-Status", async ({ page }) => {
-    if (!await loginAsAdmin(page)) return;
+    if (!(await loginAsAdmin(page))) return;
 
     await page.goto("/users");
     const adminRow = page.getByTestId("user-item-admin");
@@ -73,7 +76,7 @@ test.describe("User-Verwaltungsseite", () => {
 
 test.describe("Benutzer anlegen", () => {
   test("Admin legt einen neuen Benutzer an", async ({ page }) => {
-    if (!await loginAsAdmin(page)) return;
+    if (!(await loginAsAdmin(page))) return;
 
     await page.goto("/users");
     await page.getByTestId("button-add-user").click();
@@ -89,7 +92,7 @@ test.describe("Benutzer anlegen", () => {
   });
 
   test("Formular zeigt Fehler bei bereits vergebenem Username", async ({ page }) => {
-    if (!await loginAsAdmin(page)) return;
+    if (!(await loginAsAdmin(page))) return;
 
     // Admin selbst nochmal anlegen → Username vergeben
     await page.goto("/users");
@@ -108,7 +111,7 @@ test.describe("Benutzer anlegen", () => {
 
 test.describe("Admin-Rechte", () => {
   test("Admin vergibt Admin-Rechte an anderen Benutzer", async ({ page, request: apiRequest }) => {
-    if (!await loginAsAdmin(page)) return;
+    if (!(await loginAsAdmin(page))) return;
 
     // Testuser per API anlegen
     await apiRequest.post("/api/users", {
@@ -123,7 +126,7 @@ test.describe("Admin-Rechte", () => {
   });
 
   test("Fehlermeldung beim Versuch den letzten Admin zu degradieren", async ({ page }) => {
-    if (!await loginAsAdmin(page)) return;
+    if (!(await loginAsAdmin(page))) return;
 
     await page.goto("/users");
     const adminRow = page.getByTestId("user-item-admin");
@@ -138,7 +141,7 @@ test.describe("Admin-Rechte", () => {
 
 test.describe("Benutzer löschen", () => {
   test("Admin löscht Benutzer nach Bestätigung", async ({ page, request: apiRequest }) => {
-    if (!await loginAsAdmin(page)) return;
+    if (!(await loginAsAdmin(page))) return;
 
     await apiRequest.post("/api/users", {
       data: { username: "e2e-todelete", password: "Password123!" },
@@ -156,7 +159,7 @@ test.describe("Benutzer löschen", () => {
   });
 
   test("Fehlermeldung beim Versuch den letzten Admin zu löschen", async ({ page }) => {
-    if (!await loginAsAdmin(page)) return;
+    if (!(await loginAsAdmin(page))) return;
 
     await page.goto("/users");
     const adminRow = page.getByTestId("user-item-admin");
@@ -174,7 +177,7 @@ test.describe("Benutzer löschen", () => {
 
 test.describe("Passwort setzen", () => {
   test("Admin setzt Passwort eines anderen Benutzers", async ({ page, request: apiRequest }) => {
-    if (!await loginAsAdmin(page)) return;
+    if (!(await loginAsAdmin(page))) return;
 
     await apiRequest.post("/api/users", {
       data: { username: "e2e-pwchange", password: "OldPass123!" },

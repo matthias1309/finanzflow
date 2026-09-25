@@ -10,24 +10,24 @@ import { Lock, KeyRound } from "lucide-react";
 type Step = "password" | "totp";
 
 export default function Login() {
-  const [, navigate]  = useLocation();
+  const [, navigate] = useLocation();
   const [step, setStep] = useState<Step>("password");
-  const [username, setUsername]   = useState("");
-  const [password, setPassword]   = useState("");
-  const [totpCode, setTotpCode]   = useState("");
-  const [error, setError]         = useState("");
-  const [loading, setLoading]     = useState(false);
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [totpCode, setTotpCode] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   async function handlePasswordSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
     setLoading(true);
     try {
-      const res  = await fetch(`${API_BASE}/api/auth/login`, {
-        method:  "POST",
+      const res = await fetch(`${API_BASE}/api/auth/login`, {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body:    JSON.stringify({ username, password }),
+        body: JSON.stringify({ username, password }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -51,11 +51,11 @@ export default function Login() {
     setError("");
     setLoading(true);
     try {
-      const res  = await fetch(`${API_BASE}/api/auth/totp`, {
-        method:  "POST",
+      const res = await fetch(`${API_BASE}/api/auth/totp`, {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body:    JSON.stringify({ code: totpCode }),
+        body: JSON.stringify({ code: totpCode }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -87,11 +87,20 @@ export default function Login() {
 
         <Card className="bg-card border-border">
           <CardHeader className="pb-4">
-            <CardTitle className="text-base font-semibold flex items-center gap-2">
-              {step === "password"
-                ? <><Lock size={15} /> Anmelden</>
-                : <><KeyRound size={15} /> Zwei-Faktor-Authentifizierung</>
-              }
+            <CardTitle
+              role="heading"
+              aria-level={1}
+              className="text-base font-semibold flex items-center gap-2"
+            >
+              {step === "password" ? (
+                <>
+                  <Lock size={15} /> Anmelden
+                </>
+              ) : (
+                <>
+                  <KeyRound size={15} /> Zwei-Faktor-Authentifizierung
+                </>
+              )}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -104,7 +113,7 @@ export default function Login() {
                     data-testid="input-username"
                     autoComplete="username"
                     value={username}
-                    onChange={e => setUsername(e.target.value)}
+                    onChange={(e) => setUsername(e.target.value)}
                     required
                     autoFocus
                   />
@@ -117,12 +126,14 @@ export default function Login() {
                     type="password"
                     autoComplete="current-password"
                     value={password}
-                    onChange={e => setPassword(e.target.value)}
+                    onChange={(e) => setPassword(e.target.value)}
                     required
                   />
                 </div>
                 {error && (
-                  <p className="text-sm text-red-400" role="alert">{error}</p>
+                  <p className="text-sm text-red-400" role="alert">
+                    {error}
+                  </p>
                 )}
                 <Button
                   data-testid="button-login"
@@ -136,8 +147,8 @@ export default function Login() {
             ) : (
               <form onSubmit={handleTotpSubmit} className="space-y-4">
                 <p className="text-sm text-muted-foreground">
-                  Gib den 6-stelligen Code aus deiner Authenticator-App ein,
-                  oder einen Recovery-Code.
+                  Gib den 6-stelligen Code aus deiner Authenticator-App ein, oder einen
+                  Recovery-Code.
                 </p>
                 <div className="space-y-1.5">
                   <Label htmlFor="totp-code">Code</Label>
@@ -148,14 +159,16 @@ export default function Login() {
                     autoComplete="one-time-code"
                     placeholder="000000"
                     value={totpCode}
-                    onChange={e => setTotpCode(e.target.value)}
+                    onChange={(e) => setTotpCode(e.target.value)}
                     required
                     autoFocus
                     maxLength={64}
                   />
                 </div>
                 {error && (
-                  <p className="text-sm text-red-400" role="alert">{error}</p>
+                  <p className="text-sm text-red-400" role="alert">
+                    {error}
+                  </p>
                 )}
                 <Button
                   data-testid="button-verify-totp"
@@ -168,7 +181,11 @@ export default function Login() {
                 <button
                   type="button"
                   className="w-full text-xs text-muted-foreground hover:text-foreground text-center"
-                  onClick={() => { setStep("password"); setError(""); setTotpCode(""); }}
+                  onClick={() => {
+                    setStep("password");
+                    setError("");
+                    setTotpCode("");
+                  }}
                 >
                   Zurück zur Passwort-Eingabe
                 </button>

@@ -4,8 +4,10 @@ import { loginAsDevAdmin } from "./authHelpers";
 test.beforeEach(async ({ page }) => {
   await loginAsDevAdmin(page);
   await page.goto("/");
-  await page.getByRole("link", { name: /Kategorien/i }).click();
-  await page.waitForURL(/kategorien/i);
+  await page.getByTestId("nav-kategorien").click();
+  // Hash routing: the page lives at "/#/categories"; waitForURL would wait for a full "load" event
+  // that an in-page hash change never fires.
+  await expect(page).toHaveURL(/\/#\/categories$/);
 });
 
 test("creates a new expense category", async ({ page }) => {
