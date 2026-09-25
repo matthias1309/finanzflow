@@ -8,6 +8,21 @@ Format angelehnt an [Keep a Changelog](https://keepachangelog.com/de/1.0.0/).
 ## [Unreleased]
 
 ### Fixed
+- **Login rate limiter locked out the whole app** (REQ-001 AC-001-05) — `authRateLimiter` was
+  mounted globally in `server/createApp.ts` in addition to `POST /api/auth/login`. Every failed
+  request anywhere (e.g. the Dashboard's `401` queries before login, or `404`s) counted as a
+  failed login, failed logins counted twice, and once the limit was hit every request —
+  including the SPA shell — answered `429 Zu viele Login-Versuche` for 15 minutes. The limiter
+  now only guards `POST /api/auth/login`, as ARCH-001 specifies. New API test
+  `tests/server/api/auth-rate-limit.test.ts` closes the TC-001-05 test gap.
+- **12 failing Playwright E2E tests** — the specs assumed path routing and a pre-configured
+  TOTP admin. They now use the hash routes (`/#/login`, `/#/users`, `/#/accounts`,
+  `/#/categories`) and assert navigation with `toHaveURL` instead of `waitForURL` (a hash change
+  never fires a `load` event); the TOTP specs create their own 2FA-enrolled user via the API
+  (`createUserWithTotp` in `tests/e2e/authHelpers.ts`); the logout spec logs in and clicks
+  "Abmelden" instead of logging out a session that never existed; account edit/delete target the
+  test's own card instead of the first card left over from earlier tests. The login page title
+  is now a real heading (`role="heading"`) — the page previously had none.
 - **`npm run test:e2e` was broken locally** — `server/env-defaults.ts` now sets a dev-mode
   `APP_PASSWORD_HASH` default whenever `NODE_ENV=development`, but Playwright's `webServer` also
   runs with `NODE_ENV=development` (`npm run dev`), so every E2E test that called the API without

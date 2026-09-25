@@ -4,8 +4,10 @@ import { loginAsDevAdmin } from "./authHelpers";
 test.beforeEach(async ({ page }) => {
   await loginAsDevAdmin(page);
   await page.goto("/");
-  await page.getByRole("link", { name: /Konten/i }).click();
-  await page.waitForURL(/konten/i);
+  await page.getByTestId("nav-konten").click();
+  // Hash routing: the page lives at "/#/accounts"; waitForURL would wait for a full "load" event
+  // that an in-page hash change never fires.
+  await expect(page).toHaveURL(/\/#\/accounts$/);
 });
 
 // TC-002-07 (partial: name visible, bank badge and color dot not asserted)
@@ -31,8 +33,9 @@ test("edits an account name", async ({ page }) => {
   await expect(dialog).not.toBeVisible();
   await expect(page.getByText("Alter Name")).toBeVisible();
 
-  // Click the edit button on the account card
-  await page.locator("[data-testid^='button-edit-account-']").first().click();
+  // Scope to this test's card — accounts from earlier tests share the E2E database
+  const card = page.locator("[data-testid^='account-card-']", { hasText: "Alter Name" });
+  await card.locator("[data-testid^='button-edit-account-']").click();
 
   const editDialog = page.getByRole("dialog");
   await expect(editDialog).toBeVisible();
@@ -53,7 +56,8 @@ test("deletes an account", async ({ page }) => {
   await expect(dialog).not.toBeVisible();
   await expect(page.getByText("Zu Löschen")).toBeVisible();
 
-  await page.locator("[data-testid^='button-delete-account-']").first().click();
+  const card = page.locator("[data-testid^='account-card-']", { hasText: "Zu Löschen" });
+  await card.locator("[data-testid^='button-delete-account-']").click();
 
   await expect(page.getByText("Zu Löschen")).not.toBeVisible();
 });
