@@ -8,6 +8,12 @@ Format angelehnt an [Keep a Changelog](https://keepachangelog.com/de/1.0.0/).
 ## [Unreleased]
 
 ### Fixed
+- **Admin password reset by the seed user did not survive a restart** (REQ-015, AC-015-15) — the
+  ENV-sync in `server/db.ts` unconditionally overwrote the `APP_USER` row's password hash with
+  `APP_PASSWORD_HASH` on every server start, silently reverting any password set for that user via
+  the user-management UI the next time the server restarted. `APP_PASSWORD_HASH` now only seeds
+  the password when the user is created; an existing user's password hash is left untouched on
+  later starts (`isAdmin` is still re-asserted). See ADR-010.
 - **Flaky API tests on macOS** — about one full `npm test` run in 5–7 failed with a random 401/404
   because supertest's per-request servers (`request(app)`, bound to `::`) could share an ephemeral
   port with a parallel test process bound to `127.0.0.1`, so requests reached the wrong test

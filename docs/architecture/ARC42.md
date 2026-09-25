@@ -798,7 +798,29 @@ Chart colors (Sankey diagram) are passed as props from the theme-aware parent co
 - ✅ Per-user TOTP eliminates shared authenticator app secrets
 - ✅ All existing auth tests continue to work — `/api/auth/2fa/status` falls back to the APP_USER's status for unauthenticated requests
 - ⚠️ All users have equal read/write access to all financial data — no per-user data isolation
-- ⚠️ If `APP_USER`/`APP_PASSWORD_HASH` change in ENV, the seeding upsert updates the DB user silently (intended behavior; document in ops runbook)
+- ⚠️ If `APP_USER`/`APP_PASSWORD_HASH` change in ENV, the seeding upsert updates the DB user silently (intended behavior; document in ops runbook) — **superseded by ADR-010**, `APP_PASSWORD_HASH` only seeds the initial password now
+
+---
+
+### ADR-010 — Env-sync no longer overwrites an existing user's password (supersedes part of ADR-008)
+
+**Context:** ADR-008's seeding upsert applied `APP_PASSWORD_HASH` to the `APP_USER` row on every
+server start, even when that user already existed. This silently reverted any password set for
+that user through the user-management UI (REQ-015, AC-015-09/AC-015-10) the next time the server
+restarted (container restart, redeploy) — reported as a bug: the admin password could not be
+changed to a value that survived a restart.
+
+**Decision:** `server/db.ts` now applies `APP_PASSWORD_HASH` only when creating the `APP_USER` row
+for the first time. On every later start, the existing row's password hash is left untouched;
+only `isAdmin = 1` continues to be (re-)enforced.
+
+**Consequences:**
+- ✅ A password set via the UI for the seed user now survives restarts, as for any other user
+- ✅ No change to the fail-fast / first-boot behavior (ADR-008, ARCH-001) — `APP_PASSWORD_HASH` is
+  still mandatory in production and still creates the initial admin account
+- ⚠️ Changing `APP_PASSWORD_HASH` in the deployment config no longer resets that user's password —
+  a lost admin password must now be recovered through another admin account, or by deleting the
+  user's row directly so the next start re-seeds it from `APP_PASSWORD_HASH`
 
 ---
 

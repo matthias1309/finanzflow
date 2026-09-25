@@ -303,17 +303,20 @@ implicit in the `:memory:` per-file DB (`tests/server/setup.ts`), not separately
 
 ---
 
-### TC-015-15 — Env sync at startup — user is updated
+### TC-015-15 — Env sync at startup — existing user's password is preserved
 
 **Maps to:** AC-015-15
 **Type:** integration
 **File:** `tests/server/unit/db-seeding.test.ts`
 
-**Notes:** Closed in Session 10. The seeding logic in `server/db.ts` runs at module top-level, not
-inside `createApp()`, so testing "restart with a different hash" needs a real temp-file DB (not
-`:memory:`) plus `vi.resetModules()` to force two separate imports of `db.ts` against the same
-file — `updates an existing seed user's password hash on the next start` does exactly that and
-asserts the row's `passwordHash` matches the second hash while `isAdmin` stays `1`.
+**Notes:** Reworked 2026-09-25 (bug fix — the env-sync used to overwrite an existing user's
+password hash from `APP_PASSWORD_HASH` on every restart, silently reverting UI-set passwords for
+that user). The seeding logic in `server/db.ts` runs at module top-level, not inside `createApp()`,
+so testing "restart with a different hash" needs a real temp-file DB (not `:memory:`) plus
+`vi.resetModules()` to force two separate imports of `db.ts` against the same file —
+`preserves an existing seed user's password hash on the next start` does exactly that and asserts
+the row's `passwordHash` still matches the *first* hash (not `APP_PASSWORD_HASH`'s new value)
+while `isAdmin` stays `1`.
 
 ---
 
