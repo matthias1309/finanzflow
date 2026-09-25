@@ -24,7 +24,7 @@ dataset") for the system-level rationale.
 | `toPublic` | `server/routes/users.ts` | Strips `passwordHash`/`totpSecret`/`totpPendingSecret`/`totpLastUsedToken` from API responses |
 | `createUserSchema`, `updateUserSchema`, `changePasswordSchema` | `shared/schema.ts` | Zod validation (min. 8-char password) |
 | user storage functions | `server/storage.ts` | `getUsers`, `createUser`, `updateUser`, `updateUserPassword`, `deleteUser`, `countAdmins`, `resetUserTotp` |
-| env sync at startup | `server/db.ts` (seeding on module load) | Upserts the `APP_USER`/`APP_PASSWORD_HASH` admin |
+| env sync at startup | `server/db.ts` (seeding on module load) | Creates the `APP_USER`/`APP_PASSWORD_HASH` admin if missing; only re-asserts `isAdmin` if it already exists |
 
 **Endpoints (all under `requireAdmin` except the password one)**
 
@@ -52,12 +52,13 @@ re-specified here.
 
 **Env sync at startup (AC-015-14, AC-015-15)**
 
-On every server start, `server/db.ts` upserts a user row for `APP_USER` with
-`passwordHash = APP_PASSWORD_HASH` and `isAdmin = 1` — creating it if absent (AC-015-14) or
-updating the password hash if the username already exists (AC-015-15), leaving `isAdmin` at `1`
-either way. `server/env-defaults.ts` supplies local-development defaults for `APP_PASSWORD_HASH` /
-`APP_USER` / `APP_ORIGIN` before this runs, so the sync always has a value to work with outside
-strict production (ARCH-001 covers the production fail-fast path).
+On every server start, `server/db.ts` upserts a user row for `APP_USER`: if it is absent, it is
+created with `passwordHash = APP_PASSWORD_HASH` and `isAdmin = 1` (AC-015-14). If it already
+exists, only `isAdmin = 1` is (re-)enforced — the password hash is left untouched (AC-015-15), so
+`APP_PASSWORD_HASH` only ever seeds the *initial* password, never overwrites one set later via the
+UI (AC-015-09/AC-015-10). `server/env-defaults.ts` supplies local-development defaults for
+`APP_PASSWORD_HASH` / `APP_USER` / `APP_ORIGIN` before this runs, so the sync always has a value to
+work with outside strict production (ARCH-001 covers the production fail-fast path).
 
 **New-user TOTP onboarding (AC-015-16)**
 

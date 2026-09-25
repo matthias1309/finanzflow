@@ -3,6 +3,10 @@
  * at module top-level on every `db.ts` import, so — unlike the API tests — this needs a real
  * temp-file DB (not `:memory:`) plus `vi.resetModules()` to force two separate "server starts"
  * against the same database with different APP_PASSWORD_HASH values.
+ *
+ * APP_PASSWORD_HASH only seeds the *initial* password. Once the user exists, its password hash
+ * must survive a restart even if APP_PASSWORD_HASH changed in the meantime — otherwise a
+ * password set via the UI (AC-015-09/AC-015-10) is silently reverted on the next restart.
  */
 import { it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtempSync, rmSync } from "fs";
@@ -23,15 +27,15 @@ afterEach(() => {
 });
 
 // TC-015-15
-it("updates an existing seed user's password hash on the next start", async () => {
+it("preserves an existing seed user's password hash on the next start", async () => {
   process.env.DB_PATH          = dbPath;
   process.env.APP_USER         = "admin";
-  process.env.APP_PASSWORD_HASH = bcrypt.hashSync("FirstPass1!", 10);
+  const firstHash = bcrypt.hashSync("FirstPass1!", 10);
+  process.env.APP_PASSWORD_HASH = firstHash;
 
   await import("../../../server/db");
 
-  const secondHash = bcrypt.hashSync("SecondPass2!", 10);
-  process.env.APP_PASSWORD_HASH = secondHash;
+  process.env.APP_PASSWORD_HASH = bcrypt.hashSync("SecondPass2!", 10);
 
   vi.resetModules();
   const { db } = await import("../../../server/db");
@@ -40,6 +44,6 @@ it("updates an existing seed user's password hash on the next start", async () =
 
   const admin = db.select().from(users).where(eq(users.username, "admin")).get();
   expect(admin).toBeDefined();
-  expect(admin!.passwordHash).toBe(secondHash);
+  expect(admin!.passwordHash).toBe(firstHash);
   expect(admin!.isAdmin).toBe(1);
 });
