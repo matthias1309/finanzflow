@@ -27,7 +27,7 @@
 
 ### 1.1 Requirements Overview
 
-FinanzFlow is a **personal finance dashboard** for managing German bank accounts (N26, DKB, ING). Multiple users share a single dataset; admin users can manage all accounts and other users. It provides:
+FinanzFlow is a **personal finance dashboard** for managing German bank accounts (N26, DKB, Trade Republic, ING). Multiple users share a single dataset; admin users can manage all accounts and other users. It provides:
 
 - **PDF import** of bank statements with automatic transaction parsing
 - **Category management** with a learning system that auto-suggests categories on repeat imports
@@ -111,7 +111,7 @@ FinanzFlow is a **personal finance dashboard** for managing German bank accounts
 | External Entity | Interaction | Direction |
 |---|---|---|
 | **User / Browser** | HTTP(S) requests to REST API; renders React SPA | Bidirectional |
-| **Bank PDF (N26 / DKB / ING)** | Uploaded via `POST /api/import/pdf`; parsed server-side | Inbound |
+| **Bank PDF (N26 / DKB / Trade Republic / ING)** | Uploaded via `POST /api/import/pdf`; parsed server-side | Inbound |
 | **Paperless-ngx (REQ-016)** | Same Raspberry Pi/Docker network. FinanzFlow pulls documents tagged `Kontoauszug` via its REST API (`PAPERLESS_BASE_URL` + token) and downloads the PDF; the existing parser processes it identically to a manual upload | Inbound |
 | **OS `prefers-color-scheme`** | Read once at startup to determine initial theme | Inbound |
 | **Docker / docker-compose** | Starts/stops and restarts the container on the Raspberry Pi | Outbound |
@@ -399,6 +399,7 @@ Browser                     Server                      SQLite
   │                           │ extractPDFText(buffer)     │
   │                           │ detectBank(text)           │
   │                           │ parseN26 / parseDKB /      │
+  │                           │   parseTradeRepublic /     │
   │                           │   parseGeneric             │
   │                           │ suggestCategory(desc)  ────►│ (category_rules)
   │◄── ParseResult JSON ──────│                            │
@@ -726,7 +727,7 @@ Chart colors (Sankey diagram) are passed as props from the theme-aware parent co
 
 **Context:** Banks provide account statements as PDF files. Text must be extracted and parsed into structured transactions.
 
-**Decision:** Parse PDFs server-side using `pdf2json`, with bank-specific parsers for N26, DKB, and ING, and a generic fallback.
+**Decision:** Parse PDFs server-side using `pdf2json`, with bank-specific parsers for N26, DKB, and Trade Republic (ING is detected but uses the generic fallback), and a generic fallback for unrecognized banks.
 
 **Consequences:**
 - ✅ No sensitive financial data sent to third-party OCR services

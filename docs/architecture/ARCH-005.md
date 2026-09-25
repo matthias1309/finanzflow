@@ -7,8 +7,8 @@
 
 ## Summary
 
-Server-side parsing of uploaded bank-statement PDFs (N26, DKB, generic fallback) into a
-transaction preview, with per-transaction category suggestions from the learning system
+Server-side parsing of uploaded bank-statement PDFs (N26, DKB, Trade Republic, generic fallback)
+into a transaction preview, with per-transaction category suggestions from the learning system
 ([ARCH-006](ARCH-006.md)). The confirmed transactions are then saved via the batch endpoint
 ([ARCH-011](ARCH-011.md)). See `docs/architecture/ARC42.md` §6.3 (PDF Import) for the sequence
 diagram and §8.1 for ReDoS/upload-safety notes.
@@ -24,7 +24,7 @@ diagram and §8.1 for ReDoS/upload-safety notes.
 | `pdfRateLimiter` | `server/routes/pdf.ts` | 10 uploads / 15 min per IP (AC-005-10) — no test-env skip, unlike `authRateLimiter` |
 | `parsePDF` | `server/pdfParser.ts` | Orchestrates: extract text → `detectBank` → bank-specific parser → generic fallback → dedup |
 | `detectBank` | `server/pdfParser.ts` | Keyword/BIC matching against `rawText`; returns `"N26"`, `"DKB"`, `"ING"`, or `"Sonstige"` |
-| `parseN26`, `parseDKB`, `parseGeneric` | `server/pdfParser.ts` | Bank-specific line parsers, regex-bounded (`.{1,100}`) to prevent ReDoS |
+| `parseN26`, `parseDKB`, `parseTradeRepublic`, `parseGeneric` | `server/pdfParser.ts` | Bank-specific line parsers, regex-bounded (`.{1,100}`) to prevent ReDoS |
 | `parseGermanAmount`, `parseGermanDate` | `server/pdfParser.ts` | Locale-specific number/date parsing shared by all parsers |
 
 **Upload validation (AC-005-04, AC-005-05, AC-005-06)**
@@ -39,13 +39,32 @@ diagram and §8.1 for ReDoS/upload-safety notes.
 4. A 10-second processing timeout (`Promise.race`) guards against a PDF that parses technically
    correctly but pathologically slowly.
 
-**Bank detection and fallback (AC-005-01, AC-005-02, AC-005-03)**
+**Bank detection and fallback (AC-005-01, AC-005-02, AC-005-03, AC-005-11)**
 
-`parsePDF` tries the bank-specific parser first (N26/DKB); if that yields zero transactions —
-either because `detectBank` returned "Sonstige"/"ING" (no dedicated parser exists for ING despite
-being in the detection table) or because the bank-specific parser found nothing — it falls back to
-`parseGeneric`. This means "ING" is *detected* but has no ING-specific parser; ING statements are
-always parsed generically. REQ-005's bank table doesn't call this out explicitly.
+`parsePDF` tries the bank-specific parser first (N26/DKB/Trade Republic); if that yields zero
+transactions — either because `detectBank` returned "Sonstige"/"ING" (no dedicated parser exists
+for ING despite being in the detection table) or because the bank-specific parser found nothing —
+it falls back to `parseGeneric`. This means "ING" is *detected* but has no ING-specific parser;
+ING statements are always parsed generically. REQ-005's bank table doesn't call this out
+explicitly.
+
+**Trade Republic parser (AC-005-11)**
+
+`parseTradeRepublic` targets the `BARMITTELÜBERSICHT` cash-movement table in the "Kontoauszug"
+PDF. Two things distinguish it from the N26/DKB layouts:
+
+- **Date format** — `DD Mon. YYYY` with an abbreviated German month name (e.g. `28 Aug. 2026`),
+  not `DD.MM.YYYY`. `parseTradeRepublicDate` maps the first three letters of the month name via
+  `GERMAN_MONTH_ABBREVIATIONS`, independent of the shared `parseGermanDate` helper.
+- **Sign from keyword, not column position** — the extracted text collapses the
+  `ZAHLUNGSEINGANG`/`ZAHLUNGSAUSGANG` two-column layout into a single trailing amount per line, so
+  the `TYP` keyword (`Ertrag`, `Zinsen`, `Auszahlung`, …) decides `income` vs. `expense` via
+  `EXPENSE_TYPE_KEYWORDS`, rather than which column the amount appeared in.
+- **Fund-purchase table exclusion** — the statement's second table (money-market-fund `Kauf` rows,
+  `STK`/`KURS PRO STÜCK` columns) matches the same `date · word · … · amount € · amount €` line
+  shape but has no text description, only a bare `STK` number. `parseTradeRepublic` requires the
+  description capture group to contain at least one letter, which excludes these rows without
+  needing per-section table detection.
 
 **Category suggestion (integration with ARCH-006)**
 

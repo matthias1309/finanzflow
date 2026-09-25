@@ -63,6 +63,7 @@ export function detectBank(text: string): string {
   if (t.includes("ntsbdeb1") || t.includes("n26 bank") || (t.includes("n26") && t.includes("balance-audit"))) return "N26";
   if (t.includes("deutsche kreditbank") || t.includes("dkb") || t.includes("byladem1001")) return "DKB";
   if (t.includes("ing-diba") || t.includes("ing diba") || t.includes("ing bank") || t.includes("ingddeff")) return "ING";
+  if (t.includes("trade republic") || t.includes("traderepublic") || t.includes("trbkdebb")) return "Trade Republic";
   return "Sonstige";
 }
 
@@ -250,6 +251,72 @@ const TX_LINE = /^(\d{2}\.\d{2}\.\d{2})\s{2,}(.{1,100}?)\s{2,}(-?\d+\.\d{2})\s*$
   return results;
 }
 
+// ─── Trade Republic parser ────────────────────────────────────────────────────
+// Trade Republic "Kontoauszug" cash-movement layout (BARMITTELÜBERSICHT section):
+//   DD Mon. YYYY    TYP     BESCHREIBUNG              BETRAG €              SALDO €
+// The date uses an abbreviated German month name (e.g. "Aug.", "Mai") instead of
+// DD.MM.YYYY, and only one amount column is present in the extracted text — the
+// TYP keyword (not column position) determines whether it is income or an expense.
+
+const GERMAN_MONTH_ABBREVIATIONS: Record<string, string> = {
+  jan: "01", feb: "02", mär: "03", mae: "03", apr: "04", mai: "05", jun: "06",
+  jul: "07", aug: "08", sep: "09", okt: "10", nov: "11", dez: "12",
+};
+
+const EXPENSE_TYPE_KEYWORDS = new Set(["auszahlung", "belastung", "gebühr", "lastschrift", "abbuchung", "kauf"]);
+
+function parseTradeRepublicDate(s: string): { iso: string; month: string } | null {
+  const m = s.match(/^(\d{1,2})\s+([A-Za-zÄÖÜäöüß]+)\.?\s+(\d{4})$/);
+  if (!m) return null;
+  const day = m[1].padStart(2, "0");
+  const monthAbbreviation = m[2].slice(0, 3).toLowerCase();
+  const month = GERMAN_MONTH_ABBREVIATIONS[monthAbbreviation];
+  if (!month) return null;
+  return { iso: `${m[3]}-${month}-${day}`, month: `${m[3]}-${month}` };
+}
+
+// Längenbegrenzung auf 100 Zeichen verhindert ReDoS durch exponentielles Backtracking
+const TRADE_REPUBLIC_TX_LINE =
+  /^(\d{1,2}\s+[A-Za-zÄÖÜäöüß]{2,10}\.?\s+\d{4})\s+([A-Za-zÄÖÜäöüß]{2,20})\s{2,}(.{1,100}?)\s+(\d{1,3}(?:\.\d{3})*,\d{2})\s*€\s+(?:\d{1,3}(?:\.\d{3})*,\d{2})\s*€\s*$/;
+
+export function parseTradeRepublic(text: string): ParsedTransaction[] {
+  const results: ParsedTransaction[] = [];
+  const pages = text.split(/----------------Page \(\d+\) Break----------------/);
+
+  for (const page of pages) {
+    const lines = page.split("\n").map(l => l.trim()).filter(l => l.length > 0);
+
+    for (const line of lines) {
+      const match = line.match(TRADE_REPUBLIC_TX_LINE);
+      if (!match) continue;
+
+      const dateInfo = parseTradeRepublicDate(match[1]);
+      if (!dateInfo) continue;
+
+      const typ = match[2];
+      const description = match[3].replace(/\s+/g, " ").trim();
+      // Guards against the GELDMARKTFONDS purchase table, which uses the same
+      // "date  word  ...  amount €  amount €" shape but has a bare STK number
+      // (no letters) where a cash-movement row always has a text description.
+      if (!/[A-Za-zÄÖÜäöüß]/.test(description)) continue;
+
+      const amount = parseGermanAmount(match[4]);
+      if (isNaN(amount)) continue;
+
+      results.push({
+        date: dateInfo.iso,
+        month: dateInfo.month,
+        description,
+        amount: Math.abs(amount),
+        originalText: line,
+        type: EXPENSE_TYPE_KEYWORDS.has(typ.toLowerCase()) ? "expense" : "income",
+      });
+    }
+  }
+
+  return results;
+}
+
 // ─── Generic parser (ING, DKB, fallback) ─────────────────────────────────────
 // Matches lines like: "01.04.2026  Buchungstext  +3.200,00" or "01.04.2026  03.04.2026  Text  -45,50"
 
@@ -323,6 +390,8 @@ export async function parsePDF(buffer: Buffer): Promise<ParseResult> {
     txs = parseN26(rawText);
   } else if (bank === "DKB") {
     txs = parseDKB(rawText);
+  } else if (bank === "Trade Republic") {
+    txs = parseTradeRepublic(rawText);
   }
   // If bank-specific parser yielded nothing, try generic
   if (txs.length === 0) {
