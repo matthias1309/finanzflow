@@ -92,6 +92,9 @@ function tryExec(sql: string): void {
 tryExec("ALTER TABLE recovery_codes ADD COLUMN user_id INTEGER");
 
 // ─── Admin-User Seeding (ENV-Sync bei jedem Start) ────────────────────────────
+// APP_PASSWORD_HASH seeds only the *initial* password on creation (AC-015-14). If the user
+// already exists, its password hash is left untouched (AC-015-15) — otherwise a password set via
+// the UI (AC-015-09/AC-015-10) would be silently reverted on every restart.
 const seedUsername = process.env.APP_USER ?? "";
 const seedHash     = process.env.APP_PASSWORD_HASH ?? "";
 
@@ -99,8 +102,7 @@ if (seedUsername && seedHash) {
   const existingUser = sqlite.prepare("SELECT id FROM users WHERE username = ?").get(seedUsername) as { id: number } | undefined;
 
   if (existingUser) {
-    sqlite.prepare("UPDATE users SET password_hash = ?, is_admin = 1 WHERE username = ?")
-      .run(seedHash, seedUsername);
+    sqlite.prepare("UPDATE users SET is_admin = 1 WHERE username = ?").run(seedUsername);
   } else {
     sqlite.prepare(
       "INSERT INTO users (username, password_hash, is_admin, totp_enabled, created_at) VALUES (?, ?, 1, 0, ?)"
