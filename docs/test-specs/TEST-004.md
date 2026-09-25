@@ -191,3 +191,28 @@ Then accountSummaries[Gemeinschaftskonto].transfersIn contains the value 250
 
 **Notes:** Covered by `GET /api/summary/:month — Überträge` → `addiert mehrere eingehende
 Überträge`.
+
+---
+
+### TC-004-13 — Opposing transfers between the same two accounts net to a single flow
+
+**Maps to:** AC-004-13
+**Type:** integration
+**File:** `tests/server/api/summary.test.ts`
+
+```gherkin
+Given "Tagesgeldkonto" transfers 1000 € to "Hauptkonto"
+And "Hauptkonto" transfers 700 € to "Tagesgeldkonto" in the same month
+When GET /api/summary/2026-04 is called
+Then accountSummaries[Tagesgeldkonto].transfersOut[Hauptkonto] is 300
+And accountSummaries[Hauptkonto].transfersOut does not contain an entry for Tagesgeldkonto
+And accountSummaries[Hauptkonto].transfersIn is 300
+And accountSummaries[Tagesgeldkonto].transfersIn is 0
+```
+
+**Notes:** Regression test for the reported bug: without netting, `accountSummaries` carries two
+opposing `transfersOut` entries between the same account pair, which `SankeyChart` turns into a
+2-node cycle that `d3-sankey` cannot lay out (`Error("circular link")`, uncaught, blanking the
+Dashboard). Also covers the reverse-amount case (equal opposing transfers net to zero on both
+sides, i.e. neither account keeps a `transfersOut` entry for the other) as a second test in the
+same `describe` block, since AC-004-13 implies it.

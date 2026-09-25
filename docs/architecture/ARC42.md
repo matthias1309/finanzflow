@@ -633,6 +633,7 @@ Both `POST /api/transactions/batch` and `POST /api/category-rules/learn` are lim
 
 - `apiRequest()` in `queryClient.ts` calls `throwIfResNotOk(res)` on every response. Non-2xx responses throw an `Error` with the status code and body text.
 - React Query propagates errors to the component via `isError` / `error`. Components show toast notifications on mutation failure.
+- `ChartErrorBoundary` (`client/src/components/ChartErrorBoundary.tsx`, ARCH-009) wraps the Sankey chart on the Dashboard: a React class-component error boundary that catches rendering errors from its child (e.g. `d3-sankey` throwing on a cyclic account-transfer graph) and shows a fallback message in place of the chart instead of letting the error unmount the whole app. Scoped to the chart only, so a chart failure never takes the KPI cards or navigation down with it.
 
 ### 8.3 Logging
 

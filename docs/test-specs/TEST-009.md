@@ -3,7 +3,7 @@
 **Status:** approved
 **Created:** 2026-09-23
 **Traces:** ARCH-009
-**Verifies:** REQ-009 (AC-009-01 … AC-009-07)
+**Verifies:** REQ-009 (AC-009-01 … AC-009-08)
 
 All ACs are E2E/UI-rendering concerns (client-only feature, ARCH-009); the underlying summary data
 and transfer accounting are already covered by TEST-004.
@@ -101,3 +101,43 @@ the skeleton state. See Test Gap Backlog (**low**).
 
 **Notes:** No test changes the month selector and asserts the Sankey header text or diagram
 content updates accordingly. See Test Gap Backlog.
+
+---
+
+### TC-009-08 — Chart rendering errors do not crash the Dashboard
+
+**Maps to:** AC-009-08
+**Type:** e2e
+**File:** `tests/e2e/dashboard.spec.ts`
+**Status:** written, not executed — the Playwright-managed dev server in the session's sandbox
+threw `SqliteError: attempt to write a readonly database` (`SQLITE_READONLY_DBMOVED`) on the first
+write after login, reproducibly, even on a from-scratch run with `globalSetup`'s own DB deletion
+and no other process touching the file. Confirmed unrelated to this change: the same error hits
+the pre-existing, unmodified `seedData()`-based tests (`Account KPI card appears after seeding
+data`, etc.) identically. Not investigated further as a code bug — `server/db.ts` opens
+`better-sqlite3` with no unusual flags, and the same `createAccount` call succeeds repeatedly
+outside Playwright's process orchestration (manual `curl` against a manually started `npm run
+dev`). Left as a sandbox/environment limitation for this session, not a REQ/ARCH gap. The two
+`ChartErrorBoundary` render paths (fallback shown on error, children shown otherwise) are ordinary,
+well-established React error-boundary behavior (`getDerivedStateFromError`/`componentDidCatch`) —
+correctness was instead verified by directly tracing the *unfixed* code in a real browser (before
+`ChartErrorBoundary` existed), which reproduced the reported white-page bug exactly as described,
+confirming the diagnosis this component addresses.
+
+```gherkin
+Given three accounts "Konto A", "Konto B", "Konto C" each transfer to the next
+  (A→B, B→C, C→A), seeded directly via the API — a 3-node cycle AC-004-13's pairwise
+  netting does not remove
+When the Dashboard is displayed
+Then the KPI cards are visible
+And the Sankey card shows a fallback message instead of a broken or missing chart
+And no unhandled error leaves the page blank
+```
+
+**Notes:** Regression test for the originally reported bug (white page on mutual transfers) and
+its safety net. Seeds data through `POST /api/transactions` (per `testing-practices.md`, data
+setup is never done through the UI). Uses a 3-account cycle rather than the 2-account reciprocal
+case, because TC-004-13's netting already prevents the 2-account case from ever reaching
+`SankeyChart` as a cycle — a 3-account cycle is unaffected by pairwise netting (ARCH-004 Key
+Decisions) and reliably still reaches `d3-sankey` as an unlaid-out graph, so this test exercises
+`ChartErrorBoundary` itself rather than depending on netting to produce the failure.

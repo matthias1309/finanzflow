@@ -76,3 +76,57 @@ test("Clicking an account KPI card toggles visibility", async ({ page }) => {
 test("Sankey card is rendered on the Dashboard", async ({ page }) => {
   await expect(page.getByTestId("sankey-card")).toBeVisible();
 });
+
+// ─── Helper: seed a 3-account transfer cycle (A→B→C→A) via the API ───────────
+// AC-004-13's pairwise netting only removes a 2-account reciprocal cycle, so a 3-account
+// cycle still reaches d3-sankey as an unlaid-out graph — this exercises ChartErrorBoundary
+// itself, independent of the netting fix (see ARCH-009 "Crash resilience").
+async function seedTransferCycle(page: Page) {
+  const base = page.context().request;
+  const today = new Date();
+  const month = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
+
+  async function createAccount(name: string): Promise<number> {
+    const res = await base.post("/api/accounts", {
+      data: { name, bank: "ING", color: "#01696f", type: "checking", iban: null },
+    });
+    return (await res.json()).id as number;
+  }
+
+  const accountA = await createAccount("Zyklus-Konto A");
+  const accountB = await createAccount("Zyklus-Konto B");
+  const accountC = await createAccount("Zyklus-Konto C");
+
+  for (const [from, to] of [
+    [accountA, accountB],
+    [accountB, accountC],
+    [accountC, accountA],
+  ]) {
+    await base.post("/api/transactions", {
+      data: {
+        month,
+        date: `${month}-15`,
+        description: "Umbuchung",
+        amount: 100,
+        accountId: from,
+        type: "transfer",
+        transferToAccountId: to,
+      },
+    });
+  }
+}
+
+// TC-009-08
+test("A Sankey chart crash shows a fallback instead of a blank Dashboard", async ({ page }) => {
+  const { accountId } = await seedData(page);
+  await seedTransferCycle(page);
+  await page.reload();
+
+  // Rest of the Dashboard stays usable — this is the point of a chart-scoped boundary.
+  await expect(page.getByTestId("select-month")).toBeVisible();
+  await expect(page.getByTestId(`account-kpi-${accountId}`)).toBeVisible();
+
+  // Chart falls back instead of leaving the card broken or the page blank.
+  await expect(page.getByTestId("sankey-chart-error")).toBeVisible();
+  await expect(page.locator("body")).not.toBeEmpty();
+});

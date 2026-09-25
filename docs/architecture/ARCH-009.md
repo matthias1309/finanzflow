@@ -21,6 +21,7 @@ and §8.1 ("CSS Injection Prevention" — `safeCssColor()`).
 |---|---|---|
 | `SankeyChart` | `client/src/components/SankeyChart.tsx` | Builds the three-layer node/link graph, runs the d3-sankey layout, renders SVG |
 | `safeCssColor` | `client/src/lib/config.ts` (ARC42 §8.1) | Sanitizes category/account colors from the DB before they reach SVG `fill`/`stroke` |
+| `ChartErrorBoundary` | `client/src/components/ChartErrorBoundary.tsx` | React error boundary wrapping `SankeyChart` in `Dashboard.tsx`; catches rendering/layout errors and shows a fallback message instead of crashing the Dashboard (AC-009-08) |
 
 **Graph construction (AC-009-01, AC-009-02, AC-009-03, AC-009-04)**
 
@@ -60,6 +61,22 @@ The chart re-renders whenever the Dashboard's selected month changes, since it c
 `GET /api/summary/:month` response as the KPI cards — no independent month state in `SankeyChart`
 itself.
 
+**Crash resilience (AC-009-08)**
+
+`d3-sankey`'s layout algorithm requires the account-transfer subgraph to be acyclic; it throws
+`Error("circular link")` when it isn't. Before ARCH-004's AC-004-13 netting pass existed, a
+household that recorded reciprocal transfers between two accounts in the same month (e.g. a
+sweep back and forth between checking and savings) produced exactly this cycle, and the thrown
+error — uncaught inside `SankeyChart`'s `useEffect` — unmounted the whole React tree, leaving a
+blank page with no way to recover short of a reload. `Dashboard.tsx` now wraps `SankeyChart` in
+`ChartErrorBoundary`, a standard React class-component error boundary
+(`static getDerivedStateFromError` / `componentDidCatch`), so any *remaining* rendering error
+(chart bugs, unexpected data shapes, cycles ARCH-004's netting doesn't cover — see ARCH-004 Key
+Decisions) degrades to a fallback message inside the chart's card instead of taking down the KPI
+cards and the rest of the Dashboard with it. This is layered defense, not a substitute for the
+data-level fix: netting removes the common cycle at its source; the boundary only catches whatever
+netting doesn't.
+
 ## Key Decisions
 
 - **No server-side graph-shaping endpoint** — `summary.ts`'s `accountSummaries` structure
@@ -70,6 +87,11 @@ itself.
 - **Static SVG, not interactive** (REQ-009 Notes) — no click/hover/drill-down; keeps the component
   simple and matches the "quick visual overview" use case rather than an exploratory analytics
   tool.
+- **Chart-scoped error boundary instead of a global one** — `ChartErrorBoundary` wraps only
+  `SankeyChart`, not the whole `Dashboard` or `App`. The KPI cards derive from the same
+  `accountSummaries` data and don't share the chart's layout computation, so they have no reason
+  to fail alongside it; scoping the boundary tightly keeps the rest of the Dashboard usable when
+  only the chart breaks (AC-009-08's "rest of the Dashboard remains functional").
 
 ## Out of Scope
 
@@ -85,3 +107,8 @@ itself.
   contains the expected nodes/links/colors for given data, that hidden/empty accounts are excluded
   from it (AC-009-03/04), that dark/light theming applies (AC-009-05), or that changing the month
   updates its header/content (AC-009-07). See Test Gap Backlog.
+- **`ChartErrorBoundary` only catches errors thrown during React's render/commit lifecycle**, per
+  the React error-boundary contract — this includes errors thrown synchronously inside a child's
+  `useEffect` (which is how `SankeyChart`'s d3-sankey call is caught today), but not errors thrown
+  from event handlers or from genuinely asynchronous code (`setTimeout`, a rejected promise outside
+  React's commit). Worth remembering if the chart's rendering ever moves behind an `async` call.
