@@ -197,7 +197,8 @@ client/src/
 ├── App.tsx                   Root — router, providers (QueryClient, Toaster)
 ├── lib/
 │   ├── config.ts             API_BASE resolution, safeCssColor()
-│   └── queryClient.ts        QueryClient factory, apiRequest() helper
+│   ├── queryClient.ts        QueryClient factory, apiRequest() helper
+│   └── transferDetection.ts  useTransferDetection() hook, row updates, deleteReplacedIncomes() (REQ-017)
 ├── pages/
 │   ├── Dashboard.tsx         KPI cards, account visibility toggle, Sankey chart
 │   ├── Accounts.tsx          Account CRUD (create, edit, delete)
@@ -209,6 +210,7 @@ client/src/
 │   ├── Login.tsx             Login form (username + password → TOTP → authenticated)
 │   └── not-found.tsx         404 fallback
 └── components/
+    ├── TransferCell.tsx      Import-preview marker "Umbuchung" / "Gegenbuchung" + target select (REQ-017)
     └── ui/                   shadcn/ui primitives (Button, Dialog, Select, Switch, …)
 ```
 
@@ -220,6 +222,7 @@ client/src/
 | `Dashboard.tsx` | Computes `filteredSummary` (visibility-filtered account data) in a `useMemo`, passes it to `SankeyChart` |
 | `ImportPDF.tsx` | Uploads PDF → receives parsed preview → user confirms → `POST /api/transactions/batch` → `POST /api/category-rules/learn` |
 | `ImportPaperless.tsx` | Manages `paperless_account_mappings`; lists open Paperless documents via `GET /api/paperless/documents`; reuses the same preview → `POST /api/transactions/batch` → `POST /api/category-rules/learn` flow as `ImportPDF.tsx`, then calls `POST /api/paperless/documents/:id/confirm` to mark the document imported |
+| `TransferCell.tsx` | Shared by both import pages: shows the transfer / counter-booking suggestion from `POST /api/transfers/detect` and lets the user override it (ARCH-017) |
 | `Users.tsx` | Admin-only page: lists users with admin badge and TOTP status; dialogs for create, set password, delete, 2FA reset |
 | `Layout.tsx` | Renders nav items; adds `/users` link only when `GET /api/auth/me` returns `isAdmin: true`; shows logged-in username |
 
@@ -237,6 +240,7 @@ server/
 ├── storage.ts        IStorage interface + implementation (Drizzle ORM façade)
 ├── pdfParser.ts      PDF text extraction + bank-specific + generic parsers
 ├── paperlessClient.ts HTTP client for Paperless-ngx REST API (REQ-016): tag resolution + PDF download
+├── transferDetection.ts detectTransfers(): pure transfer / counter-booking matching (REQ-017)
 ├── static.ts         Production static file serving from dist/public/
 ├── vite.ts           Vite dev server in middleware mode
 └── routes/
@@ -248,7 +252,8 @@ server/
     ├── summary.ts          GET /api/summary/:month → Sankey data
     ├── categoryRules.ts    GET /api/category-rules + POST /learn
     ├── pdf.ts              POST /api/import/pdf (multer, pdf2json)
-    └── paperless.ts         GET/POST/PUT/DELETE /api/paperless/mappings, GET /documents, POST /documents/:id/import, POST /documents/:id/confirm (REQ-016)
+    ├── paperless.ts         GET/POST/PUT/DELETE /api/paperless/mappings, GET /documents, POST /documents/:id/import, POST /documents/:id/confirm (REQ-016)
+    └── transfers.ts         POST /api/transfers/detect — read-only transfer suggestions for the import preview (REQ-017)
 ```
 
 **Component responsibilities:**
@@ -261,6 +266,7 @@ server/
 | `auth.ts` | `requireAuth`: session guard (bypassed in dev/test). `requireAdmin`: checks `isAdmin` flag in DB for the session's `userId` |
 | `pdfParser.ts` | `parsePDF(buffer)` → detects bank → runs bank-specific parser → deduplicates → returns `ParseResult` |
 | `paperlessClient.ts` | `fetchKontoauszugDocuments()` resolves tag IDs → names and returns documents tagged `Kontoauszug`; `downloadDocument(id)` returns the PDF as a `Buffer`. Throws typed errors (`PaperlessConfigError`/`PaperlessUnreachableError`/`PaperlessAuthError`/`PaperlessApiError`) mapped to HTTP status by `routes/paperless.ts` |
+| `transferDetection.ts` | `detectTransfers()` — IBAN strategy (counterparty IBAN = own account IBAN) before match strategy (same amount, opposite direction, ±3 days, exactly one candidate); no I/O (ARCH-017) |
 | `summary.ts` | Aggregates transactions by account and category for a given month; shapes data for the Sankey diagram |
 | `categoryRules.ts` | Learns keyword→category mappings from confirmed imports; applies longest-match rule on suggestion |
 
@@ -455,6 +461,32 @@ Browser                     Server                      Paperless-ngx        SQL
 ```
 
 Die Klassifizierung in `resolveDocument()` (`server/routes/paperless.ts`) filtert den Tag `Kontoauszug` heraus und wertet die verbleibenden Tags aus: keiner → `unmapped`, genau einer ohne Mapping → `unmapped` (mit `matchedTag` zur Anzeige), genau einer mit Mapping → `resolved`, mehr als einer → `ambiguous`. Bereits importierte Dokumente (`paperless_imports.paperless_document_id`) werden vor der Klassifizierung herausgefiltert.
+
+### 6.6 Transfer Detection in the Import Preview (REQ-017)
+
+```
+Browser                          Server                               SQLite
+  │  (ParseResult from 6.3 / 6.5, rows carry counterpartyIban)          │
+  │                                │                                    │
+  │ account selected / changed     │                                    │
+  │── POST /api/transfers/detect ─►│ safeParse(rows)                    │
+  │   [{accountId, date, amount,   │ getAccounts() ────────────────────►│
+  │     type, counterpartyIban}]   │ getTransactionsBetweenDates(       │
+  │                                │   min(date)−3d, max(date)+3d) ────►│
+  │                                │ detectTransfers(rows, accounts,    │
+  │                                │   candidates)   (pure)             │
+  │◄── { suggestions: [...] } ─────│                                    │
+  │                                │                                    │
+  │ applyTransferSuggestion():     │                                    │
+  │  transfer → type "transfer" + transferToAccountId ("Umbuchung")     │
+  │  counterBooking → skip = true ("Gegenbuchung von …")                │
+  │                                │                                    │
+  │── POST /api/transactions/batch (unchanged, see 6.3) ───────────────►│
+  │── DELETE /api/transactions/:id  (per replaced income, after save) ─►│
+```
+
+Detection writes nothing; the only deletion is a replaced stored income ("Ersetzt Einnahme vom …"), sent by the client after the batch save succeeded. Rows the user has edited by hand are not re-evaluated. Counterparty
+IBANs are never logged or persisted.
 
 ---
 
@@ -841,6 +873,23 @@ only `isAdmin = 1` continues to be (re-)enforced.
 
 ---
 
+### ADR-011 — Transfer detection as a stateless preview endpoint (REQ-017)
+
+**Context:** A transfer between own accounts appears on both statements (debit on the source, credit on the target). Imported naively, the credit is counted as income although the model already represents the target side through the source row's `transferToAccountId`. The parse endpoints do not know which account a statement belongs to — the user picks it in the preview, per row, and may change it.
+
+**Decision:** Add a read-only `POST /api/transfers/detect` that takes the preview rows (with their selected account and the parser's counterparty IBAN) and returns one suggestion per row, computed by a pure `detectTransfers()` function: counterparty IBAN of another own account first, else a unique same-amount opposite-direction stored transaction within ±3 days. The client re-runs it on every account change and never overrides manual edits. Counter-bookings are skipped by default, not stored. If the counter-booking of a detected outgoing transfer is already stored as an income, the client deletes it after the batch save. Counterparty IBANs stay transient.
+
+**Consequences:**
+- ✅ `parsePDF()` stays DB-free (ADR-003); the save path (`POST /api/transactions/batch`) and the data model stay unchanged — no schema migration
+- ✅ All matching rules are unit-testable in one pure function shared by the PDF and Paperless import
+- ✅ Fail-safe: ambiguity yields no suggestion; every suggestion is visible and overridable before saving
+- ⚠️ One extra request per account change in the preview
+- ⚠️ Saving the transfer and deleting a replaced stored income are two requests, not atomic — a failed delete leaves the double count and is reported to the user
+- ⚠️ If the source statement is never imported, skipping the counter-booking leaves the target account without that inflow
+- ⚠️ Counterparty-IBAN detection only works for parsers that extract it (N26, DKB at first)
+
+---
+
 ### ADR-006 — esbuild CJS bundle for production server
 
 **Context:** The server is written in ESM TypeScript. The Raspberry Pi Docker image runs Node.js 18 (alpine). `better-sqlite3` and `pdf2json` are native CJS modules.
@@ -999,5 +1048,6 @@ Previously: browsers cached Basic Auth credentials with no explicit logout mecha
 | **PDF2JSON** | A Node.js library that extracts raw text from PDF files. Used for bank statement parsing. |
 | **category rule** | A learned keyword→category mapping. Stored in `category_rules` table. Applied automatically on the next PDF import to pre-suggest categories. |
 | **transfer** | A transaction of `type = "transfer"` that moves money between two own accounts. Shown as a horizontal band in the Sankey diagram; excluded from income/expense totals. |
+| **Counter-booking (Gegenbuchung)** | The credit on the target account that mirrors a transfer already represented by the source account's `transfer` row. Skipped on import by default to avoid double-counting (REQ-017). |
 | **Paperless-ngx** | A self-hosted document management system. FinanzFlow (REQ-016) reads bank statement PDFs tagged `Kontoauszug` from it via its REST API instead of requiring a manual upload. |
 | **Paperless-Tag-Mapping** | A row in `paperless_account_mappings` associating a Paperless-ngx tag (e.g. `Essenskonto`) with a FinanzFlow account. Configured explicitly by the user — no automatic name matching. |

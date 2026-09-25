@@ -10,6 +10,18 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, FileText, AlertCircle, Trash2, Plus, Download, Tags } from "lucide-react";
+import { TransferCell } from "@/components/TransferCell";
+import {
+  INITIAL_TRANSFER_STATE,
+  deleteReplacedIncomes,
+  replacedIncomeWarning,
+  toDetectionRow,
+  transferPayloadFields,
+  useTransferDetection,
+  withSkip,
+  withTransferTarget,
+  type TransferState,
+} from "@/lib/transferDetection";
 
 interface PaperlessMapping {
   id: number;
@@ -35,6 +47,7 @@ interface ParsedTx {
   amount: number;
   originalText: string;
   type: "income" | "expense";
+  counterpartyIban: string | null;
   suggestedCategoryId: number | null;
 }
 
@@ -45,9 +58,8 @@ interface ParseResult {
   errors: string[];
 }
 
-interface PreviewRow extends ParsedTx {
+interface PreviewRow extends ParsedTx, TransferState {
   categoryId: number | null;
-  skip: boolean;
 }
 
 function fmtEUR(v: number): string {
@@ -180,11 +192,17 @@ function PreviewSection({ documentId, parseResult, accounts, categories, default
   const qc = useQueryClient();
   const [accountId, setAccountId] = useState<number | null>(defaultAccountId);
   const [rows, setRows] = useState<PreviewRow[]>(
-    parseResult.transactions.map(tx => ({ ...tx, categoryId: tx.suggestedCategoryId, skip: false }))
+    parseResult.transactions.map(tx => ({
+      ...tx, categoryId: tx.suggestedCategoryId, skip: false, ...INITIAL_TRANSFER_STATE,
+    }))
   );
   const [importing, setImporting] = useState(false);
 
-  const toggleSkip = (idx: number) => setRows(prev => prev.map((r, i) => i === idx ? { ...r, skip: !r.skip } : r));
+  useTransferDetection(rows.map(row => toDetectionRow(row, accountId)), setRows);
+
+  const toggleSkip = (idx: number) => setRows(prev => prev.map((r, i) => i === idx ? withSkip(r, !r.skip) : r));
+  const setTransferTarget = (idx: number, target: number | null) =>
+    setRows(prev => prev.map((r, i) => i === idx ? withTransferTarget(r, target) : r));
   const setCategory = (idx: number, categoryId: number) =>
     setRows(prev => prev.map((r, i) => i === idx ? { ...r, categoryId } : r));
 
@@ -197,8 +215,8 @@ function PreviewSection({ documentId, parseResult, accounts, categories, default
     try {
       const payload = toImport.map(r => ({
         month: r.month, date: r.date, description: r.description, amount: Math.abs(r.amount),
-        accountId, categoryId: r.categoryId ?? null, type: r.type,
-        importSource: "pdf", originalText: r.originalText, transferToAccountId: null,
+        accountId, categoryId: r.categoryId ?? null, ...transferPayloadFields(r),
+        importSource: "pdf", originalText: r.originalText,
       }));
       await apiRequest("POST", "/api/transactions/batch", payload);
 
@@ -206,12 +224,17 @@ function PreviewSection({ documentId, parseResult, accounts, categories, default
       if (toLearn.length > 0) await apiRequest("POST", "/api/category-rules/learn", toLearn);
 
       await apiRequest("POST", `/api/paperless/documents/${documentId}/confirm`, { accountId });
+      const undeletedIncomes = await deleteReplacedIncomes(toImport);
 
       qc.invalidateQueries({ queryKey: ["/api/transactions"] });
       qc.invalidateQueries({ queryKey: ["/api/months"] });
       qc.invalidateQueries({ queryKey: ["/api/summary"] });
       qc.invalidateQueries({ queryKey: ["/api/paperless/documents"] });
       toast({ title: `${toImport.length} Buchungen importiert` });
+      // Only one toast is visible at a time — the warning must come last to stay on screen.
+      if (undeletedIncomes.length > 0) {
+        toast({ title: replacedIncomeWarning(undeletedIncomes), variant: "destructive" });
+      }
       onDone();
     } catch (e: unknown) {
       const message = e instanceof Error ? extractApiErrorMessage(e.message) : "Unbekannter Fehler";
@@ -266,6 +289,7 @@ function PreviewSection({ documentId, parseResult, accounts, categories, default
                 <th className="px-4 py-2.5 text-left text-xs text-muted-foreground uppercase tracking-wide font-medium">Datum</th>
                 <th className="px-4 py-2.5 text-left text-xs text-muted-foreground uppercase tracking-wide font-medium">Beschreibung</th>
                 <th className="px-4 py-2.5 text-left text-xs text-muted-foreground uppercase tracking-wide font-medium">Kategorie</th>
+                <th className="px-4 py-2.5 text-left text-xs text-muted-foreground uppercase tracking-wide font-medium">Umbuchung</th>
                 <th className="px-4 py-2.5 text-right text-xs text-muted-foreground uppercase tracking-wide font-medium">Betrag</th>
               </tr>
             </thead>
@@ -288,6 +312,15 @@ function PreviewSection({ documentId, parseResult, accounts, categories, default
                         ))}
                       </SelectContent>
                     </Select>
+                  </td>
+                  <td className="px-3 py-2">
+                    <TransferCell
+                      rowIndex={idx}
+                      row={row}
+                      accountId={accountId}
+                      accounts={accounts}
+                      onTargetChange={target => setTransferTarget(idx, target)}
+                    />
                   </td>
                   <td className="px-4 py-2 text-right tabular-nums font-medium text-xs whitespace-nowrap">
                     <span className={row.type === "income" ? "text-green-500" : "text-red-400"}>

@@ -1,6 +1,9 @@
 // pdf2json uses CommonJS — import via require to avoid ESM interop issues.
 // In the CJS bundle produced by esbuild, require() is available natively.
 import { createRequire as _createRequire } from "module";
+
+import { IBAN_PATTERN, normalizeIban } from "@shared/schema";
+
 // CJS bundle (production): require is provided by esbuild runtime — use it directly.
 // ESM dev (tsx): require is undefined — fall back to createRequire with the module URL.
 const _require = typeof require !== "undefined" ? require : _createRequire(import.meta.url);
@@ -13,6 +16,8 @@ export interface ParsedTransaction {
   amount: number;
   originalText: string;
   type: "income" | "expense";
+  /** IBAN of the other party, normalized; null when the statement shows none for this booking */
+  counterpartyIban: string | null;
 }
 
 export interface ParseResult {
@@ -37,6 +42,20 @@ export function parseGermanDate(s: string): { iso: string; month: string } | nul
   let year = m[3];
   if (year.length === 2) year = (parseInt(year) > 50 ? "19" : "20") + year;
   return { iso: `${year}-${mo}-${day}`, month: `${year}-${mo}` };
+}
+
+// Statement lines are short; the limit keeps IBAN extraction linear on hostile input.
+const MAX_IBAN_LINE_LENGTH = 100;
+const IBAN_LINE = /^IBAN:?\s+([A-Z0-9 ]{1,42})/i;
+// N26 prints "IBAN: … BIC: …" on one line, DKB pads columns with several spaces.
+const IBAN_LINE_END = /\s{2,}|\s+BIC\b/i;
+
+function extractIban(line: string): string | null {
+  if (line.length > MAX_IBAN_LINE_LENGTH) return null;
+  const match = line.match(IBAN_LINE);
+  if (!match) return null;
+  const iban = normalizeIban(match[1].split(IBAN_LINE_END)[0]);
+  return IBAN_PATTERN.test(iban) ? iban : null;
 }
 
 // ─── Extract text from PDF ────────────────────────────────────────────────────
@@ -131,9 +150,11 @@ const TX_LINE = /^(.{1,100}?)\s{2,}(\d{2}\.\d{2}\.\d{4})\s{2,}([+-]?\d{1,3}(?:\.
       // Skip IBAN lines, Wertstellung lines, type headers, page headers
       let description = nameRaw;
       const contextLines: string[] = [];
+      let counterpartyIban: string | null = null;
 
       for (let j = i - 1; j >= Math.max(0, i - 5); j--) {
         const prev = lines[j].trim();
+        counterpartyIban ??= extractIban(prev);
         if (!prev || SKIP_LINE.test(prev)) continue;
         // Stop if it looks like a previous transaction line
         if (TX_LINE.test(prev)) break;
@@ -168,6 +189,7 @@ const TX_LINE = /^(.{1,100}?)\s{2,}(\d{2}\.\d{2}\.\d{4})\s{2,}([+-]?\d{1,3}(?:\.
         amount: Math.abs(amount),
         originalText: line,
         type: amount >= 0 ? "income" : "expense",
+        counterpartyIban,
       });
     }
   }
@@ -219,11 +241,14 @@ const TX_LINE = /^(\d{2}\.\d{2}\.\d{2})\s{2,}(.{1,100}?)\s{2,}(-?\d+\.\d{2})\s*$
 
       // Look back for the description line (skip IBAN line immediately before)
       let description = nameRaw;
+      let counterpartyIban: string | null = null;
       for (let j = i - 1; j >= Math.max(0, i - 3); j--) {
         const prev = lines[j].trim();
         if (!prev) continue;
-        // Skip the IBAN line
-        if (/^IBAN\s+[A-Z]{2}\d/i.test(prev)) continue;
+        if (/^IBAN\s+[A-Z]{2}\d/i.test(prev)) {
+          counterpartyIban ??= extractIban(prev);
+          continue;
+        }
         // Skip previous TX lines
         if (TX_LINE.test(prev)) break;
         // Skip headers/footers
@@ -244,6 +269,7 @@ const TX_LINE = /^(\d{2}\.\d{2}\.\d{2})\s{2,}(.{1,100}?)\s{2,}(-?\d+\.\d{2})\s*$
         amount: Math.abs(amount),
         originalText: line,
         type: amount >= 0 ? "income" : "expense",
+        counterpartyIban,
       });
     }
   }
@@ -310,6 +336,7 @@ export function parseTradeRepublic(text: string): ParsedTransaction[] {
         amount: Math.abs(amount),
         originalText: line,
         type: EXPENSE_TYPE_KEYWORDS.has(typ.toLowerCase()) ? "expense" : "income",
+        counterpartyIban: null,
       });
     }
   }
@@ -361,6 +388,7 @@ export function parseGeneric(text: string): ParsedTransaction[] {
         amount,
         originalText: line,
         type: amount >= 0 ? "income" : "expense",
+        counterpartyIban: null,
       });
       break;
     }
